@@ -27,9 +27,21 @@ print(f"Float32: {acc*100:.2f}%\n")
 
 # Testa thresholds diferentes
 def ternarize(w, t):
+    # Criamos máscaras para identificar onde os pesos são relevantes
+    pos_mask = w > t
+    neg_mask = w < -t
+    
+    # Calculamos a média dos valores originais que sobreviveram ao threshold
+    # Isso preserva a magnitude média da camada
+    survivors = np.abs(w[pos_mask | neg_mask])
+    if survivors.size > 0:
+        alpha = np.mean(survivors)
+    else:
+        alpha = 1.0
+        
     out = np.zeros_like(w)
-    out[w >  t] =  1
-    out[w < -t] = -1
+    out[pos_mask] = alpha
+    out[neg_mask] = -alpha
     return out.astype("float32")
 
 for threshold in [0.1, 0.2, 0.3, 0.4, 0.5]:
