@@ -11,8 +11,10 @@ Regra de Ouro do Grupo:
 
 Arthur (Hardware):
 [ ] Instalar dependências do LiteX e Python no PC.
-[ ] Gerar o SoC básico com o núcleo VexRiscv (variante linux).
+[ ] Gerar o SoC básico com o núcleo VexRiscv (variante linux, estritamente RV32IMA).
 [ ] Sintetizar o SoC e testar na placa física (Piscar LED ou Hello World via UART em bare-metal).
+[ ] ⚠️ ENTREGAR MAPA DE MEMÓRIA (MOCK): Definir e compartilhar na Fase 1 o Esboço dos Endereços Base (ex: 0x80000000), Offsets, e o número do pino de Interrupção (IRQ) da NPU.
+[ ] Definir e formalizar o Endianness (ex: Little-Endian) para o empacotamento dos pesos.
 
 Gildo (Sistema Operacional):
 [ ] Instalar e configurar o Buildroot no PC.
@@ -36,12 +38,12 @@ Gilvan (Inteligência Artificial):
 
 Arthur (Hardware):
 [ ] Escrever o código Verilog da NPU Ternária (Apenas Somadores, Subtratores e Mux. ZERO multiplicadores).
-[ ] ⚠️ ENTREGAR MAPA DE MEMÓRIA: Definir o Endereço Base (ex: 0x80000000) e os Offsets de Controle, Status e Dados.
+[ ] Implementar pino de interrupção (IRQ) em hardware para sinalizar quando a NPU terminar a inferência, para evitar Polling que consome energia.
 
 Gildo (Sistema Operacional):
-[ ] Configurar Buildroot para gerar a Cross-Compiler Toolchain (riscv64-linux-gcc).
+[ ] Configurar Buildroot para gerar a Cross-Compiler Toolchain estritamente para 32 bits (riscv32-buildroot-linux-gnu-gcc ou equivalente, usando -march=rv32ima -mabi=ilp32).
 [ ] ⚠️ ENTREGAR TOOLCHAIN para o Gustavo e Gilvan.
-[ ] Escrever o arquivo .dts (Device Tree) criando o "node" da NPU com o endereço que o Arthur passou.
+[ ] Escrever o arquivo .dts (Device Tree) criando o "node" da NPU com o endereço base e o pino de interrupção (IRQ) que o Arthur passou.
 
 Gustavo (Driver de Kernel):
 [ ] Usar alloc_chrdev_region para criar o dispositivo /dev/npu_ternaria.
@@ -50,7 +52,7 @@ Gustavo (Driver de Kernel):
 
 Gilvan (Inteligência Artificial):
 [ ] Fazer script Python para ler os pesos ternários gerados na Fase 1.
-[ ] Empacotar 16 pesos (de 2-bits) dentro de blocos uint32_t (usando shift bitwise <<).
+[ ] Empacotar 16 pesos (de 2-bits) dentro de blocos uint32_t (garantir conformidade com a regra de Endianness definida com o Arthur).
 [ ] Exportar o arquivo automático weights.h em código C.
 
 =======================================
@@ -69,10 +71,11 @@ Gildo (Sistema Operacional):
 Gustavo (Driver de Kernel):
 [ ] Implementar o ioremap() para mapear o endereço físico do Arthur na memória virtual do Kernel.
 [ ] Usar copy_from_user() para puxar dados da IA, e usar writel() para injetar na NPU.
-[ ] Fazer lógica de Polling (while loop) para ler o Registrador de Status e esperar a NPU terminar.
+[ ] Implementar request_irq() para o pino de interrupção da NPU. A CPU deve "dormir" (wait_event_interruptible) enquanto a NPU trabalha, acordando apenas via IRQ (sem Polling).
 
 Gilvan (Inteligência Artificial):
 [ ] Escrever a Aplicação user_app.c: incluir o weights.h, ler imagem do SD, e abrir o /dev/npu_ternaria.
+[ ] Fazer a medição de tempo segregada: 1) Tempo movendo dados para o driver, 2) Tempo de inferência, 3) Tempo de retorno dos resultados.
 [ ] 🛠️ MOCK: Não espere o Driver nem a NPU. Faça a função calcular a rede na CPU (software puro) e meça o tempo com <sys/time.h>.
 
 =======================================
