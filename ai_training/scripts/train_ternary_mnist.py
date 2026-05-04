@@ -4,7 +4,7 @@ os.environ["TF_USE_LEGACY_KERAS"] = "1"
 import numpy as np
 import tensorflow as tf
 
-# Treina float32 rápido e testa vários thresholds
+
 (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
 x_train = x_train.reshape(-1, 784).astype("float32") / 255.0
 x_test  = x_test.reshape(-1, 784).astype("float32") / 255.0
@@ -25,14 +25,10 @@ model.fit(x_train, y_train, epochs=15, batch_size=256, validation_split=0.1, ver
 loss, acc = model.evaluate(x_test, y_test, verbose=0)
 print(f"Float32: {acc*100:.2f}%\n")
 
-# Testa thresholds diferentes
 def ternarize(w, t):
-    # Criamos máscaras para identificar onde os pesos são relevantes
     pos_mask = w > t
     neg_mask = w < -t
     
-    # Calculamos a média dos valores originais que sobreviveram ao threshold
-    # Isso preserva a magnitude média da camada
     survivors = np.abs(w[pos_mask | neg_mask])
     if survivors.size > 0:
         alpha = np.mean(survivors)
@@ -45,7 +41,7 @@ def ternarize(w, t):
     return out.astype("float32")
 
 for threshold in [0.1, 0.2, 0.3, 0.4, 0.5]:
-    # Aplica threshold em todas as Dense (exceto última)
+    
     original_weights = []
     dense_layers = [l for l in model.layers if isinstance(l, tf.keras.layers.Dense)][:-1]
     
@@ -56,7 +52,7 @@ for threshold in [0.1, 0.2, 0.3, 0.4, 0.5]:
 
     loss, acc = model.evaluate(x_test, y_test, verbose=0)
     
-    # Restaura pesos originais
+    
     for layer, w in zip(dense_layers, original_weights):
         layer.set_weights([w])
 

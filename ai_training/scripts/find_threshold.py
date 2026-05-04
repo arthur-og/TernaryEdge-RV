@@ -47,7 +47,6 @@ model.fit(x_train, y_train, epochs=15, batch_size=256, validation_split=0.1, ver
 loss, acc = model.evaluate(x_test, y_test, verbose=0)
 print(f"\nAcurácia Original (Float32): {acc*100:.2f}%\n")
 
-# 5. Calibração e Teste de Thresholds
 x_calib = x_train[:2000] # Agora x_train está definido com certeza
 
 print("Iniciando testes de ternarização com calibração...\n")
@@ -69,7 +68,7 @@ for factor in [0.1, 0.3, 0.5, 0.7, 0.9]:
     loss, acc_ternary = model.evaluate(x_test, y_test, verbose=0)
     print(f"Fator Std={factor:.1f} | Acurácia Ternária: {acc_ternary*100:.2f}%")
 
-    # Restaura pesos originais para o próximo teste
+    
     for layer, w in zip(dense_layers, orig_dense):
         layer.set_weights([w])
     for layer, w in zip(bn_layers, orig_bn):
