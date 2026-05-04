@@ -1,0 +1,7 @@
+ai_training/.venv/
+__pycache__/
+*.pyc
+*.h5
+*.keras
+*.npy
+*.csv
