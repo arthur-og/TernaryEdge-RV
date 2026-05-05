@@ -104,10 +104,10 @@ TernaryEdge-RV/
 
 This research project is collaboratively developed by:
 
-* **Arthur** - *Hardware Architecture & RTL Design* (LiteX, Verilog, SoC Generation)
-* **Gildo** - *OS Infrastructure* (Buildroot, Kernel Configuration, Device Tree)
-* **Gustavo** - *Kernel Driver Development* (LKM, MMIO, Hardware Synchronization)
-* **Gilvan** - *Artificial Intelligence & User Space* (QAT, C Application, Benchmarking)
+* **Arthur Oliveira Gomes** - *Hardware Architecture & RTL Design* (LiteX, Verilog, SoC Generation)
+* **Gildo Alves de Lima Junior** - *OS Infrastructure* (Buildroot, Kernel Configuration, Device Tree)
+* **Gustavo Alexandre dos Santos** - *Kernel Driver Development* (LKM, MMIO, Hardware Synchronization)
+* **Gilvan Alves Pastor Junior** - *Artificial Intelligence & User Space* (QAT, C Application, Benchmarking)
 
 ---
 
