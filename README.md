@@ -89,7 +89,7 @@ TernaryEdge-RV/
 ### 1. Prerequisites
 * **Hardware:** Vivado/Quartus toolchains, LiteX environment, Verilator (for simulation).
 * **Software:** Buildroot, 32-bit RISC-V Cross-Compiler (`riscv32-buildroot-linux-gnu-gcc` or multilib equivalent targeting `rv32ima`), QEMU.
-* **AI:** Python 3.10+, PyTorch, Larq / Brevitas.
+* **AI:** Python 3.10+, TensorFlow 2.17+, Larq 0.13+.
 
 ### 2. Quick Workflow
 1. **Train Model:** Run the Python pipeline in `ai_training/` to generate `weights.h`.
@@ -97,6 +97,30 @@ TernaryEdge-RV/
 3. **Compile App & Driver:** Cross-compile the LKM in `software/npu_driver/` and the user application.
 4. **Hardware Synthesis:** Generate the bitstream using LiteX in `hardware/` and flash your target FPGA.
 5. **Run Inference:** Boot Linux on the FPGA, load the driver (`insmod`), and execute the benchmark application.
+
+### 3. AI Pipeline (ai_training/)
+
+The AI pipeline uses **Larq** for Quantization-Aware Training with the Straight-Through Estimator (STE), producing strictly ternary weights `{-1, 0, +1}` — no scaling factors, ensuring true multiplierless hardware.
+
+```bash
+# Run the full pipeline (train -> validate -> pack -> export)
+cd ai_training
+.venv/Scripts/python.exe scripts/run_pipeline.py
+
+# Or skip training if you have a saved model
+.venv/Scripts/python.exe scripts/run_pipeline.py --skip-train
+
+# Adjust training hyperparameters
+.venv/Scripts/python.exe scripts/run_pipeline.py --epochs 30 --lr 5e-4
+```
+
+| Script | Purpose |
+|---|---|
+| `train_qat_mnist.py` | Standalone QAT training with Larq `ste_tern` quantizer |
+| `pack_weights.py` | Utility: pack 16 ternary weights into a single `uint32_t` |
+| `generate_weights_h.py` | Generate C header `weights.h` from trained model |
+| `run_pipeline.py` | **Unified pipeline**: train → validate → pack → export |
+| `notebooks/qat_exploration.ipynb` | Interactive notebook for experimentation |
 
 ---
 
