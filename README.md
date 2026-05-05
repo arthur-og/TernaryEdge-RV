@@ -33,15 +33,15 @@ The project is divided into four interdependent domains, bridging user applicati
 
 ```mermaid
 graph TD
-    subgraph User Space (AI & Application)
+    subgraph UserSpace ["User Space (AI & Application)"]
         A[Python: QAT & Weight Extraction] -->|Generates weights.h| B(C App: user_app.c)
         B -->|POSIX read/write/ioctl| C
     end
-    subgraph Kernel Space (OS & Driver)
+    subgraph KernelSpace ["Kernel Space (OS & Driver)"]
         C[LKM: /dev/npu_ternaria] -->|copy_from_user| D{MMIO Translation: ioremap}
         D -->|Device Tree Mapping| E
     end
-    subgraph Hardware Space (FPGA/LiteX)
+    subgraph HardwareSpace ["Hardware Space (FPGA/LiteX)"]
         E[Wishbone/AXI Bus] --> F[LiteX SoC: VexRiscv RV32IMA]
         E --> G[Ternary NPU: Multiplierless RTL]
     end
@@ -118,7 +118,7 @@ If you find this repository useful for your research, please consider citing our
 ```bibtex
 @article{TernaryEdgeRV2026,
   title={Ternary Edge-RV: A Full-Stack Multiplierless Edge AI Accelerator on RISC-V},
-  author={[Team Names]},
+  author={Arthur Oliveira Gomes and Gildo Alves de Lima Junior and Gustavo Alexandre dos Santos and Gilvan Alves Pastor Junior},
   journal={TBD},
   year={2026}
 }
