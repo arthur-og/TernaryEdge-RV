@@ -98,3 +98,14 @@ if __name__ == "__main__":
     print(f"\n[3/3] Saving model to {MODEL_PATH}...")
     model.save(MODEL_PATH)
     print("Done.")
+
+    # ── Verify ternary constraint ──
+    print("\n[Verification] Checking weight distribution...")
+    quant_layers = [l for l in model.layers if isinstance(l, lq.layers.QuantDense)]
+    for layer in quant_layers:
+        w = layer.get_weights()[0]
+        unique_vals = np.unique(np.round(w, decimals=6))
+        counts = {}
+        for v in unique_vals:
+            counts[v] = int(np.sum(np.round(w, decimals=6) == v))
+        print(f"  {layer.name}: {counts}")
