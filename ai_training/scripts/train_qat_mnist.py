@@ -55,3 +55,46 @@ def build_ternary_mlp(input_shape=(784,), num_classes=10):
         tf.keras.layers.Dense(num_classes, activation="softmax"),
     ])
     return model
+
+
+# ── Training configuration ──
+
+EPOCHS = 20
+BATCH_SIZE = 256
+LEARNING_RATE = 1e-3
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "ternary_mnist_qat.h5")
+
+
+# ── Build, compile, and train ──
+
+if __name__ == "__main__":
+    print("=" * 60)
+    print("Ternary Edge-RV: QAT Training Pipeline")
+    print("=" * 60)
+
+    model = build_ternary_mlp()
+
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
+        loss="sparse_categorical_crossentropy",
+        metrics=["accuracy"],
+    )
+
+    model.summary()
+
+    print("\n[1/3] Training QAT model with ste_tern...")
+    model.fit(
+        x_train, y_train,
+        epochs=EPOCHS,
+        batch_size=BATCH_SIZE,
+        validation_split=0.1,
+        verbose=1,
+    )
+
+    print("\n[2/3] Evaluating on test set...")
+    loss, acc = model.evaluate(x_test, y_test, verbose=0)
+    print(f"Test Accuracy: {acc * 100:.2f}%")
+
+    print(f"\n[3/3] Saving model to {MODEL_PATH}...")
+    model.save(MODEL_PATH)
+    print("Done.")
