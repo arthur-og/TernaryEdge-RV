@@ -55,6 +55,14 @@ def build_ternary_mlp(input_shape=(784,), num_classes=10):
 
         tf.keras.layers.Dense(num_classes, activation="softmax"),
     ])
+    # Sparsity loss normalized per layer
+    sparsity_loss = 0.0
+    for layer in model.layers:
+        if isinstance(layer, lq.layers.QuantDense):
+            w = layer.kernel
+            num_params = tf.cast(tf.size(w), tf.float32)
+            sparsity_loss += tf.reduce_sum(tf.abs(w)) / num_params
+    model.add_loss(sparsity_loss * 1e-4)
     return model
 
 
@@ -63,7 +71,7 @@ def build_ternary_mlp(input_shape=(784,), num_classes=10):
 EPOCHS = 20
 BATCH_SIZE = 256
 LEARNING_RATE = 1e-3
-SPARSITY_FACTOR = 1e-5
+SPARSITY_FACTOR = 5e-6
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "ternary_mnist_qat.h5")
 
 
