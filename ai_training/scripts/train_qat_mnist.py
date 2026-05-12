@@ -30,6 +30,7 @@ def build_ternary_mlp(input_shape=(784,), num_classes=10):
             use_bias=False,
             kernel_quantizer="ste_tern",
             kernel_constraint="weight_clip",
+            kernel_regularizer= tf.keras.regularizers.L1(SPARSITY_FACTOR),
         ),
         tf.keras.layers.BatchNormalization(),
         tf.keras.layers.Activation("relu"),
@@ -62,6 +63,7 @@ def build_ternary_mlp(input_shape=(784,), num_classes=10):
 EPOCHS = 20
 BATCH_SIZE = 256
 LEARNING_RATE = 1e-3
+SPARSITY_FACTOR = 1e-5
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "ternary_mnist_qat.h5")
 
 
@@ -100,12 +102,14 @@ if __name__ == "__main__":
     print("Done.")
 
     # ── Verify ternary constraint ──
-    print("\n[Verification] Checking weight distribution...")
+    print("\n[Verification] Checking ternary weight distribution...")
     quant_layers = [l for l in model.layers if isinstance(l, lq.layers.QuantDense)]
     for layer in quant_layers:
         w = layer.get_weights()[0]
-        unique_vals = np.unique(np.round(w, decimals=6))
-        counts = {}
-        for v in unique_vals:
-            counts[v] = int(np.sum(np.round(w, decimals=6) == v))
-        print(f"  {layer.name}: {counts}")
+        # The sign function simulates the ternarization: sign(w) -> -1, 0, +1
+        ternary = np.where(np.abs(w) < 0.05, 0, np.where(w > 0, 1, -1))
+        unique, counts = np.unique(ternary, return_counts=True)
+        total = len(ternary.flatten())
+        zeros_pct = counts[unique == 0][0] / total * 100 if 0 in unique else 0
+        dist = dict(zip(unique, counts))
+        print(f"  {layer.name}: {dist}  |  zeros: {zeros_pct:.1f}%")
