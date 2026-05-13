@@ -62,7 +62,7 @@ def build_ternary_mlp(input_shape=(784,), num_classes=10):
             w = layer.kernel
             num_params = tf.cast(tf.size(w), tf.float32)
             sparsity_loss += tf.reduce_sum(tf.abs(w)) / num_params
-    model.add_loss(sparsity_loss * 1e-4)
+    model.add_loss(lambda: sparsity_loss * 1e-4)
     return model
 
 
