@@ -37,3 +37,20 @@ To finalize the driver integration with the LiteX SoC, we need:
 ## Next Steps (Hardware Team / FPGA)
 - Define the exact MMIO register offsets for the DMA controller inside the FPGA (Source, Dest, Size, Ctrl).
 - Export the correct `.dts` file mapping the physical base address and IRQ line under the `ternary,npu-dma` compatible string.
+
+## Phase 3: Hardware Simulation (QEMU DTB Injection)
+- **Goal**: Enable the AI team and Kernel developers to test the new Platform Driver (`npu_driver.c`) within the QEMU environment without requiring the physical FPGA.
+- **Actions Taken**:
+  - Dumped the baseline RISC-V Virt machine device tree from QEMU (`qemu_base.dtb`).
+  - Decompiled and injected a mocked NPU device node:
+    ```dts
+    npu@40000000 {
+        compatible = "ternary,npu-dma";
+        reg = <0x00 0x40000000 0x00 0x1000>;
+        interrupt-parent = <0x03>;
+        interrupts = <0x0a>;
+    };
+    ```
+  - Recompiled the Device Tree into `qemu_npu.dtb`.
+  - Updated `setup_qemu/boot.sh` to load this custom device tree using the `-dtb` flag.
+  - **Result**: Loading `npu_driver.ko` inside QEMU now successfully matches the `.dts` node, triggering the `probe` function, allocating dummy DMA memory, and creating the `/dev/npu_ternaria` character device for user-space application testing.
