@@ -5,3 +5,12 @@ __pycache__/
 *.keras
 *.npy
 *.csv
+
+# Buildroot generated artifacts
+software/os_buildroot/output/
+software/os_buildroot/dl/
+software/os_buildroot/build/
+software/os_buildroot/host/
+software/os_buildroot/staging/
+software/os_buildroot/target/
+software/os_buildroot/images/
