@@ -21,3 +21,19 @@ To finalize the driver integration with the LiteX SoC, we need:
 1. **Base Physical Address** of the NPU on the memory bus.
 2. **Hardware IRQ Number** assigned to the NPU.
 3. **Register Offsets** mapping (Status, Control, Weights Input, Activations Output).
+
+## Phase 2: NPU Driver Architecture (Zero-Copy DMA & Platform Integration)
+- **Goal**: Transition from a basic MMIO Char Device to a high-performance DMA-backed Platform Driver, ensuring zero CPU polling and maximum energy efficiency.
+- **Actions Taken**:
+  - **Header Sharing**: Created `software/include/npu_ioctl.h` to share `ioctl` commands and buffer constraints between the Kernel Space and User Space.
+  - **Platform Driver Migration (`software/npu_driver/npu_driver.c`)**:
+    - Replaced hardcoded initialization with `platform_driver` API. The driver now automatically loads and configures itself based on the `.dts` (Device Tree) node matching `compatible = "ternary,npu-dma"`.
+    - Removed `copy_from_user`/`copy_to_user` bottlenecks.
+  - **DMA Memory Allocation**: Implemented `dma_alloc_coherent()` inside the `probe` function to allocate a physically contiguous, uncached memory region (4MB default) for hardware access.
+  - **Zero-Copy with `mmap`**: Implemented the `.mmap` file operation (`dma_mmap_coherent`). This allows the AI application to write weights directly into the DMA buffer mapped in user space, bypassing CPU memory copy overhead entirely.
+  - **Hardware Synchronization**: Transferred the `wait_queue` logic to the `ioctl` interface (`NPU_IOCTL_START_INFERENCE`). User apps will sleep upon triggering the IOCTL and wake up automatically when the FPGA fires the IRQ.
+  - **Dummy Application (`software/user_app/dummy_app.c`)**: Provided a clear C implementation for the AI team, demonstrating how to `mmap` the memory, pack weights, trigger inference, and benchmark hardware latency using `<sys/time.h>`.
+
+## Next Steps (Hardware Team / FPGA)
+- Define the exact MMIO register offsets for the DMA controller inside the FPGA (Source, Dest, Size, Ctrl).
+- Export the correct `.dts` file mapping the physical base address and IRQ line under the `ternary,npu-dma` compatible string.
