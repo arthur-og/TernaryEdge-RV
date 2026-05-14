@@ -22,9 +22,9 @@ Gildo (Sistema Operacional):
 [ ] Compilar imagem genérica e conseguir dar boot no kernel via emulador QEMU.
 
 Gustavo (Driver de Kernel):
-[ ] Criar ambiente de compilação de módulos (LKM).
-[ ] Escrever código C do driver "Hello World" com <linux/module.h>.
-[ ] Compilar o driver e testar os comandos insmod, lsmod e rmmod no QEMU.
+[ X ] Criar ambiente de compilação de módulos (LKM).
+[ X ] Escrever código C do driver "Hello World" com <linux/module.h>.
+[ X ] Compilar o driver e testar os comandos insmod, lsmod e rmmod no QEMU.
 
 Gilvan (Inteligência Artificial):
 [ ] Montar ambiente Python e instalar biblioteca de quantização (Larq ou Brevitas).
@@ -47,7 +47,7 @@ Gildo (Sistema Operacional):
 
 Gustavo (Driver de Kernel):
 [ ] Usar alloc_chrdev_region para criar o dispositivo /dev/npu_ternaria.
-[ ] Criar a struct file_operations (mapear .read, .write, .open).
+[ X ] Criar a struct file_operations (mapear .read, .write, .open).
 [ ] 🛠️ MOCK: Se o Arthur atrasar o Mapa, use um endereço inventado no código e continue.
 
 Gilvan (Inteligência Artificial):
