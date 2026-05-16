@@ -30,7 +30,6 @@ def build_ternary_mlp(input_shape=(784,), num_classes=10):
             use_bias=False,
             kernel_quantizer="ste_tern",
             kernel_constraint="weight_clip",
-            kernel_regularizer= tf.keras.regularizers.L1(SPARSITY_FACTOR),
         ),
         tf.keras.layers.BatchNormalization(),
         tf.keras.layers.Activation("relu"),
@@ -55,14 +54,6 @@ def build_ternary_mlp(input_shape=(784,), num_classes=10):
 
         tf.keras.layers.Dense(num_classes, activation="softmax"),
     ])
-    # Sparsity loss normalized per layer
-    sparsity_loss = 0.0
-    for layer in model.layers:
-        if isinstance(layer, lq.layers.QuantDense):
-            w = layer.kernel
-            num_params = tf.cast(tf.size(w), tf.float32)
-            sparsity_loss += tf.reduce_sum(tf.abs(w)) / num_params
-    model.add_loss(lambda: sparsity_loss * 1e-4)
     return model
 
 
@@ -71,7 +62,6 @@ def build_ternary_mlp(input_shape=(784,), num_classes=10):
 EPOCHS = 20
 BATCH_SIZE = 256
 LEARNING_RATE = 1e-3
-SPARSITY_FACTOR = 5e-6
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "ternary_mnist_qat.h5")
 
 
@@ -89,6 +79,13 @@ if __name__ == "__main__":
         loss="sparse_categorical_crossentropy",
         metrics=["accuracy"],
     )
+
+    # Strong L1 on all quant layers
+    l1_loss_total = 0
+    for layer in model.layers:
+        if isinstance(layer, lq.layers.QuantDense):
+            l1_loss_total += tf.reduce_sum(tf.abs(layer.kernel))
+    model.add_loss(lambda: l1_loss_total * 1e-4)
 
     model.summary()
 
