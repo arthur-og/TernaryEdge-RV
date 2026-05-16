@@ -10,6 +10,7 @@ import os
 import sys
 import numpy as np
 import tensorflow as tf
+import larq as lq
 from pack_weights import pack_weights
 
 os.environ["TF_USE_LEGACY_KERAS"] = "1"
@@ -44,7 +45,7 @@ def generate_weights_header(model_path: str, output_path: str):
 
     quant_layers = [
         l for l in model.layers
-        if isinstance(l, tf.keras.layers.Dense)
+        if isinstance(l, lq.layers.QuantDense)
     ]
 
     declarations = []

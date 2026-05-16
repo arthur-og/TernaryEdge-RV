@@ -33,7 +33,7 @@ def build_ternary_mlp(input_shape=(784,), num_classes=10):
         ),
         tf.keras.layers.BatchNormalization(),
         tf.keras.layers.Activation("relu"),
-
+        tf.keras.layers.Lambda(lambda x: tf.quantization.fake_quant_with_min_max_args(x, min=0, max=127, num_bits=8)),
         lq.layers.QuantDense(
             512,
             use_bias=False,
@@ -42,7 +42,7 @@ def build_ternary_mlp(input_shape=(784,), num_classes=10):
         ),
         tf.keras.layers.BatchNormalization(),
         tf.keras.layers.Activation("relu"),
-
+        tf.keras.layers.Lambda(lambda x: tf.quantization.fake_quant_with_min_max_args(x, min=0, max=127, num_bits=8)),
         lq.layers.QuantDense(
             256,
             use_bias=False,
@@ -51,9 +51,17 @@ def build_ternary_mlp(input_shape=(784,), num_classes=10):
         ),
         tf.keras.layers.BatchNormalization(),
         tf.keras.layers.Activation("relu"),
-
+        tf.keras.layers.Lambda(lambda x: tf.quantization.fake_quant_with_min_max_args(x, min=0, max=127, num_bits=8)),
         tf.keras.layers.Dense(num_classes, activation="softmax"),
     ])
+
+    # Strong L1 on all quant layers
+    l1_loss_total = 0
+    for layer in model.layers:
+        if isinstance(layer, lq.layers.QuantDense):
+            l1_loss_total += tf.reduce_sum(tf.abs(layer.kernel))
+    model.add_loss(lambda: l1_loss_total * 1.0)
+
     return model
 
 
@@ -79,13 +87,6 @@ if __name__ == "__main__":
         loss="sparse_categorical_crossentropy",
         metrics=["accuracy"],
     )
-
-    # Strong L1 on all quant layers
-    l1_loss_total = 0
-    for layer in model.layers:
-        if isinstance(layer, lq.layers.QuantDense):
-            l1_loss_total += tf.reduce_sum(tf.abs(layer.kernel))
-    model.add_loss(lambda: l1_loss_total * 1.0)
 
     model.summary()
 
