@@ -85,7 +85,7 @@ if __name__ == "__main__":
     for layer in model.layers:
         if isinstance(layer, lq.layers.QuantDense):
             l1_loss_total += tf.reduce_sum(tf.abs(layer.kernel))
-    model.add_loss(lambda: l1_loss_total * 1e-4)
+    model.add_loss(lambda: l1_loss_total * 1.0)
 
     model.summary()
 
