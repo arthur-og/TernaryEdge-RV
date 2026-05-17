@@ -185,7 +185,7 @@ static int npu_probe(struct platform_device *pdev)
 }
 
 /* Platform Driver Remove */
-static int npu_remove(struct platform_device *pdev)
+static void npu_remove(struct platform_device *pdev)
 {
     struct npu_dev *npu = platform_get_drvdata(pdev);
 
@@ -197,7 +197,6 @@ static int npu_remove(struct platform_device *pdev)
         dma_free_coherent(npu->dev, npu->dma_size, npu->dma_vaddr, npu->dma_paddr);
 
     printk(KERN_INFO "[TERNARY NPU] Driver removed.\n");
-    return 0;
 }
 
 /* Device Tree Match Table */
