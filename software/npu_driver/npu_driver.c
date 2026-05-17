@@ -26,7 +26,11 @@
 #define DMA_REG_SIZE        0x08
 #define DMA_REG_CTRL        0x0C /* Bit 0: Start, Bit 1: Done/IRQ Clear */
 
-MODULE_LICENSE("MIT");
+/* 
+ * License must be GPL-compatible to access internal Linux Kernel symbols 
+ * (like platform_driver_register, class_create) which are EXPORT_SYMBOL_GPL. 
+ */
+MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Gustavo Alexandre");
 MODULE_DESCRIPTION("TernaryEdge-RV NPU Platform Driver (Zero-Copy/DMA/IRQ)");
 MODULE_VERSION("2.0");
