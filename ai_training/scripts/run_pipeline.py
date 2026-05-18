@@ -64,6 +64,11 @@ def run_pipeline(epochs=20, lr=1e-3, skip_train=False):
     if skip_train and os.path.exists(MODEL_PATH):
         print("\n[1/3] Loading pre-trained model...")
         model = tf.keras.models.load_model(MODEL_PATH, compile=False)
+        model.compile(
+            optimizer=tf.keras.optimizers.Adam(learning_rate=lr),
+            loss="sparse_categorical_crossentropy",
+            metrics=["accuracy"],
+        )
     else:
         print("\n[1/4] Training QAT model...")
         model = build_ternary_mlp()
