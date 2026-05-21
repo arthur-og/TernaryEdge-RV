@@ -6,6 +6,10 @@ __pycache__/
 *.npy
 *.csv
 
+# Editor
+.vscode/
+.idea/
+
 # Buildroot generated artifacts
 software/os_buildroot/output/
 software/os_buildroot/dl/
