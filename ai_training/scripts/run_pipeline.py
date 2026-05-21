@@ -19,6 +19,8 @@ import sys
 import argparse
 import numpy as np
 import tensorflow as tf
+if not hasattr(tf.keras.layers, "LocallyConnected1D"):
+    tf.keras.layers.LocallyConnected1D = type("LocallyConnected1D", (), {})
 import larq as lq
 
 from train_qat_mnist import build_ternary_mlp
@@ -45,12 +47,15 @@ def verify_ternary(model):
             continue
         if isinstance(layer, lq.layers.QuantDense):
             w = layer.get_weights()[0]
-            unique = np.unique(np.round(w, decimals=4))
+            w_quant = layer.kernel_quantizer(tf.constant(w)).numpy()
+            unique = np.unique(w_quant)
             valid = set(np.round(unique, decimals=4)).issubset({-1.0, 0.0, 1.0})
             status = "OK" if valid else "FAIL"
             if not valid:
                 all_ternary = False
-            print(f"  {layer.name}: unique={unique.tolist()} [{status}]")
+            dist = dict(zip(*np.unique(w_quant, return_counts=True)))
+            zeros_pct = dist.get(0.0, 0) / w_quant.size * 100
+            print(f"  {layer.name}: unique={unique.tolist()} [{status}]  zeros: {zeros_pct:.1f}%")
     return all_ternary
 
 
@@ -62,7 +67,7 @@ def run_pipeline(epochs=20, lr=1e-3, skip_train=False):
     x_train, y_train, x_test, y_test = load_data()
 
     if skip_train and os.path.exists(MODEL_PATH):
-        print("\n[1/3] Loading pre-trained model...")
+        print("\n[1/4] Loading pre-trained model...")
         model = tf.keras.models.load_model(MODEL_PATH, compile=False)
         model.compile(
             optimizer=tf.keras.optimizers.Adam(learning_rate=lr),

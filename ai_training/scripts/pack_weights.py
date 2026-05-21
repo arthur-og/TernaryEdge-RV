@@ -21,8 +21,11 @@ TernaryEncoding = {
 
 
 def encode_ternary(value: float) -> int:
-    encoded = int(np.round(value))
-    return TernaryEncoding.get(encoded, 0b00)
+    if value >= 0.5:
+        return 0b01
+    elif value <= -0.5:
+        return 0b11
+    return 0b00
 
 
 def pack_weights(weight_matrix: np.ndarray) -> list[int]:

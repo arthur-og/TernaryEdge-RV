@@ -9,6 +9,8 @@ os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
 import numpy as np
 import tensorflow as tf
+if not hasattr(tf.keras.layers, "LocallyConnected1D"):
+    tf.keras.layers.LocallyConnected1D = type("LocallyConnected1D", (), {})
 import larq as lq
 
 
@@ -112,10 +114,9 @@ if __name__ == "__main__":
     quant_layers = [l for l in model.layers if isinstance(l, lq.layers.QuantDense)]
     for layer in quant_layers:
         w = layer.get_weights()[0]
-        # The sign function simulates the ternarization: sign(w) -> -1, 0, +1
-        ternary = np.where(np.abs(w) < 0.05, 0, np.where(w > 0, 1, -1))
-        unique, counts = np.unique(ternary, return_counts=True)
-        total = len(ternary.flatten())
+        w_quant = layer.kernel_quantizer(tf.constant(w)).numpy()
+        unique, counts = np.unique(w_quant, return_counts=True)
+        total = len(w_quant.flatten())
         zeros_pct = counts[unique == 0][0] / total * 100 if 0 in unique else 0
         dist = dict(zip(unique, counts))
         print(f"  {layer.name}: {dist}  |  zeros: {zeros_pct:.1f}%")
