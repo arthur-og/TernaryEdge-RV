@@ -10,11 +10,11 @@ Regra de Ouro do Grupo:
 🎯 Objetivo: Todo mundo trabalhando sozinho e validando as ferramentas base.
 
 Arthur (Hardware):
-[ ] Instalar dependências do LiteX e Python no PC.
-[ ] Gerar o SoC básico com o núcleo VexRiscv (variante linux, estritamente RV32IMA).
+[ X ] Instalar dependências do LiteX e Python no PC.
+[ X ] Gerar o SoC básico com o núcleo VexRiscv (variante linux, estritamente RV32IMA).
 [ ] Sintetizar o SoC e testar na placa física (Piscar LED ou Hello World via UART em bare-metal).
-[ ] ⚠️ ENTREGAR MAPA DE MEMÓRIA (MOCK): Definir e compartilhar na Fase 1 o Esboço dos Endereços Base (ex: 0x80000000), Offsets, e o número do pino de Interrupção (IRQ) da NPU.
-[ ] Definir e formalizar o Endianness (ex: Little-Endian) para o empacotamento dos pesos.
+[ X ] ⚠️ ENTREGAR MAPA DE MEMÓRIA (MOCK): Definir e compartilhar na Fase 1 o Esboço dos Endereços Base (ex: 0x80000000), Offsets, e o número do pino de Interrupção (IRQ) da NPU.
+[ X ] Definir e formalizar o Endianness (ex: Little-Endian) para o empacotamento dos pesos.
 
 Gildo (Sistema Operacional):
 [ ] Instalar e configurar o Buildroot no PC.
