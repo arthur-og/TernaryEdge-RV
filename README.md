@@ -71,14 +71,48 @@ TernaryEdge-RV/
 
 ---
 
-## 📊 Preliminary Results & Benchmarks
+## 📊 Project Status (Active Development)
 
-*(This section will be updated with final graphs and tables upon project completion.)*
+<!-- Status badges generated 2026-06-08 from git log analysis -->
 
-| Execution Mode | Latency (ms) | Power Estimation (mW) | Accuracy (%) |
-| :--- | :--- | :--- | :--- |
-| **CPU Only (Software)** | TBD | TBD | TBD |
-| **Ternary NPU (Hardware)** | TBD | TBD | TBD |
+| Domain | Lead | Phase | Status | Completion |
+|:-------|:-----|:------|:-------|:-----------|
+| **Hardware (RTL/SoC)** | Arthur | 2.5/4 | F1✅ F2✅ F3▶️ | ![60%](https://img.shields.io/badge/60%25-yellow) |
+| **OS (Buildroot)** | Gildo | 1.5/4 | F1✅ F2⏳ | ![35%](https://img.shields.io/badge/35%25-orange) |
+| **Kernel Driver** | Gustavo | 3.0/4 | F1✅ F2✅ F3✅ | ![90%](https://img.shields.io/badge/90%25-brightgreen) |
+| **AI Pipeline** | Gilvan | 2.5/4 | F1✅ F2✅ F3▶️ | ![70%](https://img.shields.io/badge/70%25-yellowgreen) |
+
+### Arthur (Hardware) — RTL Design & SoC Integration
+- ✅ **Fase 1:** Mapa de memória oficializado (`0x40000000`, IRQ 10, Little-Endian). SoC base VexRiscv-RV32IMA+. Requisitos FPGA documentados.
+- ✅ **Fase 2:** `ternary_mac.v` (MAC multiplierless: 0 DSPs). `npu_core_wb.v` (Wishbone slave + IRQ generator + FSM).
+- ⏳ **Fase 3:** Pendente: DMA controller (Wishbone master), layer sequencer, testbench Verilator.
+- ⏳ **Bloqueado:** FPGA física (aguardando professor). Veja `hardware/litex_soc/requisitos_fpga.md`.
+
+### Gildo (OS) — Buildroot & Device Tree
+- ✅ **Fase 1:** Buildroot external tree criada. Defconfig RV32IMA (kernel 6.18, OpenSBI, QEMU).
+- ⏳ **Pendente crítico:** Exportar toolchain `riscv32-buildroot-linux-gnu-gcc`. Criar `.dts` oficial com `0x40000000` + IRQ 10.
+- ⏳ **Pendente:** HIGH_RES_TIMERS no kernel.
+
+### Gustavo (Driver) — Kernel Module (Zero-Copy DMA)
+- 🚀 **Muito adiantado:** Platform driver completo com `dma_alloc_coherent`, `mmap`, `request_irq`, `wait_event_interruptible`.
+- ✅ QEMU DT injection funcionando. Testes sem FPGA realizados.
+- ✅ `software/include/npu_ioctl.h` e `dummy_app.c` criados.
+- ⏳ **Pendente:** Compilar `.ko` com a toolchain RISC-V (bloqueado por Gildo).
+
+### Gilvan (AI) — QAT & Weight Export
+- ✅ **Fase 1-2:** Pipeline QAT completo (Larq + STE). 3 layers ternárias (784→1024→512→256). Sparsity L1 ativa. Fake quant INT8 entre layers.
+- ✅ `weights.h` gerado com 3 layers (91.136 uint32_t words = 364 KB).
+- ⚠️ **Gap:** Camada de saída está em FP32 (softmax), não ternária — hardware atual não suporta.
+- ⏳ **Pendente:** `user_app.c` real com forward pass completo e medição de tempo segregada.
+
+### Known Gaps
+| Gap | Owner | Priority |
+|:----|:------|:---------|
+| Output layer FP32 (non-ternary) vs hardware | Gilvan / Arthur | **High** |
+| Toolchain not exported to team | Gildo | **Critical** |
+| No physical FPGA for synthesis | Arthur | **High** |
+| DMA master not implemented in RTL | Arthur | **High** |
+| No Verilator testbench | Arthur | **Medium** |
 
 ---
 
