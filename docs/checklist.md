@@ -1,5 +1,5 @@
 📌 CHECKLIST OFICIAL DO PROJETO: TERNARY EDGE-RV 📌
-⚠️ ÚLTIMA ATUALIZAÇÃO: 08/06/2026 — Status real verificado contra o repositório
+⚠️ ÚLTIMA ATUALIZAÇÃO: 09/06/2026 — Fases do Gildo corrigidas (Plano_Gildo.md), toolchain confirmada via Google Drive, módulo npu_ternaria_top.v atualizado
 
 Regra de Ouro do Grupo:
 ⚠️ [BLOQUEIO]: Se você precisa de algo de outro membro para continuar.
@@ -25,10 +25,9 @@ Gildo (Sistema Operacional):
 [ X ] Instalar e configurar o Buildroot no PC. [External tree criada]
 [ X ] Selecionar a arquitetura RISC-V (RV32IMA) no make menuconfig. [ternaryedge_rv_defconfig]
 [ X ] Compilar imagem genérica e conseguir dar boot no kernel via emulador QEMU.
-[ ] ⚠️ ENTREGAR TOOLCHAIN riscv32-buildroot-linux-gnu-gcc para Gustavo e Gilvan.
-[ ] ⚠️ Escrever o .dts oficial da FPGA com o mapa de memória (0x40000000, IRQ 10).
+[ X ] ⚠️ ENTREGAR TOOLCHAIN riscv32-buildroot-linux-gnu-gcc para Gustavo e Gilvan. [Google Drive]
 
-Status REAL: ✅ Fase 1 completa. Pendente: toolchain + .dts oficial.
+Status REAL: ✅ Fase 1 completa. Toolchain exportada via Google Drive (link em software/os_buildroot/README.md).
 
 Gustavo (Driver de Kernel):
 [ X ] Criar ambiente de compilação de módulos (LKM).
@@ -61,11 +60,11 @@ Arthur (Hardware):
 Status REAL: ✅ Fase 2 completa. Próximo passo: controlador DMA Master para ler RAM diretamente.
 
 Gildo (Sistema Operacional):
-[ ] Configurar Buildroot para gerar a Cross-Compiler Toolchain estritamente para 32 bits (riscv32-buildroot-linux-gnu-gcc ou equivalente, usando -march=rv32ima -mabi=ilp32).
-[ ] ⚠️ ENTREGAR TOOLCHAIN para o Gustavo e Gilvan.
-[ ] Escrever o arquivo .dts (Device Tree) criando o "node" da NPU com o endereço base e o pino de interrupção (IRQ) que o Arthur passou.
+[ X ] Configurar Buildroot para gerar a Cross-Compiler Toolchain estritamente para 32 bits (riscv32-buildroot-linux-gnu-gcc ou equivalente, usando -march=rv32ima -mabi=ilp32).
+[ X ] ⚠️ ENTREGAR TOOLCHAIN para o Gustavo e Gilvan. [Disponível no Google Drive]
+[ X ] Habilitar temporizadores de alta resolução no Kernel (CONFIG_HIGH_RES_TIMERS).
 
-Status REAL: ⏳ Pendente. Buildroot configurado (Fase 1), mas toolchain não exportada, .dts não escrito.
+Status REAL: ✅ Toolchain exportada + HIGH_RES_TIMERS ativado.
 
 Gustavo (Driver de Kernel):
 [ X ] Usar register_chrdev para criar o dispositivo /dev/npu_ternaria.
@@ -92,12 +91,13 @@ Status REAL: ✅ Fase 2 completa.
 
 Arthur (Hardware):
 [ ] Conectar a NPU como Wishbone Master (DMA) no barramento principal do LiteX para ler RAM automaticamente.
-[ ] Substituir FSM dummy do npu_core_wb.v por controlador real de layers (Layer Sequencer).
+[ ] Substituir FSM dummy do npu_ternaria_top.v por controlador real de layers (Layer Sequencer).
 [ ] Criar Testbench no Verilator simulando o barramento injetando dados da NPU.
 
 Gildo (Sistema Operacional):
-[ ] Adicionar suporte a FAT32/ext4 no RootFS do Linux.
-[ ] Habilitar temporizadores de alta resolução no Kernel (CONFIG_HIGH_RES_TIMERS).
+[ ] ⚠️ Escrever o arquivo .dts (Device Tree) criando o "node" da NPU com o endereço base (0x40000000) e o pino de interrupção (IRQ=10) que o Arthur passou.
+
+Status REAL: ⏳ .dts pendente — depende do mapa de memória oficial do Arthur.
 
 Gustavo (Driver de Kernel):
 [ X ] ioremap() — JÁ IMPLEMENTADO via devm_ioremap_resource() no probe.
@@ -124,6 +124,7 @@ Arthur (Hardware):
 [ ] Extrair relatório de síntese (Comprovar 0 blocos DSP usados, anotar LUTs e FFs).
 
 Gildo (Sistema Operacional):
+[ ] Adicionar suporte a FAT32/ext4 no RootFS do Linux.
 [ ] Gravar a imagem final do Linux no SD Card/Flash e bootar na placa física.
 
 Gustavo (Driver de Kernel):

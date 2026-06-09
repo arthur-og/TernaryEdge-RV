@@ -78,32 +78,33 @@ TernaryEdge-RV/
 | Domain | Lead | Phase | Status | Completion |
 |:-------|:-----|:------|:-------|:-----------|
 | **Hardware (RTL/SoC)** | Arthur | 2.5/4 | F1✅ F2✅ F3▶️ | ![60%](https://img.shields.io/badge/60%25-yellow) |
-| **OS (Buildroot)** | Gildo | 2.0/4 | F1✅ F2✅ F3▶️ | ![50%](https://img.shields.io/badge/50%25-yellow) |
+| **OS (Buildroot)** | Gildo | 2.25/4 | F1✅ F2✅ F3▶️ | ![55%](https://img.shields.io/badge/55%25-yellow) |
 | **Kernel Driver** | Gustavo | 3.0/4 | F1✅ F2✅ F3✅ | ![90%](https://img.shields.io/badge/90%25-brightgreen) |
 | **AI Pipeline** | Gilvan | 2.5/4 | F1✅ F2✅ F3▶️ | ![70%](https://img.shields.io/badge/70%25-yellowgreen) |
 
 ### Arthur (Hardware) — RTL Design & SoC Integration
-- ✅ **Fase 1:** Mapa de memória oficializado (`0x40000000`, IRQ 10, Little-Endian). SoC base VexRiscv-RV32IMA+. Requisitos FPGA documentados.
-- ✅ **Fase 2:** `ternary_mac.v` (MAC multiplierless: 0 DSPs). `npu_core_wb.v` (Wishbone slave + IRQ generator + FSM).
-- ⏳ **Fase 3:** Pendente: DMA controller (Wishbone master), layer sequencer, testbench Verilator.
-- ⏳ **Bloqueado:** FPGA física (aguardando professor). Veja `hardware/litex_soc/requisitos_fpga.md`.
+- ✅ **Phase 1:** Official memory map defined (`0x40000000`, IRQ 10, Little-Endian). VexRiscv-RV32IMA base SoC. FPGA requirements documented.
+- ✅ **Phase 2:** `ternary_mac.v` (multiplierless MAC: 0 DSPs). `npu_ternaria_top.v` (Wishbone slave + FSM + IRQ generator).
+- ⏳ **Phase 3:** Pending: DMA controller (Wishbone master), layer sequencer, Verilator testbench.
+- ⏳ **Blocked:** Physical FPGA (waiting for professor). See `hardware/litex_soc/requisitos_fpga.md`.
 
 ### Gildo (OS) — Buildroot & Device Tree
 - ✅ **Phase 1:** Buildroot external tree created. RV32IMA defconfig (kernel 6.18, OpenSBI, QEMU).
 - ✅ **Phase 2:** Toolchain exported (relocatable SDK on Google Drive). LKM and HIGH_RES_TIMERS enabled in kernel.
-- ⏳ **Phase 3 (in progress):** Official `.dts` with `0x40000000` + IRQ 10. FAT32/ext4 in RootFS.
+- ⏳ **Phase 3:** Official `.dts` with `0x40000000` + IRQ 10.
+- ⏳ **Phase 4 (future):** FAT32/ext4 in RootFS. Flash image to SD Card.
 
 ### Gustavo (Driver) — Kernel Module (Zero-Copy DMA)
-- 🚀 **Muito adiantado:** Platform driver completo com `dma_alloc_coherent`, `mmap`, `request_irq`, `wait_event_interruptible`.
-- ✅ QEMU DT injection funcionando. Testes sem FPGA realizados.
-- ✅ `software/include/npu_ioctl.h` e `dummy_app.c` criados.
-- ✅ **Toolchain RISC-V disponível** via Google Drive. Compilação do `.ko` desbloqueada.
+- 🚀 **Ahead of schedule:** Full platform driver with `dma_alloc_coherent`, `mmap`, `request_irq`, `wait_event_interruptible`.
+- ✅ QEMU DT injection working. Tests performed without FPGA.
+- ✅ `software/include/npu_ioctl.h` and `dummy_app.c` created.
+- ✅ **RISC-V toolchain available** via Google Drive. `.ko` compilation unblocked.
 
 ### Gilvan (AI) — QAT & Weight Export
-- ✅ **Fase 1-2:** Pipeline QAT completo (Larq + STE). 3 layers ternárias (784→1024→512→256). Sparsity L1 ativa. Fake quant INT8 entre layers.
-- ✅ `weights.h` gerado com 3 layers (91.136 uint32_t words = 364 KB).
-- ⚠️ **Gap:** Camada de saída está em FP32 (softmax), não ternária — hardware atual não suporta.
-- ⏳ **Pendente:** `user_app.c` real com forward pass completo e medição de tempo segregada.
+- ✅ **Phase 1-2:** Full QAT pipeline (Larq + STE). 3 ternary layers (784→1024→512→256). L1 sparsity active. Fake quant INT8 between layers.
+- ✅ `weights.h` generated with 3 layers (91,136 uint32_t words = 364 KB).
+- ⚠️ **Gap:** Output layer is FP32 (softmax), not ternary — current hardware does not support it.
+- ⏳ **Pending:** Real `user_app.c` with complete forward pass and segregated time measurement.
 
 ### Known Gaps
 | Gap | Owner | Priority |

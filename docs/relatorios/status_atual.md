@@ -1,12 +1,12 @@
 # Status Atual do Projeto — Ternary Edge-RV
-**Data:** 08/06/2026
+**Data:** 09/06/2026
 **Autor:** Arthur Oliveira Gomes (Hardware)
 
 ---
 
 ## Resumo Executivo
 
-O projeto está em boa posição geral, com avanço significativo nas camadas de Software e IA. O gargalo principal está no Hardware (FPGA física) e na integração final entre os módulos. Abaixo, o detalhamento por domínio.
+O projeto está em boa posição geral, com avanço significativo nas camadas de Software e IA. O gargalo principal está no Hardware (FPGA física) e na integração final entre os módulos. A toolchain RISC-V já foi exportada por Gildo via Google Drive (09/06/2026), desbloqueando Gustavo e Gilvan. Abaixo, o detalhamento por domínio.
 
 ---
 
@@ -20,7 +20,7 @@ O projeto está em boa posição geral, com avanço significativo nas camadas de
 | Requisitos FPGA | ✅ `hardware/litex_soc/requisitos_fpga.md` | Mínimo 32MB RAM, 15k LUTs, SD Card |
 | SoC Base VexRiscv | ✅ `hardware/litex_soc/base_soc.py` | RV32IMA Linux, Wishbone, região 0x40000000 reservada |
 | MAC Multiplierless (ternário×INT8) | ✅ `hardware/npu_rtl/ternary_mac.v` | 0 DSPs — apenas Mux + Somador |
-| NPU Wishbone Slave c/ IRQ | ✅ `hardware/npu_rtl/npu_core_wb.v` | FSM mock + registradores + irq_out |
+| NPU Wishbone Slave c/ IRQ | ✅ `hardware/npu_rtl/npu_ternaria_top.v` | FSM + registradores + irq_out |
 | **Controlador DMA (Wishbone Master)** | ❌ Pendente | NPU precisa ler RAM sozinha |
 | **Layer Sequencer** | ❌ Pendente | Iterar Layer1→2→3→Output |
 | **Testbench Verilator** | ❌ Pendente | Validar hardware antes da síntese |
@@ -28,24 +28,24 @@ O projeto está em boa posição geral, com avanço significativo nas camadas de
 
 ### Bloqueios:
 - Sem FPGA física para sintetizar/testar
-- Sem toolchain RISC-V para compilar firmware de teste
 
 ---
 
 ## 2. 🖥️ Gildo (Sistema Operacional — Buildroot)
 
-### Fase Real: 1.5/4 (Fase 1 ✅, Fase 2 iniciando)
+### Fase Real: 2.5/4 (Fase 1 ✅, Fase 2 ✅, Fase 3 iniciando)
 
 | Tarefa | Status | Arquivo |
 |--------|--------|---------|
 | Buildroot External Tree | ✅ `software/os_buildroot/` | Estrutura completa |
 | Defconfig RV32IMA | ✅ `configs/ternaryedge_rv_defconfig` | BR2_RISCV_32, kernel 6.18, OpenSBI, QEMU |
-| **Exportar Toolchain riscv32** | ❌ Pendente | Bloqueia Gustavo e Gilvan |
-| **Device Tree (.dts) oficial** | ❌ Pendente | Precisa endereço 0x40000000 e IRQ 10 |
-| **Habilitar HIGH_RES_TIMERS** | ❌ Pendente | Para benchmarking preciso |
+| **Exportar Toolchain riscv32** | ✅ Google Drive | Link em `software/os_buildroot/README.md` |
+| **HIGH_RES_TIMERS** | ✅ Ativado | CONFIG_HIGH_RES_TIMERS habilitado |
+| **Device Tree (.dts) oficial** | ❌ Pendente (Fase 3) | Aguardando mapa de memória oficial do Arthur |
+| **FAT32/ext4 no RootFS** | ❌ Pendente (Fase 4) | Para deploy no SD Card |
 
 ### Observação:
-O Gildo está com carga mais leve neste momento. Sugestão: após entregar toolchain e .dts, ajudaria em outras frentes (user_app.c do Gilvan ou testbench do Arthur).
+Gildo concluiu a toolchain (Fase 2) e HIGH_RES_TIMERS. Próximo passo: .dts oficial na Fase 3.
 
 ---
 
@@ -129,7 +129,7 @@ Output: Dense(10) → Softmax  ← ⚠️ FP32 (NÃO ternário!)
 | Arthur Fase 1 | 3 tarefas | 5 tarefas (criou docs extras) | ✅ Superou |
 | Arthur Fase 2 | 2 tarefas | 2+ (criou RTL) | ✅ Completo |
 | Gildo Fase 1 | 3 tarefas | 3 tarefas | ✅ Completo |
-| Gildo Fase 2 | 3 tarefas | 0 tarefas | ❌ Pendente total |
+| Gildo Fase 2 | 3 tarefas | 3 tarefas (toolchain + HIGH_RES_TIMERS) | ✅ Completo |
 | Gustavo Fase 1 | 3 tarefas | 3 tarefas | ✅ Completo |
 | Gustavo Fase 2 | 2 tarefas | 4+ (muito além) | 🚀 Avançou para Fase 3 |
 | Gilvan Fase 1 | 3 tarefas | 3+ (adicionou sparsity, fq) | ✅ Superou |
@@ -143,5 +143,4 @@ Output: Dense(10) → Softmax  ← ⚠️ FP32 (NÃO ternário!)
 |-------|---------|---------------|-----------|
 | Saída FP32 não ternária | Hardware não acelera última camada | Alta | Gilvan testar saída ternária OU Arthur fazer MAC híbrido |
 | Sem FPGA física | Projeto só roda em QEMU | Média | Artigo pode focar em prototipagem virtual |
-| Toolchain não entregue | Nada compila para RISC-V | Alta | Gildo precisa priorizar isso HOJE |
-| Desbalanceamento de carga | Gildo ocioso, Arthur sobrecarregado | Alta | Realocar Gildo para ajudar Arthur ou Gilvan |
+| Desbalanceamento de carga | Gildo ocioso, Arthur sobrecarregado | Média | Gildo já tem próximas tarefas (.dts → FAT32) |

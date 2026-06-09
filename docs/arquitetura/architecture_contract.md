@@ -36,7 +36,7 @@ This document formalizes the architectural decisions and "Design by Contract" pa
 **Decision:** The NPU will notify the CPU of completion via **Hardware Interrupts (IRQ)**.
 **Justification:** Polling wastes CPU cycles and significantly increases power consumption, defeating the purpose of an energy-efficient edge accelerator.
 
-*   **Arthur:** The RTL NPU (`npu_core_wb.v`) exposes an `irq_out` pin that goes high when inference finishes, connected to the LiteX interrupt controller.
+*   **Arthur:** The RTL NPU (`npu_ternaria_top.v`) exposes an `irq_out` pin that goes high when inference finishes, connected to the LiteX interrupt controller.
 *   **Gildo:** The Device Tree (`.dts`) must map IRQ line `10` to the NPU's node using `interrupts = <0x0a>`.
 *   **Gustavo:** The kernel driver (`npu_driver.c`) uses `devm_request_irq()` to handle the interrupt and puts the user process to sleep (`wait_event_interruptible`) until the NPU awakens it, keeping CPU usage close to zero during hardware inference.
 
