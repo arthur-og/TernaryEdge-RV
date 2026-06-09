@@ -1,34 +1,89 @@
-# Plano de Trabalho - Gustavo Alexandre dos Santos
-**Papel no Projeto:** Kernel Driver Development (LKM, MMIO, Hardware Synchronization)
+# Plano de Trabalho — Gustavo Alexandre dos Santos
+**Papel no Projeto:** Kernel Driver Development (LKM, MMIO, DMA, Hardware Synchronization)
+**Última atualização:** 10/06/2026
 
 ---
 
-## Fase 1: Fundamentação e Ambiente de Desenvolvimento (Emulação)
+## Marcos do Projeto
 
-A etapa inicial foca na compreensão do funcionamento do espaço de kernel (Kernel Space) e na configuração do ambiente de compilação isolado para a arquitetura alvo.
-- **Estudo da API do Kernel Linux:** O desenvolvimento de um Loadable Kernel Module (LKM) exige familiaridade com as estruturas de dados e macros específicas do Kernel Linux, que diferem drasticamente da programação convencional em espaço de usuário (User Space).
-- **Integração com a Toolchain:** Para compilar o módulo, será estritamente necessário utilizar a Cross-Compiler Toolchain (`riscv32-buildroot-linux-gnu-gcc`) — cada membro compila a sua a partir da external tree do Buildroot versionada no Git (ver `software/os_buildroot/README.md`).
-- **Validação Básica via QEMU:** O primeiro marco prático desta fase é escrever, compilar e carregar um driver "Hello World" básico no sistema Linux genérico que estará rodando no emulador QEMU. Isso validará o processo de carga (insmod) e descarga (rmmod) de módulos na arquitetura RISC-V .
+| Marco | Previsão | Status |
+|:------|:---------|:-------|
+| M1 — Driver "Hello World" carregado no QEMU (insmod/lsmod/rmmod) | Concluído | ✅ |
+| M2 — Platform Driver com DT match + DMA Coherent + IRQ + wait_queue | Concluído | ✅ |
+| M3 — Driver adaptado para NPU v2 (DMA protocolo regs + 64 MACs) | Concluído | ✅ |
+| M3b — IOCTL com struct npu_ioctl_args implementado | Concluído | ✅ |
+| M3c — user_app.c revisado e funcional | Concluído | ✅ |
+| M4 — Integração física testada na FPGA | Após M3 + FPGA | ⏳ |
+| M5 — Seção "Kernel Driver Design" do Paper 1 escrita | Antes prazo final | ⏳ |
 
-## Fase 2: Estruturação do Driver de Caractere e Mapeamento de Memória
+---
 
-Nesta fase, o driver começa a tomar sua forma definitiva, estabelecendo as interfaces tanto com o espaço de usuário quanto com os endereços físicos do hardware.
-- **Criação do Dispositivo de Caractere:** O driver deve ser registrado no sistema operacional como um dispositivo de caractere (Character Device). O objetivo é expor um nó de acesso no sistema de arquivos, especificamente o arquivo /dev/npu_ternaria, por onde a aplicação de IA fará a comunicação.
-- **Implementação das File Operations:** É necessário estruturar a struct file_operations, mapeando as chamadas de sistema (syscalls) provenientes da aplicação para as rotinas internas do driver, definindo o comportamento fundamental das funções .open, .release, .read, .write e .unlocked_ioctl.
-- **Memory-Mapped I/O (MMIO):** O kernel não consegue acessar endereços físicos diretamente. O desenvolvedor deverá receber o mapa de memória do hardware contendo o Endereço Base da NPU e seus respectivos offsets. A partir do momento em que a NPU estiver descrita no arquivo Device Tree Source (DTS) , o driver utilizará a função ioremap() (ou equivalentes da API gerenciada, como devm_ioremap) para converter os endereços físicos do hardware em memória virtual acessível pelo kernel.
+## Fase 1 (Concluída): Fundamentação e Ambiente
 
-## Fase 3: Lógica de Controle, Transferência e Sincronização
+- ✅ Ambiente de compilação LKM configurado
+- ✅ Driver "Hello World" compilado e testado no QEMU
+- ✅ Toolchain própria compilada via Buildroot SDK
 
-Esta é a fase crítica do desenvolvimento, onde a lógica de comunicação ponta a ponta é implementada para acionar efetivamente o acelerador multiplierless.
-- **Transferência Segura de Dados:** Como o driver faz a ponte entre a aplicação e o hardware, ele não pode acessar ponteiros de usuário diretamente por questões de segurança e paginação. Deve-se implementar o uso das macros copy_from_user() e copy_to_user().
-- **Injeção de Dados na NPU:** Uma vez que os buffers contendo as matrizes do dataset e os pesos empacotados em variáveis de 32 bits cheguem ao kernel (via chamadas write() ou ioctl() ), o driver deverá escrevê-los ordenadamente nos Endereços Físicos correspondentes aos Registradores de Dados de Entrada da NPU.
-- **Controle e Sincronização de Hardware:** * Start: Após enviar os dados, o driver deve escrever um sinal no Registrador de Controle para iniciar a operação da NPU.
-- **Polling/IRQ:** O driver deve implementar uma rotina de polling (verificação contínua do registrador) ou configurar uma interrupção de hardware para monitorar o Registrador de Status, aguardando o sinal Done/Ready indicando que a multiplicação terminou.
-- **Retorno dos Resultados:** Ao confirmar a finalização, o driver deve ler os dados processados do Registrador de Dados de Saída e enviá-los de volta à aplicação do espaço de usuário através da resposta à chamada read().
+## Fase 2 (Concluída): Estrutura do Driver
 
-## Fase 4: Integração Física, Depuração e Otimização
+- ✅ `register_chrdev` → `/dev/npu_ternaria`
+- ✅ `struct file_operations` (.mmap, .unlocked_ioctl, .open, .release)
+- ✅ Platform Driver com match via Device Tree
+- ✅ `dma_alloc_coherent()` + `dma_mmap_coherent()` para buffer compartilhado
+- ✅ `ioremap()` via `devm_ioremap_resource()` no probe
+- ✅ `devm_request_irq()` com `IRQF_SHARED` e `wait_event_interruptible()`
 
-A etapa final ocorre quando o hardware é sintetizado no FPGA e o Linux embarcado é inicializado fisicamente na placa.
-- **Deploy no SoC Físico:** O módulo final (.ko) deverá ser carregado no sistema operacional rodando no hardware físico, testando a ausência de Kernel Panics ou falhas de paginação (Page Faults).
-- **Testes de Integração Fim a Fim:** Realizar baterias de teste executando o código de inferência em linguagem C, validando se o caminho Aplicação → Driver → Hardware → Driver → Aplicação flui com resultados matematicamente corretos.
-- **Otimização para Benchmarking:** Para subsidiar a etapa crítica de coleta de métricas, o desenvolvedor do driver deve garantir que o overhead (custo de transição de contexto) gerado pelas chamadas de sistema e pelo próprio driver seja minimizado, assegurando que o tempo de execução medido reflita de forma justa e limpa o ganho de velocidade proporcionado pelo hardware acelerador.
+## Fase 3 (Concluída): Adaptação para NPU v2 (DMA + 64 MACs)
+
+### Contexto
+
+A NPU v2 introduziu **Wishbone Master** — ela mesma lê dados da RAM via DMA. O driver de Gustavo já estava escrito para DMA (com `dma_alloc_coherent`, `dma_mmap_coherent`), então se encaixou perfeitamente.
+
+### Ajustes realizados (npu_driver.c v3.0):
+
+1. **Offsets dos registradores alinhados com o mapa v2:**
+   ```c
+   #define NPU_REG_STATUS      0x00  /* RO */
+   #define NPU_REG_CONTROL     0x04  /* WO */
+   #define NPU_REG_SRC_ADDR    0x08  /* RW */
+   #define NPU_REG_DST_ADDR    0x0C  /* RW */
+   #define NPU_REG_DMA_SIZE    0x10  /* RW */
+   #define NPU_REG_WEIGHT_CFG  0x14  /* RW */
+   #define NPU_REG_ACT_CFG     0x18  /* RW */
+   #define NPU_REG_RESULT      0x1C  /* RO */
+   #define NPU_REG_MAC_CFG     0x20  /* RW */
+   #define NPU_REG_LAYER_CFG   0x24  /* RW */
+   ```
+
+2. **IOCTL com struct npu_ioctl_args:**
+   ```c
+   struct npu_ioctl_args {
+       uint32_t dma_size;
+       uint32_t weight_cfg;
+       uint32_t act_cfg;
+       uint32_t mac_cfg;
+       uint32_t layer_cfg;
+   };
+   ```
+   Pipeline START_INFERENCE: SRC_ADDR → DST_ADDR → DMA_SIZE → WEIGHT_CFG → ACT_CFG → MAC_CFG → LAYER_CFG → wmb() → CONTROL.start → wait_event
+
+3. **IRQ handler:** `iowrite32(CLEAR_IRQ, CONTROL)` → `wake_up_interruptible()`
+
+### 3.1 — Revisão do user_app.c (concluída)
+
+`user_app.c` (236 linhas) implementa:
+- Abertura de `/dev/npu_ternaria`
+- `mmap()` do buffer DMA via driver
+- Carga de pesos sintéticos + ativações no buffer
+- `ioctl(START_INFERENCE)` com timing segregado (t_setup, t_inference, t_readback)
+- Baseline CPU com flag `--cpu` via `forward_ternary_layer()`
+
+### 3.2 — Correção do dummy_app.c
+
+✅ `#include <sys/mman.h>` corrigido.
+
+## Fase 4 (Futura): Deploy Físico e Paper
+
+- 【 】 `insmod` do driver na FPGA física, verificar `dmesg`
+- 【 】 Validar IOCTL, IRQ e DMA no hardware real
+- 【 】 Escrever seção **"Kernel Driver Design"** do Paper 1: fluxo de memória, sincronização IRQ, overhead de transição

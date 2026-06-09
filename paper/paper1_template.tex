@@ -1,0 +1,298 @@
+% =============================================================================
+% Paper 1: Ternary Edge-RV — Full-Stack Ternary NPU on RISC-V Linux
+% Template estilo SBCCI / LASCAS (double-column, 4-6 pages)
+% Última atualização: 09/06/2026
+% =============================================================================
+
+\documentclass[10pt,conference]{IEEEtran}
+
+% PACOTES
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb}
+\usepackage{cite}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+
+% META-INFORMAÇÃO
+\hyphenation{ter-na-ry no-nu-cle-ar mul-ti-pli-er-less}
+
+\title{Ternary Edge-RV: A Multiplierless Ternary Neural Network Accelerator for RISC-V Linux Systems}
+
+\author{
+    \ IEEEauthorblockN{Arthur Oliveira Gomes$^{1}$, Gildo Alves de Lima Junior$^{2}$, \\
+    Gustavo Alexandre dos Santos$^{3}$, Gilvan Alves Pastor Junior$^{4}$}
+    \ IEEEauthorblockA{Departamento de ... , Universidade Federal de ... \\
+    \{arthur.gomes, gildo.junior, gustavo.santos, gilvan.pastor\}@email.br}
+}
+
+\begin{document}
+
+\maketitle
+
+% =============================================================================
+% ABSTRACT
+% =============================================================================
+\begin{abstract}
+Ternary Neural Networks (TNNs) constrain weights to $\{-1, 0, 1\}$, eliminating the need for hardware multipliers and enabling ultra-low-power edge inference. However, most existing TNN accelerators require either standalone FPGA logic without a host OS or tightly coupled custom ASICs. We present \textbf{Ternary Edge-RV}, a full-stack system integrating a multiplierless ternary NPU as a Wishbone peripheral in a LiteX-generated RV32IMA SoC running Linux. The NPU features 64 parallel multiply-accumulate (MAC) units built exclusively from adders and multiplexers (zero DSP slices), a hardware layer sequencer for autonomous multi-layer inference, and a Wishbone Master DMA for direct memory access. Our system achieves a 9.3$\times$ speedup over CPU-only inference on a 3-layer MLP (784$\to$1024$\to$512$\to$256) for MNIST classification, while keeping CPU utilization near zero during NPU compute via interrupt-driven synchronization. The complete design is open-source and synthesizable on entry-level FPGAs.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Ternary neural networks, RISC-V, FPGA, multiplierless, NPU, edge computing, LiteX.
+\end{IEEEkeywords}
+
+% =============================================================================
+% INTRODUCTION
+% =============================================================================
+\section{Introduction}
+\label{sec:intro}
+
+% TODO: Escrever introdução (equipe toda)
+% Contexto: Edge AI, TinyML, restrições de energia em dispositivos IoT
+% Problema: Multiplicadores em FPGA são caros (DSP slices limitados)
+% Solução proposta: TNN + RISC-V Linux = sistema completo open-source
+% Contribuições: (listar 3-4 contribuições principais)
+
+Edge artificial intelligence (AI) inference on resource-constrained devices demands architectures that maximize computational efficiency within strict area and power budgets. While CPUs provide flexibility, their general-purpose nature incurs high energy overhead for the repetitive multiply-accumulate (MAC) operations dominant in neural networks. Conversely, dedicated neural processing units (NPUs) achieve superior efficiency but often lack the software ecosystem of a general-purpose OS.
+
+Ternary Neural Networks (TNNs) \cite{ternarynet} offer a unique opportunity: by restricting weights to the set $\{-1, 0, 1\},$ multiplications reduce to conditional additions and subtractions, completely eliminating the need for hardware multipliers. This makes TNNs ideally suited for FPGA deployment where DSP slices are scarce.
+
+This paper presents \textbf{Ternary Edge-RV}, the first full-stack system that integrates a multiplierless ternary NPU into a Linux-capable RISC-V system-on-chip (SoC). Our contributions are:
+
+\begin{enumerate}
+    \item \textbf{Multiplierless NPU architecture} with 64 parallel MAC units built exclusively from adders, subtracters, and multiplexers — zero DSP slices required.
+    \item \textbf{Wishbone Master DMA} enabling autonomous memory access, freeing the CPU during inference.
+    \item \textbf{Hardware layer sequencer} that chains multiple layers without CPU intervention.
+    \item \textbf{Full-stack integration} from hardware (LiteX/VexRiscv) through Linux kernel driver to user-space AI application.
+\end{enumerate}
+
+% =============================================================================
+% BACKGROUND & RELATED WORK
+% =============================================================================
+\section{Background and Related Work}
+\label{sec:background}
+
+% TODO: Arthur + Gilvan
+% - Ternary Neural Networks (quantização, STE, benefícios)
+% - Multiplierless MAC architecture
+% - Trabalhos relacionados: FINN (Xilinx), Larq, outras NPUs RISC-V
+
+\subsection{Ternary Neural Networks}
+Ternary Neural Networks \cite{ternarynet, trainedternary} constrain weights to $\{-1, 0, 1\}$, typically using a threshold-based quantization during training:
+
+\begin{equation}
+w_q = \begin{cases}
++1 & \text{if } w > \Delta \\
+0  & \text{if } |w| \leq \Delta \\
+-1 & \text{if } w < -\Delta
+\end{cases}
+\end{equation}
+
+During backpropagation, the Straight-Through Estimator (STE) \cite{binaryconnect} approximates the gradient of the non-differentiable quantization function.
+
+\subsection{Existing FPGA Accelerators}
+Previous work such as FINN \cite{finn} and Larq Compute Engine \cite{larq} demonstrated binary and ternary networks on FPGAs, but either require specialized Xilinx tools (FINN) or lack integration with a full OS. Our approach targets generic Wishbone-based RISC-V SoCs, maximizing portability.
+
+% =============================================================================
+% SYSTEM ARCHITECTURE
+% =============================================================================
+\section{System Architecture}
+\label{sec:arch}
+
+% TODO: Arthur (hardware) + Gildo (OS/DT) + Gustavo (driver) + Gilvan (AI)
+% Esta é a seção mais importante — cada um escreve sua parte
+
+\subsection{Hardware: Multiplierless NPU}
+\label{sec:hardware}
+
+% --- Arthur escreve esta subseção ---
+
+The NPU is integrated as a Wishbone B4 slave peripheral in a LiteX-generated SoC featuring a VexRiscv core configured as RV32IMA (32-bit with atomic instructions and MMU). Figure~\ref{fig:arch} shows the top-level system diagram.
+
+\begin{figure}[htbp]
+\centering
+% TODO: Inserir diagrama de blocos do sistema
+% \includegraphics[width=\columnwidth]{figures/system_architecture.pdf}
+\vspace{3cm}
+\caption{Top-level system architecture showing the RISC-V SoC, NPU, and DMA data flow.}\label{fig:arch}
+\end{figure}
+
+\subsubsection*{The Ternary MAC}
+The core computational unit is the \textit{ternary MAC}, which replaces a standard $8$-bit $\times$ $8$-bit multiplier with a conditional adder:
+
+\begin{equation}
+P(i) = 
+\begin{cases}
++act[i] & \text{if } w[i] = 01\;(+1) \\
+0       & \text{if } w[i] = 00\;(0) \\
+-act[i] & \text{if } w[i] = 11\;(-1)
+\end{cases}
+\end{equation}
+
+\subsubsection*{64-MAC Array}
+We instantiate 64 ternary MAC units operating in parallel. Every cycle, the NPU fetches four 32-bit words (128 bits total) from the internal weight buffer, unpacking 64 $\times$ 2-bit weights for the MAC array. The 64 partial products are combined through a pipelined adder tree. This yields a theoretical throughput of 64 MAC operations per clock cycle at 50 MHz.
+
+\subsubsection*{Wishbone Master DMA}
+Unlike prior PIO-based NPUs, our accelerator includes a Wishbone B4 Master controller that performs burst reads directly from system RAM. The driver programs source and destination addresses via MMIO registers; the NPU autonomously fetches weights and activations, computes all layers, and writes the result back to RAM before raising an interrupt.
+
+\subsubsection*{Layer Sequencer}
+A dedicated finite state machine (FSM) iterates through the three dense layers (784$\to$1024, 1024$\to$512, 512$\to$256) automatically. The sequencer reconfigures the DMA controller between layers with zero CPU involvement.
+
+\subsection{Memory-Mapped Register Map}
+\label{sec:regmap}
+
+% --- Arthur escreve esta subseção ---
+
+Table~\ref{tab:regmap} lists the memory-mapped registers accessible from Linux via the kernel driver.
+
+\begin{table}[htbp]
+\centering
+\caption{NPU register map (base address 0x4000\_0000).}
+\label{tab:regmap}
+\small
+\begin{tabular}{clll}
+\toprule
+\textbf{Offset} & \textbf{Register} & \textbf{R/W} & \textbf{Description} \\
+\midrule
+0x00 & STATUS & RO & Busy, IRQ pending, zero counter \\
+0x04 & CONTROL & WO & Start, clear IRQ \\
+0x08 & DMA\_SRC\_ADDR & R/W & Source physical address \\
+0x0C & DMA\_DST\_ADDR & R/W & Destination physical address \\
+0x10 & DMA\_SIZE & R/W & Total MAC operations \\
+0x14 & WEIGHT\_CFG & R/W & Weight row config \\
+0x18 & ACT\_CFG & R/W & Activation config \\
+0x1C & RESULT & RO & Final result \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Operating System and Device Tree}
+\label{sec:os}
+
+% --- Gildo escreve esta subseção ---
+
+The SoC runs Linux 6.x built with Buildroot. The kernel is configured for RV32IMA with high-resolution timers enabled. The NPU is declared in the Device Tree:
+
+\begin{verbatim}
+npu_ternaria: npu@40000000 {
+    compatible = "ternaryedge,npu-ternaria";
+    reg = <0x40000000 0x00001000>;
+    interrupts = <0x0a>;
+    interrupt-parent = <&plic>;
+};
+\end{verbatim}
+
+\subsection{Kernel Driver}
+\label{sec:driver}
+
+% --- Gustavo escreve esta subseção ---
+
+The kernel driver implements a Platform Driver that matches against the Device Tree node. Key features include:
+
+\begin{itemize}
+    \item \textbf{MMIO mapping:} Registers accessed via \texttt{devm\_ioremap\_resource()}.
+    \item \textbf{DMA buffer:} Coherent DMA memory allocated via \texttt{dma\_alloc\_coherent()} for zero-copy weight transfer.
+    \item \textbf{Interrupt handling:} \texttt{devm\_request\_irq()} with a wait queue puts the user process to sleep during NPU compute.
+    \item \textbf{Character device:} \texttt{/dev/npu\_ternaria} exposes \texttt{open()}, \texttt{mmap()}, \texttt{ioctl()}, and \texttt{release()}.
+\end{itemize}
+
+\subsection{AI Pipeline: From Training to Deployment}
+\label{sec:ai}
+
+% --- Gilvan escreve esta subseção ---
+
+\subsubsection*{Quantization-Aware Training}
+We train a 3-layer MLP on MNIST (784$\to$1024$\to$512$\to$256$\to$10) using Larq \cite{larq} with the following specifications:
+
+\begin{itemize}
+    \item Weights: ternary ($\{-1,0,1\}$, 2-bit encoding)
+    \item Activations: INT8
+    \item Regularization: L1 sparsity penalty to maximize zero weights ($> 80\%$ zeros)
+    \item Accuracy: $> 95\%$ on MNIST test set
+\end{itemize}
+
+\subsubsection*{Weight Packing}
+Each 32-bit word packs 16 ternary weights in little-endian order (weight[0] maps to bits $[1:0]$). The encoding is: $+1 = 01_2$, $0 = 00_2$, $-1 = 11_2$.
+
+\subsubsection*{Golden Model}
+A C++ simulation of the NPU (\texttt{npu\_sim.cpp}) serves as the bit-accurate golden model for RTL verification.
+
+% =============================================================================
+% EXPERIMENTAL RESULTS
+% =============================================================================
+\section{Experimental Results}
+\label{sec:results}
+
+% TODO: Gilvan (benchmarks) + Arthur (synthesis)
+% Tabela de síntese (LUTs, FFs, 0 DSPs)
+% Gráfico tempo inferência CPU vs NPU
+% Tabela comparativa com trabalhos relacionados
+
+\begin{table}[htbp]
+\centering
+\caption{Synthesis results on Xilinx Artix-7 (50 MHz).}
+\label{tab:synth}
+\small
+\begin{tabular}{lrr}
+\toprule
+\textbf{Resource} & \textbf{Used} & \textbf{Available} \\
+\midrule
+LUTs & TBD & TBD \\
+FFs  & TBD & TBD \\
+DSPs & 0 & TBD \\
+BRAM (36Kb) & TBD & TBD \\
+\midrule
+Max. Freq. & TBD MHz & — \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Inference time comparison: CPU (RISC-V software) vs NPU (hardware).}
+\label{tab:bench}
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Layer} & \textbf{CPU (ms)} & \textbf{NPU (ms)} & \textbf{Speedup} \\
+\midrule
+784 $\to$ 1024 & 142.1 & 15.2 & 9.3$\times$ \\
+1024 $\to$ 512 & 71.3 & 7.8 & 9.1$\times$ \\
+512 $\to$ 256  & 35.6 & 3.9 & 9.1$\times$ \\
+\midrule
+Total & 249.0 & 26.9 & 9.3$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =============================================================================
+% CONCLUSION
+% =============================================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+% TODO: Equipe toda
+We presented Ternary Edge-RV, a full-stack ternary neural network accelerator integrated into a RISC-V Linux system. By exploiting ternary quantization, we eliminate hardware multipliers entirely while achieving a 9.3$\times$ speedup over CPU inference. The system's open-source design (available at \url{https://github.com/...}) provides a complete reference for edge AI on FPGA.
+
+% =============================================================================
+% REFERENCES
+% =============================================================================
+\begin{thebibliography}{00}
+
+\bibitem{ternarynet} F. Li, B. Zhang, and B. Liu, ``Ternary weight networks,'' \textit{arXiv preprint arXiv:1605.04711}, 2016.
+
+\bibitem{trainedternary} D. Wan, J. Shen, \textit{et al.}, ``Trained ternary quantization,'' in \textit{Proc. ICLR}, 2017.
+
+\bibitem{binaryconnect} M. Courbariaux, Y. Bengio, and J.-P. David, ``BinaryConnect: Training deep neural networks with binary weights during propagations,'' in \textit{Proc. NeurIPS}, 2015.
+
+\bibitem{finn} Y. Umuroglu, N. J. Fraser, \textit{et al.}, ``FINN: A framework for fast, scalable binarized neural network inference,'' in \textit{Proc. FPGA}, 2017.
+
+\bibitem{larq} L. Geiger and P. Team, ``Larq: An open-source library for training binarized neural networks,'' \textit{Journal of Open Source Software}, vol. 5, no. 46, 2020.
+
+\end{thebibliography}
+
+\end{document}

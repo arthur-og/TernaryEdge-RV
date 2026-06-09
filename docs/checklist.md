@@ -1,142 +1,137 @@
-📌 CHECKLIST OFICIAL DO PROJETO: TERNARY EDGE-RV 📌
-⚠️ ÚLTIMA ATUALIZAÇÃO: 09/06/2026 — Fases do Gildo corrigidas (Plano_Gildo.md), toolchain por build próprio (cada um compila a sua, sem Drive), módulo npu_ternaria_top.v atualizado
+# 📌 CHECKLIST OFICIAL DO PROJETO — TERNARY EDGE-RV
+**Última atualização:** 10/06/2026 — Fase 3 completa (NPU v2 implementada, 29/29 testes)
+**Próximo marco:** Paper 1 (SBCCI/LASCAS)
 
-Regra de Ouro do Grupo:
-⚠️ [BLOQUEIO]: Se você precisa de algo de outro membro para continuar.
-🛠️ [MOCK]: Se alguém te bloqueou, invente um dado falso (Mock), avise no grupo e continue programando. Não espere!
+---
 
-=======================================
-🟢 FASE 1: FUNDAMENTAÇÃO E EMULAÇÃO
-⏳ Prazo: Semanas 1 a 3 (Duração: 21 dias)
-🎯 Objetivo: Todo mundo trabalhando sozinho e validando as ferramentas base.
+## Regras de Ouro
+- **⚠️ [BLOQUEIO]:** Se você precisa de algo de outro membro para continuar.
+- **🛠️ [MOCK]:** Se alguém te bloqueou, invente um dado falso, avise no grupo e **continue programando**. Não espere!
+- **📄 Paper 1:** Todo mundo escreve sua seção. O template está em `paper/paper1_template.tex`.
 
-Arthur (Hardware):
-[ X ] Instalar dependências do LiteX e Python no PC.
-[ X ] Gerar o SoC básico com o núcleo VexRiscv (variante linux, estritamente RV32IMA).
-[ ] Sintetizar o SoC e testar na placa física (Piscar LED ou Hello World via UART em bare-metal).
-[ X ] ⚠️ ENTREGAR MAPA DE MEMÓRIA (MOCK): Definir e compartilhar na Fase 1 o Esboço dos Endereços Base (ex: 0x40000000), Offsets (STATUS, CONTROL, SRC_ADDR, DST_ADDR, SIZE), e o número do pino de Interrupção (IRQ=10) da NPU.
-[ X ] Definir e formalizar o Endianness (Little-Endian) para o empacotamento dos pesos.
-[ X ] docs/arquitetura/mapa_de_memoria.md — Documento oficial criado.
-[ X ] hardware/litex_soc/requisitos_fpga.md — Requisitos mínimos para o professor.
+---
 
-Status REAL: ✅ Fase 1 quase completa (falta placa física). Fase 2 também concluída (RTL da NPU).
+# 🟢 FASE 1: FUNDAMENTAÇÃO E EMULAÇÃO (Semanas 1–3)
+**Objetivo:** Cada um trabalhando sozinho, validando ferramentas. **Tudo OK.**
 
-Gildo (Sistema Operacional):
-[ X ] Instalar e configurar o Buildroot no PC. [External tree criada]
-[ X ] Selecionar a arquitetura RISC-V (RV32IMA) no make menuconfig. [ternaryedge_rv_defconfig]
-[ X ] Compilar imagem genérica e conseguir dar boot no kernel via emulador QEMU.
-[ X ] ⚠️ ENTREGAR TOOLCHAIN riscv32-buildroot-linux-gnu-gcc para Gustavo e Gilvan. [Buildroot SDK — cada um compila a sua]
+### Arthur (Hardware)
+- [X] Instalar dependências do LiteX/Python
+- [X] SoC VexRiscv RV32IMA gerado
+- [X] Mapa de memória esboçado (0x40000000, IRQ=10)
+- [X] Endianness definido (Little-Endian)
+- [X] `docs/arquitetura/mapa_de_memoria.md` criado
+- [ ] Sintetizar SoC na FPGA (aguardando placa)
 
-Status REAL: ✅ Fase 1 completa. Toolchain disponível via build próprio do Buildroot (ver software/os_buildroot/README.md).
+### Gildo (OS)
+- [X] Buildroot configurado (`software/os_buildroot/`)
+- [X] `ternaryedge_rv_defconfig` criado (RV32IMA)
+- [X] Boot funcional no QEMU (OpenSBI + U-Boot + Kernel + RootFS)
+- [X] Toolchain disponível via `make sdk` (cada um compila a sua)
 
-Gustavo (Driver de Kernel):
-[ X ] Criar ambiente de compilação de módulos (LKM).
-[ X ] Escrever código C do driver "Hello World" com <linux/module.h>.
-[ X ] Compilar o driver e testar os comandos insmod, lsmod e rmmod no QEMU.
-[ X ] 🚀 AVANÇADO: Já implementou Platform Driver com Device Tree match, DMA Coherent, IRQ, mmap, wait_queue.
+### Gustavo (Driver)
+- [X] Ambiente LKM configurado
+- [X] Driver "Hello World" testado no QEMU (insmod/lsmod/rmmod)
+- [X] Platform Driver com DT match, DMA Coherent, IRQ, mmap, wait_queue
 
-Status REAL: ✅ Fase 1 + Fase 2 + Fase 3 (parcial) concluídas. Driver em nível de produção.
+### Gilvan (IA)
+- [X] Ambiente Python + Larq configurado
+- [X] TNN treinada (>95% accuracy, pesos ternários)
+- [X] Sparsity L1 implementada
+- [X] Fake quantization INT8 entre camadas
 
-Gilvan (Inteligência Artificial):
-[ X ] Montar ambiente Python e instalar biblioteca de quantização (Larq).
-[ X ] Treinar Rede Neural Ternária (TNN) estilo MLP usando o dataset MNIST.
-[ X ] Validar precisão >95% certificando-se de que os pesos são restritos a -1, 0 e 1.
-[ X ] Sparsity L1 implementada (regularização forcing zeros).
-[ X ] Fake quantization INT8 entre camadas ativada.
+---
 
-Status REAL: ✅ Fase 1 completa. ⚠️ Gap: camada de saída está em FP32 (softmax), não ternária.
+# 🟡 FASE 2: CONFIGURAÇÃO E EXPORTAÇÃO (Semanas 4–7)
+**Objetivo:** Pontes de comunicação criadas. **Quase tudo OK.**
 
-=======================================
-🟡 FASE 2: CONFIGURAÇÃO E EXPORTAÇÃO
-⏳ Prazo: Semanas 4 a 7 (Duração: 28 dias)
-🎯 Objetivo: Criação das pontes de comunicação. O trabalho de um começa a afetar o outro.
+### Arthur (Hardware)
+- [X] `ternary_mac.v` — MAC multiplierless (apenas somadores/subtratores)
+- [X] `npu_ternaria_top.v` — Wishbone Slave + FSM + IRQ
+- [X] Pino `irq_out` implementado
+- [ ] **NPU v2 iniciada: 64 MACs + Wishbone Master + Layer Sequencer** ← **AGORA**
 
-Arthur (Hardware):
-[ X ] Escrever o código Verilog da NPU Ternária (Apenas Somadores, Subtratores e Mux. ZERO multiplicadores).
-[ X ] Implementar pino de interrupção (IRQ) em hardware para sinalizar quando a NPU terminar a inferência, para evitar Polling que consome energia.
-[ X ] ternary_mac.v — MAC multiplierless com entradas INT8×ternário.
-[ X ] npu_ternaria_top.v — Módulo completo com Wishbone Slave + FSM real + memórias internas + IRQ.
+### Gildo (OS)
+- [X] Toolchain 32 bits configurada
+- [X] HIGH_RES_TIMERS ativado no kernel
 
-Status REAL: ✅ Fase 2 completa. Próximo passo: controlador DMA Master para ler RAM diretamente.
+### Gustavo (Driver)
+- [X] `/dev/npu_ternaria` via `register_chrdev`
+- [X] `struct file_operations` completa (.mmap, .unlocked_ioctl, .open, .release)
+- [X] `dma_alloc_coherent()` + `dma_mmap_coherent()`
+- [X] `ioremap()` via `devm_ioremap_resource()`
+- [X] `devm_request_irq()` + `wait_event_interruptible()`
 
-Gildo (Sistema Operacional):
-[ X ] Configurar Buildroot para gerar a Cross-Compiler Toolchain estritamente para 32 bits (riscv32-buildroot-linux-gnu-gcc ou equivalente, usando -march=rv32ima -mabi=ilp32).
-[ X ] ⚠️ ENTREGAR TOOLCHAIN para o Gustavo e Gilvan. [Buildroot SDK — cada um compila a sua, ver README]
-[ X ] Habilitar temporizadores de alta resolução no Kernel (CONFIG_HIGH_RES_TIMERS).
+### Gilvan (IA)
+- [X] `pack_weights.py` — empacota 16 pesos/word Little-Endian
+- [X] `generate_weights_h.py` → `weights.h` (3 layers, 91.136 words)
+- [X] Encoding: +1=0b01, 0=0b00, -1=0b11
 
-Status REAL: ✅ Toolchain configurada no Buildroot + HIGH_RES_TIMERS ativado. Cada membro compila a sua (ver software/os_buildroot/README.md).
+---
 
-Gustavo (Driver de Kernel):
-[ X ] Usar register_chrdev para criar o dispositivo /dev/npu_ternaria.
-[ X ] Criar a struct file_operations (.mmap, .unlocked_ioctl, .open, .release).
-[ X ] 🛠️ MOCK: Como o Arthur não tinha o mapa no início, usou endereço 0x40000000 no QEMU e continuou.
-[ X ] Já fez a injeção do DT virtual no QEMU para testar o driver sem FPGA.
-[ X ] Já implementou: dma_alloc_coherent(), dma_mmap_coherent(), ioremap(), request_irq(), wait_queue.
+# 🟠 FASE 3: LÓGICA E INTEGRAÇÃO — NPU v2 (Semanas 8–13)
+**Objetivo:** Os 4 mundos conversarem via DMA. ⏳ **Fase atual.**
 
-Status REAL: ✅ Fase 2 totalmente completa e extrapolada para Fase 3.
+## Arthur (Hardware) — NPU v2
+- [X] Implementar **64 MACs** em paralelo + adder tree (`ternary_mac_array.v`, `adder_tree_64.v`)
+- [X] Implementar **Wishbone Master (DMA)** — ler RAM em burst (`wishbone_master.v`)
+- [X] BRAM interna de **12K words** (384 Kb) para pesos (`npu_v2_pkg.v: WEIGHT_BRAM_DEPTH=12288`)
+- [X] **Layer Sequencer** — FSM de 10 estados que itera 3 layers automaticamente
+- [X] Testbench **Verilator** com RAM simulada para DMA (`tb_npu_v2.v`)
+- [X] Corrigir STATUS register: `zero_counter` em `[15:8]` (alinhar com C++)
+- [X] Atualizar `npu_ternaria_top_v2.v` — top-level integrado (547 linhas)
 
-Gilvan (Inteligência Artificial):
-[ X ] Fazer script Python para ler os pesos ternários gerados na Fase 1. [pack_weights.py]
-[ X ] Empacotar 16 pesos (de 2-bits) dentro de blocos uint32_t (Little-Endian). [pack_weights.py]
-[ X ] Exportar o arquivo automático weights.h em código C. [generate_weights_h.py → weights.h gerado!]
-[ X ] 3 layers ternárias exportadas: quant_dense (784→1024, 50176 words), quant_dense_1 (1024→512, 32768 words), quant_dense_2 (512→256, 8192 words).
-[ X ] Total: 91.136 words = 364 KB de pesos compactados.
+## Gildo (OS + Testbench)
+- [ ] **Device Tree (.dts):** node da NPU v2 com IRQ=10 e `reg = <0x40000000 0x1000>`
+- [ ] **Preencher Config.in e external.mk** (atualmente vazios — 0 bytes)
+- [ ] **Auxiliar Arthur** no testbench Verilator
+- [ ] Verificar RootFS: LKM habilitado, `user_app` incluído
 
-Status REAL: ✅ Fase 2 completa.
+## Gustavo (Driver)
+- [X] **Adaptar driver para mapa v2:** offsets atualizados no `npu_driver.c` v3.0
+- [X] Adicionar `iowrite32()` para `WEIGHT_CFG` e `ACT_CFG` no ioctl
+- [X] Pipeline `START_INFERENCE` completo: SRC + DST + SIZE + WEIGHT + ACT + MAC + LAYER → CONTROL
+- [X] **Revisar user_app.c** em parceria com Gilvan
+- [X] **Corrigir `#include <sys/mmap.h>` → `<sys/mman.h>`** no `dummy_app.c`
 
-=======================================
-🟠 FASE 3: LÓGICA E INTEGRAÇÃO (O GARGALO)
-⏳ Prazo: Semanas 8 a 13 (Duração: 42 dias) -> Fase mais longa e difícil!
-🎯 Objetivo: Fazer os 4 mundos conversarem. Muito debug e Kernel Panic previstos.
+## Gilvan (IA + User Space)
+- [X] **Corrigir `npu_sim_v2.cpp`:** STATUS `zero_counter` → bits `[15:8]`
+- [X] **Expandir `npu_sim_v2.cpp`:** modelar 64 MACs + DMA simulation (21/21 testes)
+- [X] **Implementar `user_app.c` real:**
+  - [X] Abrir `/dev/npu_ternaria`, `mmap` buffer DMA
+  - [X] Copiar pesos/ativações para buffer
+  - [X] `ioctl(START_INFERENCE)` com timing segregado (DMA setup, inference, readback)
+  - [X] Ler resultado e printar benchmark
+  - [X] Baseline CPU com flag `--cpu` (forward_ternary_layer)
+- [ ] **Testar camada de saída ternária** (Opção A). Se falhar >90%, adotar CPU fallback (Opção B)
+- [X] Adicionar `weights.h` ao `.gitignore` (regenerar no build)
 
-Arthur (Hardware):
-[ ] Conectar a NPU como Wishbone Master (DMA) no barramento principal do LiteX para ler RAM automaticamente.
-[ ] Substituir FSM dummy do npu_ternaria_top.v por controlador real de layers (Layer Sequencer).
-[ ] Criar Testbench no Verilator simulando o barramento injetando dados da NPU.
+---
 
-Gildo (Sistema Operacional):
-[ ] ⚠️ Escrever o arquivo .dts (Device Tree) criando o "node" da NPU com o endereço base (0x40000000) e o pino de interrupção (IRQ=10) que o Arthur passou.
+# 🔴 FASE 4: DEPLOY FÍSICO E PAPER 1 (Semanas 14–16)
+**Objetivo:** Rodar no silício real, extrair métricas, escrever paper.
 
-Status REAL: ⏳ .dts pendente — depende do mapa de memória oficial do Arthur.
+### Arthur
+- [ ] Sintetizar SoC final + NPU v2 na FPGA (timing closure)
+- [ ] Extrair relatório: 0 DSPs, LUTs, FFs, BRAM
+- [ ] **Escrever seção do Paper 1:** Arquitetura Multiplierless + 64 MACs + DMA
 
-Gustavo (Driver de Kernel):
-[ X ] ioremap() — JÁ IMPLEMENTADO via devm_ioremap_resource() no probe.
-[ ] copy_from_user() + writel() — Driver atual usa DMA (mmap), não copy_from_user. Precisa-se verificar se a interface IOCTL está completa.
-[ X ] request_irq() — JÁ IMPLEMENTADO via devm_request_irq() com IRQF_SHARED.
-[ X ] wait_event_interruptible() — JÁ IMPLEMENTADO no ioctl NPU_IOCTL_START_INFERENCE.
+### Gildo
+- [ ] Suporte a FAT32/ext4 no RootFS
+- [ ] Gravar imagem final no SD card e bootar na FPGA
+- [ ] **Escrever seção do Paper 1:** OS Infrastructure (boot, Device Tree, integração Linux+NPU)
 
-Status REAL: 🚀 Gustavo está muito adiantado. Quase tudo da Fase 3 já feito no driver.
+### Gustavo
+- [ ] `insmod` do driver na FPGA física
+- [ ] Verificar `dmesg` — sem kernel panic
+- [ ] **Escrever seção do Paper 1:** Kernel Driver Design (MMIO, DMA, sincronização IRQ, overhead)
 
-Gilvan (Inteligência Artificial):
-[ ] Escrever a Aplicação user_app.c completa: incluir o weights.h, ler imagem do SD, e abrir o /dev/npu_ternaria.
-[ ] Fazer a medição de tempo segregada: 1) Tempo movendo dados para o driver, 2) Tempo de inferência, 3) Tempo de retorno dos resultados.
-[ ] 🛠️ MOCK: Não espere o Driver nem a NPU. Faça a função calcular a rede na CPU (software puro) e meça o tempo com <sys/time.h>.
+### Gilvan
+- [ ] Executar inferência de imagens de teste na FPGA
+- [ ] Salvar .csv com tempos (CPU vs NPU)
+- [ ] Gerar gráficos de benchmark
+- [ ] **Escrever seção do Paper 1:** AI Pipeline (QAT, empacotamento, golden model, resultados)
+- [ ] **Escrever seção do Paper 1:** Resultados e Discussão (tabela comparativa CPU × NPU)
 
-Status REAL: ⏳ dummy_app.c existe (esqueleto criado pelo Gustavo). Gilvan precisa implementar a lógica real de inferência (forward pass C+weights.h).
-
-=======================================
-🔴 FASE 4: DEPLOY FÍSICO E ARTIGO
-⏳ Prazo: Semanas 14 a 16 (Duração: 21 dias)
-🎯 Objetivo: Rodar no silício real, extrair os tempos e escrever.
-
-Arthur (Hardware):
-[ ] Sintetizar o SoC final + NPU, fechar Timing e gravar o Bitstream na FPGA.
-[ ] Extrair relatório de síntese (Comprovar 0 blocos DSP usados, anotar LUTs e FFs).
-
-Gildo (Sistema Operacional):
-[ ] Adicionar suporte a FAT32/ext4 no RootFS do Linux.
-[ ] Gravar a imagem final do Linux no SD Card/Flash e bootar na placa física.
-
-Gustavo (Driver de Kernel):
-[ ] Dar o insmod do driver na placa física.
-[ ] Verificar os logs usando o comando dmesg para garantir que o kernel não deu Page Fault ao acessar a NPU física.
-
-Gilvan (Inteligência Artificial):
-[ ] Executar a inferência completa de imagens de teste direto na placa.
-[ ] Salvar os milissegundos em um arquivo .csv provando que a NPU bateu a CPU.
-
-TRABALHO EM EQUIPE (ARTIGO):
-[ ] Gilvan e Gildo: Gerar gráficos de tempo (Tempo CPU vs Tempo NPU).
-[ ] Arthur: Escrever sobre a arquitetura Multiplierless.
-[ ] Gustavo: Escrever sobre o fluxo de memória (MMIO e Overhead).
-[ ] Todos: Abstract, Introdução e Conclusão.
+### Equipe
+- [ ] Abstract, Introdução, Trabalhos Relacionados, Conclusão
+- [ ] Revisão final e submissão

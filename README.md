@@ -4,10 +4,11 @@
 [![Architecture: RISC-V](https://img.shields.io/badge/Architecture-RISC--V%20(RV32IMA)-blue.svg)]()
 [![OS: Linux](https://img.shields.io/badge/OS-Embedded%20Linux-lightgrey.svg)]()
 [![Status: Active](https://img.shields.io/badge/Status-Active%20Research-success.svg)]()
+[![Paper 1](https://img.shields.io/badge/Paper-SBCCI%2FLASCAS%20Template-blueviolet.svg)](paper/paper1_template.tex)
 
 **Ternary Edge-RV** is a complete hardware-software co-design project aimed at achieving extreme energy efficiency for Edge Artificial Intelligence. This repository contains the full stack—from custom silicon architecture to the AI application—demonstrating a multiplierless Ternary Neural Network (TNN) accelerator integrated into a Linux-capable RISC-V System-on-Chip (SoC).
 
-This project is currently under active development for academic publication. It aims to prove that inferencing heavily quantized models ($\in \{-1, 0, 1\}$) on custom hardware without DSPs significantly outperforms CPU-bound execution in both latency and power consumption.
+This project is currently under active development for academic publication (Paper 1 — target: SBCCI/LASCAS). The paper template is available at [`paper/paper1_template.tex`](paper/paper1_template.tex). It aims to prove that inferencing heavily quantized models ($\in \{-1, 0, 1\}$) on custom hardware without DSPs significantly outperforms CPU-bound execution in both latency and power consumption.
 
 ---
 
@@ -73,46 +74,63 @@ TernaryEdge-RV/
 
 ## 📊 Project Status (Active Development)
 
-<!-- Status badges generated 2026-06-08 from git log analysis -->
+<!-- Status updated 2026-06-10 — Fase 3 completa (NPU v2, 29/29 testes) -->
 
 | Domain | Lead | Phase | Status | Completion |
 |:-------|:-----|:------|:-------|:-----------|
-| **Hardware (RTL/SoC)** | Arthur | 2.5/4 | F1✅ F2✅ F3▶️ | ![60%](https://img.shields.io/badge/60%25-yellow) |
-| **OS (Buildroot)** | Gildo | 2.25/4 | F1✅ F2✅ F3▶️ | ![55%](https://img.shields.io/badge/55%25-yellow) |
-| **Kernel Driver** | Gustavo | 3.0/4 | F1✅ F2✅ F3✅ | ![90%](https://img.shields.io/badge/90%25-brightgreen) |
-| **AI Pipeline** | Gilvan | 2.5/4 | F1✅ F2✅ F3▶️ | ![70%](https://img.shields.io/badge/70%25-yellowgreen) |
+| **Hardware (RTL/SoC)** | Arthur | 3.5/4 | F1✅ F2✅ F3✅ (NPU v2 done) | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
+| **OS (Buildroot)** | Gildo | 2.5/4 | F1✅ F2✅ F3▶️ | ![55%](https://img.shields.io/badge/55%25-yellow) |
+| **Kernel Driver** | Gustavo | 3.5/4 | F1✅ F2✅ F3✅ (v2 adapted) | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
+| **AI Pipeline** | Gilvan | 3.0/4 | F1✅ F2✅ F3✅ (4/5 tasks) | ![80%](https://img.shields.io/badge/80%25-yellowgreen) |
 
-### Arthur (Hardware) — RTL Design & SoC Integration
-- ✅ **Phase 1:** Official memory map defined (`0x40000000`, IRQ 10, Little-Endian). VexRiscv-RV32IMA base SoC. FPGA requirements documented.
-- ✅ **Phase 2:** `ternary_mac.v` (multiplierless MAC: 0 DSPs). `npu_ternaria_top.v` (Wishbone slave + FSM + IRQ generator).
-- ⏳ **Phase 3:** Pending: DMA controller (Wishbone master), layer sequencer, Verilator testbench.
-- ⏳ **Blocked:** Physical FPGA (waiting for professor). See `hardware/litex_soc/requisitos_fpga.md`.
+### Arthur (Hardware) — NPU v2: 64 MACs + Wishbone Master DMA
+- ✅ **Phase 1:** Official memory map defined (`0x40000000`, IRQ 10, Little-Endian). VexRiscv-RV32IMA base SoC.
+- ✅ **Phase 2:** `ternary_mac.v` (multiplierless MAC: 0 DSPs). `npu_ternaria_top.v` v1 (Wishbone slave + FSM + IRQ).
+- ✅ **Phase 3 — NPU v2 COMPLETE:**
+  - ✅ 64 MAC array (`ternary_mac_array.v`) + 6-stage pipelined adder tree (`adder_tree_64.v`)
+  - ✅ Wishbone Master DMA controller (`wishbone_master.v`) — burst reads, classic handshake
+  - ✅ 12K-word weight BRAM + 1K activation buffer (`npu_v2_pkg.v`)
+  - ✅ Hardware Layer Sequencer — FSM 10 estados, 3 layers (784→1024→512→256)
+  - ✅ Verilog testbench (`tb_npu_v2.v`) — RAM simulada, testes registrador/IRQ/STATUS
+  - ✅ STATUS register `zero_counter` at bits `[15:8]` — alinhado C++/RTL
+  - ✅ Golden Model C++ v2 — 21/21 testes passando
+- ⏳ FPGA confirmado pelo professor (E2). Bitstream alvo para Fase 4.
 
 ### Gildo (OS) — Buildroot & Device Tree
-- ✅ **Phase 1:** Buildroot external tree created. RV32IMA defconfig (kernel 6.18, OpenSBI, QEMU).
-- ✅ **Phase 2:** Toolchain configured in Buildroot (`make sdk`). HIGH_RES_TIMERS enabled in kernel. Each team member builds their own (see `software/os_buildroot/README.md`).
-- ⏳ **Phase 3:** Official `.dts` with `0x40000000` + IRQ 10.
-- ⏳ **Phase 4 (future):** FAT32/ext4 in RootFS. Flash image to SD Card.
+- ✅ **Phase 1:** Buildroot external tree. RV32IMA defconfig. QEMU boot.
+- ✅ **Phase 2:** Toolchain via `make sdk`. HIGH_RES_TIMERS enabled.
+- 🚧 **Phase 3:**
+  - 【 】 Official `.dts` with NPU v2 node (`compatible = "ternaryedge,npu-ternaria"`, IRQ=10)
+  - 【 】 Preencher Config.in e external.mk (atualmente vazios)
+  - 【 】 Verificar RootFS para suporte a LKM + user_app
+- ⏳ **Fase 4:** SD card image + deploy físico.
 
-### Gustavo (Driver) — Kernel Module (Zero-Copy DMA)
-- 🚀 **Ahead of schedule:** Full platform driver with `dma_alloc_coherent`, `mmap`, `request_irq`, `wait_event_interruptible`.
-- ✅ QEMU DT injection working. Tests performed without FPGA.
-- ✅ `software/include/npu_ioctl.h` and `dummy_app.c` created.
-- ✅ **RISC-V toolchain available** — build your own via `software/os_buildroot/README.md` (each team member compiles independently). `.ko` compilation unblocked.
+### Gustavo (Driver) — Adaptado para NPU v2
+- ✅ Platform driver with `dma_alloc_coherent`, `mmap`, `request_irq`, `wait_event_interruptible`.
+- ✅ **Adaptação para NPU v2 COMPLETA (npu_driver.c v3.0):**
+  - ✅ Offsets revisados (10 registradores, 0x00–0x24)
+  - ✅ `iowrite32()` para WEIGHT_CFG + ACT_CFG + MAC_CFG + LAYER_CFG
+  - ✅ IOCTL com struct `npu_ioctl_args` (5 campos de configuração)
+  - ✅ user_app.c revisado com timing segregado
+  - ✅ `mmap.h`→`mman.h` corrigido no dummy_app.c
 
-### Gilvan (AI) — QAT & Weight Export
-- ✅ **Phase 1-2:** Full QAT pipeline (Larq + STE). 3 ternary layers (784→1024→512→256). L1 sparsity active. Fake quant INT8 between layers.
-- ✅ `weights.h` generated with 3 layers (91,136 uint32_t words = 364 KB).
-- ⚠️ **Gap:** Output layer is FP32 (softmax), not ternary — current hardware does not support it.
-- ⏳ **Pending:** Real `user_app.c` with complete forward pass and segregated time measurement.
+### Gilvan (AI) — Golden Model v2 + user_app.c real
+- ✅ QAT pipeline (Larq + STE). 3 ternary layers. weights.h gerado.
+- ✅ **Phase 3 (4/5 tasks):**
+  - ✅ STATUS register corrigido para bits `[15:8]` no `npu_sim_v2.cpp`
+  - ✅ Golden Model expandido para 64 MACs + DMA simulation (21/21 testes)
+  - ✅ user_app.c real implementado (forward pass + timing segregado + baseline CPU)
+  - ✅ `.gitignore` atualizado (weights.h excluído)
+  - ⚠️ **Pendente:** Testar saída ternária na última layer (Opção A) ou usar CPU fallback (Opção B)
 
-### Known Gaps
+### Known Gaps (updated 10/06/2026)
 | Gap | Owner | Priority |
 |:----|:------|:---------|
-| Output layer FP32 (non-ternary) vs hardware | Gilvan / Arthur | **High** |
-| No physical FPGA for synthesis | Arthur | **High** |
-| DMA master not implemented in RTL | Arthur | **High** |
-| No Verilator testbench | Arthur | **Medium** |
+| Output layer FP32 vs hardware ternary | Gilvan (testar Opção A) | **High** |
+| No physical FPGA yet | Arthur + Professor | **High** — confirmado, aguardando |
+| Device Tree (.dts) para NPU v2 não criado | Gildo | **High** |
+| Config.in / external.mk vazios | Gildo | **Medium** |
+| QEMU setup usa CPU rv64imafdch (projeto é RV32) | Gildo/Gustavo | **Medium** |
 
 ---
 
@@ -171,13 +189,13 @@ This research project is collaboratively developed by:
 
 ## 📝 Citation
 
-If you find this repository useful for your research, please consider citing our upcoming paper:
+If you find this repository useful for your research, please consider citing our upcoming paper. The Paper 1 LaTeX template with full author list and section outline is at [`paper/paper1_template.tex`](paper/paper1_template.tex).
 
 ```bibtex
 @article{TernaryEdgeRV2026,
-  title={Ternary Edge-RV: A Full-Stack Multiplierless Edge AI Accelerator on RISC-V},
+  title={Ternary Edge-RV: A Multiplierless Ternary Neural Network Accelerator for RISC-V Linux Systems},
   author={Arthur Oliveira Gomes and Gildo Alves de Lima Junior and Gustavo Alexandre dos Santos and Gilvan Alves Pastor Junior},
-  journal={TBD},
+  journal={TBD (SBCCI/LASCAS)},
   year={2026}
 }
 ```

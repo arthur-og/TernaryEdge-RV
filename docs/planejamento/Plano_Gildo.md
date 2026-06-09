@@ -1,32 +1,71 @@
-# Plano de Trabalho - Gildo Alves de Lima Junior
-**Papel no Projeto:** OS Infrastructure (Buildroot, Kernel Configuration, Device Tree)
+# Plano de Trabalho — Gildo Alves de Lima Junior
+**Papel no Projeto:** OS Infrastructure (Buildroot, Kernel Configuration, Device Tree, Testbenches)
+**Última atualização:** 10/06/2026
 
 ---
 
-## Fase 1: Configuração do Ambiente e Boot em Emulação
+## Marcos do Projeto
 
-A etapa inicial foca em estabelecer o alicerce de software básico para a arquitetura alvo, garantindo que o sistema operacional possa inicializar mesmo antes da disponibilização do hardware físico.
-- **Adoção do Buildroot:** A construção de uma distribuição Linux embarcada do zero é altamente complexa; portanto, utilizar-se-á o sistema de build automatizado Buildroot. Ele será responsável por compilar o kernel, o bootloader e o sistema de arquivos raiz (RootFS).
-- **Ecossistema de Boot (OpenSBI e U-Boot):** Para processadores RISC-V , o processo de boot exige camadas de privilégio. Deve-se compilar e integrar o OpenSBI (Supervisor Binary Interface), que atua no modo Machine, e o U-Boot, que carregará o kernel no modo Supervisor.
-- **Validação via QEMU:** O primeiro marco de sucesso desta fase é gerar uma imagem genérica do Linux para a arquitetura de 32 bits (RV32IMA). O sistema deverá ser inicializado com sucesso no emulador QEMU, validando a integridade do kernel, do bootloader e do terminal de acesso antes da integração com o FPGA físico.
+| Marco | Previsão | Status |
+|:------|:---------|:-------|
+| M1 — Buildroot + QEMU boot funcional (RV32IMA) | Concluído | ✅ |
+| M2 — Toolchain exportada via SDK (cada um compila a sua) | Concluído | ✅ |
+| M3 — Device Tree (.dts) com node da NPU v2 finalizada | 2 semanas | ⏳ |
+| M4 — RootFS com suporte a armazenamento + deploy físico | Após M3 + 1 sem | ⏳ |
+| M5 — Seção "OS Infrastructure" do Paper 1 escrita | Antes do prazo final | ⏳ |
 
-## Fase 2: Configuração do Kernel e Geração da Toolchain
+---
 
-O sistema operacional atuará como a camada intermediária entre a aplicação de inteligência artificial e o acelerador físico. Esta fase prepara o ambiente para os demais membros da equipe de software.
-- **Exportação da Cross-Compiler Toolchain:** A aplicação de inferência, escrita na linguagem C, não pode ser compilada nativamente no host (arquitetura x86). O Buildroot deverá ser configurado para gerar a Cross-Compiler Toolchain (`riscv32-buildroot-linux-gnu-gcc`) para a arquitetura RV32IMA. Cada membro da equipe que precisar compilar código para o RISC-V compila sua própria toolchain a partir da external tree versionada no Git (ver `software/os_buildroot/README.md`), eliminando a necessidade de distribuir binários manualmente.
-- **Parametrização do Kernel (menuconfig):** O Kernel Linux precisará de customizações específicas para o projeto. É mandatório habilitar o suporte a Módulos de Kernel Carregáveis (Loadable Kernel Modules - LKM), pré-requisito para o desenvolvimento do driver de comunicação.
-- **Suporte a Temporizadores de Alta Resolução:** Para garantir o referencial comparativo e a métrica central do projeto, o kernel deve suportar temporizadores precisos. Isso viabilizará o uso de funções da biblioteca <sys/time.h> (gettimeofday()) para cronometrar a operação com precisão de milissegundos ou microssegundos.
+## Fase 1 (Concluída): Configuração do Ambiente e Boot em Emulação
 
-## Fase 3: Construção e Integração da Device Tree (DTS)
+- ✅ Buildroot configurado (external tree em `software/os_buildroot/`)
+- ✅ defconfig ternária (RV32IMA, linux) criada
+- ✅ Boot funcional no QEMU (OpenSBI + U-Boot + Kernel + RootFS)
+- ✅ HIGH_RES_TIMERS habilitado no kernel
 
-A Device Tree é a estrutura de dados que descreve os componentes físicos de hardware para o kernel Linux, permitindo que o sistema operacional saiba onde os periféricos estão localizados na memória.
-- **Recepção do Mapa de Memória:** O trabalho nesta etapa depende do documento técnico fornecido pela equipe de hardware, que especificará o Endereço Base da NPU no hardware físico e os offsets de cada registrador.
-- **Mapeamento do Acelerador:** O arquivo Device Tree Source (DTS) da placa deverá ser editado para incluir o nó ("node") correspondente à NPU Ternária.
-- **Viabilização da Comunicação:** Este documento é o requisito fundamental para que o desenvolvedor do Driver do Kernel possa iniciar a comunicação com o periférico físico. O mapeamento correto garantirá que o driver acesse os registradores de controle e dados por meio de Memory-Mapped I/O (MMIO).
+## Fase 2 (Concluída): Geração da Toolchain
 
-## Fase 4: Sistema de Arquivos (RootFS) e Deploy Físico
+- ✅ `make sdk` funcional — cada membro compila sua toolchain localmente
+- ✅ README.md em `software/os_buildroot/` com instruções
+- ✅ Nenhuma dependência de Google Drive para distribuir toolchain
 
-A fase final consolida a infraestrutura do software para a execução real do benchmark no System- on-Chip (SoC) sintetizado no FPGA.
-- **Configuração de Armazenamento:** Para a leitura dos datasets de IA, o sistema de arquivos raiz (RootFS) deve ser expandido. É necessário habilitar suporte a sistemas de arquivos como FAT32 ou ext4 e configurar a montagem de dispositivos de armazenamento em massa (ex: cartões SD ou pendrives USB, a depender da interface da placa).
-- **Integração SoC-Linux:** O bitstream gerado na fase de síntese e validação física atestará o funcionamento do hardware executando um firmware simples. Em seguida, a imagem completa do Linux (kernel, bootloader, Device Tree e RootFS) será gravada no meio de armazenamento físico e inicializada sobre o SoC RISC-V físico.
-- **Testes de Integração:** O teste final desta frente de trabalho é garantir que, uma vez feito o boot físico, o ambiente Linux seja capaz de carregar o driver da NPU (arquivos .ko) e executar o binário do espaço de usuário sem falhas de paginação de memória.
+## Fase 3 (Em Andamento): Device Tree e Testbench
+
+### 3.1 — Device Tree (.dts) para NPU v2
+
+O node da NPU deve usar o mapa de memória revisado (architecture_contract.md v2):
+
+```dts
+npu_ternaria: npu@40000000 {
+    compatible = "ternaryedge,npu-ternaria";
+    reg = <0x40000000 0x00001000>;
+    interrupts = <0x0a>;
+    interrupt-parent = <&plic>;
+};
+```
+
+- **Compatível com driver existente:** Manter `compatible` igual ao usado no QEMU para não quebrar o driver que o Gustavo já escreveu.
+- **Interrupt:** IRQ=10 conectado ao PLIC do VexRiscv.
+
+### 3.2 — Testbench Verilator (Apoio ao Arthur)
+
+Gildo auxiliará Arthur na escrita do testbench Verilator para a NPU v2:
+
+- Configurar ambiente Verilator na máquina de Gildo
+- Escrever módulo de RAM simulada (comportamental) para o DMA Master ler/escrever
+- Validar que o protocolo Wishbone Master está correto (endereços, burst, handshake)
+- Rodar simulação em paralelo com Arthur para acelerar a validação
+
+### 3.3 — Atualização do RootFS
+
+Confirmar que o RootFS atual inclui:
+- Módulos de kernel carregáveis (LKM) — para o `npu_driver.ko`
+- Binário do user_app estaticamente compilado
+- Sistema de arquivos suportando leitura de imagens (FAT32/ext4)
+
+## Fase 4 (Futura): Deploy Físico e Paper
+
+- 【 】 Gravar imagem final do Linux em SD card
+- 【 】 Bootar na FPGA e validar `dmesg`
+- 【 】 Carregar driver NPU e executar inferência
+- 【 】 Escrever seção **"OS Infrastructure"** do Paper 1: config de boot, Device Tree, integração Linux + NPU

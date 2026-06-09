@@ -1,3 +1,29 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * npu_driver.c — Ternary Edge-RV NPU v2 Platform Driver
+ * 
+ * Driver for the NPU Ternária v2 (64 MACs, Wishbone Master DMA, Layer Sequencer).
+ * Communicates with the hardware via:
+ *   - MMIO registers (ioread32/iowrite32) at 0x40000000 base
+ *   - DMA coherent buffer for zero-copy weight/activation transfer
+ *   - Hardware IRQ for sleep-wake synchronization
+ *
+ * Memory Map (NPU v2):
+ *   0x00: STATUS     (RO) — [0]=busy, [1]=irq, [15:8]=zero_counter
+ *   0x04: CONTROL    (WO) — [0]=start, [1]=clear_irq
+ *   0x08: DMA_SRC    (RW) — Physical address of weights/activations in RAM
+ *   0x0C: DMA_DST    (RW) — Physical address for result in RAM
+ *   0x10: DMA_SIZE   (RW) — Total MAC operations
+ *   0x14: WEIGHT_CFG (RW) — Weight configuration
+ *   0x18: ACT_CFG    (RW) — Activation configuration
+ *   0x1C: RESULT     (RO) — Final accumulated result
+ *   0x20: MAC_CFG    (RW) — Number of MACs (default 64)
+ *   0x24: LAYER_CFG  (RW) — Number of layers (default 3)
+ *
+ * Author: Gustavo Alexandre dos Santos
+ * Version: 3.0 (NPU v2)
+ */
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/fs.h>
@@ -13,71 +39,82 @@
 
 #include "../include/npu_ioctl.h"
 
-/* Defines and configuration */
+/* Driver identification */
 #define DEVICE_NAME "npu_ternaria"
-#define CLASS_NAME "npu"
+#define CLASS_NAME  "npu"
 
-/* 
- * NPU/DMA Register Offsets 
- * (To be confirmed with LiteX Hardware Team) 
- */
-#define DMA_REG_SRC_ADDR    0x00
-#define DMA_REG_DEST_ADDR   0x04 /* If applicable, otherwise NPU receives stream */
-#define DMA_REG_SIZE        0x08
-#define DMA_REG_CTRL        0x0C /* Bit 0: Start, Bit 1: Done/IRQ Clear */
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Gustavo Alexandre dos Santos");
+MODULE_DESCRIPTION("Ternary Edge-RV NPU v2 Platform Driver (64 MACs, DMA, IRQ)");
+MODULE_VERSION("3.0");
 
-/* 
- * License must be GPL-compatible to access internal Linux Kernel symbols 
- * (like platform_driver_register, class_create) which are EXPORT_SYMBOL_GPL. 
- */
-MODULE_LICENSE("Dual BSD/GPL");
-MODULE_AUTHOR("Gustavo Alexandre");
-MODULE_DESCRIPTION("TernaryEdge-RV NPU Platform Driver (Zero-Copy/DMA/IRQ)");
-MODULE_VERSION("2.0");
+/* =========================================================================
+ * NPU v2 Register Offsets
+ * ========================================================================= */
+#define NPU_REG_STATUS      0x00  /* RO */
+#define NPU_REG_CONTROL     0x04  /* WO */
+#define NPU_REG_SRC_ADDR    0x08  /* RW */
+#define NPU_REG_DST_ADDR    0x0C  /* RW */
+#define NPU_REG_DMA_SIZE    0x10  /* RW */
+#define NPU_REG_WEIGHT_CFG  0x14  /* RW */
+#define NPU_REG_ACT_CFG     0x18  /* RW */
+#define NPU_REG_RESULT      0x1C  /* RO */
+#define NPU_REG_MAC_CFG     0x20  /* RW */
+#define NPU_REG_LAYER_CFG   0x24  /* RW */
 
-/* Driver private data structure */
+/* CONTROL register bit definitions */
+#define NPU_CTRL_START      BIT(0)
+#define NPU_CTRL_CLEAR_IRQ  BIT(1)
+
+/* =========================================================================
+ * Driver Private Data
+ * ========================================================================= */
 struct npu_dev {
     struct cdev cdev;
     struct device *dev;
-    
-    void __iomem *hw_base_addr; /* MMIO Base for DMA/NPU Config */
+
+    void __iomem *hw_base;      /* MMIO base address */
     int irq;
 
-    /* DMA Coherent Memory fields */
-    void *dma_vaddr;        /* Virtual address for CPU (used internally) */
-    dma_addr_t dma_paddr;   /* Physical address for Hardware DMA */
+    /* DMA Coherent Buffer */
+    void *dma_vaddr;            /* CPU virtual address */
+    dma_addr_t dma_paddr;       /* Physical address for NPU DMA */
     size_t dma_size;
 
-    /* Sync primitives */
+    /* IRQ Synchronization */
     wait_queue_head_t wait_queue;
     int inference_done;
 };
 
 static int major_number;
-static struct class* npu_class = NULL;
-static struct npu_dev *npu_instance = NULL;
+static struct class *npu_class;
+static struct npu_dev *npu_instance;
 
-/* Interrupt Handler */
+/* =========================================================================
+ * Interrupt Handler
+ * ========================================================================= */
 static irqreturn_t npu_irq_handler(int irq, void *dev_id)
 {
     struct npu_dev *npu = (struct npu_dev *)dev_id;
-    u32 status;
 
-    if (!npu || !npu->hw_base_addr)
+    if (!npu || !npu->hw_base)
         return IRQ_NONE;
 
-    /* Read status and clear hardware interrupt flag */
-    status = ioread32(npu->hw_base_addr + DMA_REG_CTRL);
-    iowrite32(status | 0x02, npu->hw_base_addr + DMA_REG_CTRL); /* Assuming Bit 1 clears IRQ */
+    /* Clear IRQ in NPU hardware (write bit 1 to CONTROL) */
+    iowrite32(NPU_CTRL_CLEAR_IRQ, npu->hw_base + NPU_REG_CONTROL);
 
-    /* Mark as done and wake up waiting User-Space process */
+    /* Wake user-space process waiting on ioctl */
     npu->inference_done = 1;
     wake_up_interruptible(&npu->wait_queue);
 
     return IRQ_HANDLED;
 }
 
-/* File Operations: mmap (Zero-Copy User-Space to DMA) */
+/* =========================================================================
+ * File Operations
+ * ========================================================================= */
+
+/* mmap: map DMA coherent buffer directly to user-space */
 static int npu_mmap(struct file *filep, struct vm_area_struct *vma)
 {
     struct npu_dev *npu = npu_instance;
@@ -86,43 +123,52 @@ static int npu_mmap(struct file *filep, struct vm_area_struct *vma)
     if (size > npu->dma_size)
         return -EINVAL;
 
-    /* Map the coherent DMA buffer directly to User-Space */
-    return dma_mmap_coherent(npu->dev, vma, npu->dma_vaddr, npu->dma_paddr, size);
+    return dma_mmap_coherent(npu->dev, vma,
+                             npu->dma_vaddr, npu->dma_paddr, size);
 }
 
-/* File Operations: ioctl (Trigger Hardware) */
+/* ioctl: configure and start NPU inference */
 static long npu_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
 {
     struct npu_dev *npu = npu_instance;
-    unsigned int payload_size;
+    struct npu_ioctl_args args;
 
     switch (cmd) {
-        case NPU_IOCTL_START_INFERENCE:
-            if (copy_from_user(&payload_size, (unsigned int __user *)arg, sizeof(payload_size)))
-                return -EFAULT;
+    case NPU_IOCTL_START_INFERENCE:
+        if (copy_from_user(&args, (void __user *)arg, sizeof(args)))
+            return -EFAULT;
 
-            if (payload_size > npu->dma_size) {
-                printk(KERN_ERR "[TERNARY NPU] Payload size exceeds DMA buffer\n");
-                return -EINVAL;
-            }
+        if (args.dma_size > npu->dma_size) {
+            dev_err(npu->dev, "DMA size %u exceeds buffer (%zu)\n",
+                    args.dma_size, npu->dma_size);
+            return -EINVAL;
+        }
 
-            npu->inference_done = 0;
+        npu->inference_done = 0;
 
-            /* Configure standard DMA Controller */
-            iowrite32((u32)npu->dma_paddr, npu->hw_base_addr + DMA_REG_SRC_ADDR);
-            iowrite32(payload_size, npu->hw_base_addr + DMA_REG_SIZE);
-            
-            /* Start DMA/NPU */
-            iowrite32(0x01, npu->hw_base_addr + DMA_REG_CTRL); /* Assuming Bit 0 is Start */
+        /* ---- Configure all NPU v2 registers ---- */
+        iowrite32((u32)npu->dma_paddr, npu->hw_base + NPU_REG_SRC_ADDR);
+        iowrite32((u32)npu->dma_paddr, npu->hw_base + NPU_REG_DST_ADDR);
+        iowrite32(args.dma_size,       npu->hw_base + NPU_REG_DMA_SIZE);
+        iowrite32(args.weight_cfg,     npu->hw_base + NPU_REG_WEIGHT_CFG);
+        iowrite32(args.act_cfg,        npu->hw_base + NPU_REG_ACT_CFG);
+        iowrite32(args.mac_cfg,        npu->hw_base + NPU_REG_MAC_CFG);
+        iowrite32(args.layer_cfg,      npu->hw_base + NPU_REG_LAYER_CFG);
 
-            /* Put the process to SLEEP (Zero CPU Polling) */
-            wait_event_interruptible(npu->wait_queue, npu->inference_done != 0);
-            
-            break;
+        wmb();  /* Memory barrier: ensure all writes reach NPU before start */
 
-        default:
-            return -ENOTTY;
+        /* Start NPU inference */
+        iowrite32(NPU_CTRL_START, npu->hw_base + NPU_REG_CONTROL);
+
+        /* Sleep until interrupt (zero CPU usage during NPU compute) */
+        wait_event_interruptible(npu->wait_queue, npu->inference_done != 0);
+
+        break;
+
+    default:
+        return -ENOTTY;
     }
+
     return 0;
 }
 
@@ -137,58 +183,86 @@ static const struct file_operations npu_fops = {
     .unlocked_ioctl = npu_ioctl,
 };
 
-/* Platform Driver Probe */
+/* =========================================================================
+ * Platform Driver
+ * ========================================================================= */
+
 static int npu_probe(struct platform_device *pdev)
 {
     struct device *dev = &pdev->dev;
     struct resource *res;
     int ret;
 
-    printk(KERN_INFO "[TERNARY NPU] Probing Device from Device Tree...\n");
+    dev_info(dev, "Ternary NPU v2 probing...\n");
 
     npu_instance = devm_kzalloc(dev, sizeof(*npu_instance), GFP_KERNEL);
-    if (!npu_instance) return -ENOMEM;
+    if (!npu_instance)
+        return -ENOMEM;
+
     npu_instance->dev = dev;
     init_waitqueue_head(&npu_instance->wait_queue);
 
-    /* 1. Map Hardware Registers (MMIO) */
+    /* 1. Map MMIO region (registers) */
     res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-    npu_instance->hw_base_addr = devm_ioremap_resource(dev, res);
-    if (IS_ERR(npu_instance->hw_base_addr)) {
-        printk(KERN_ERR "[TERNARY NPU] Failed to map MMIO\n");
-        return PTR_ERR(npu_instance->hw_base_addr);
-    }
+    npu_instance->hw_base = devm_ioremap_resource(dev, res);
+    if (IS_ERR(npu_instance->hw_base))
+        return PTR_ERR(npu_instance->hw_base);
 
-    /* 2. Setup Hardware IRQ */
+    dev_info(dev, "MMIO at 0x%llx (size=%lld)\n",
+             (unsigned long long)res->start,
+             (unsigned long long)resource_size(res));
+
+    /* 2. Setup IRQ */
     npu_instance->irq = platform_get_irq(pdev, 0);
-    if (npu_instance->irq < 0) return npu_instance->irq;
+    if (npu_instance->irq < 0)
+        return npu_instance->irq;
 
-    ret = devm_request_irq(dev, npu_instance->irq, npu_irq_handler, IRQF_SHARED, DEVICE_NAME, npu_instance);
+    ret = devm_request_irq(dev, npu_instance->irq, npu_irq_handler,
+                           IRQF_SHARED, DEVICE_NAME, npu_instance);
     if (ret) {
-        printk(KERN_ERR "[TERNARY NPU] Failed to request IRQ %d\n", npu_instance->irq);
+        dev_err(dev, "Failed to request IRQ %d\n", npu_instance->irq);
         return ret;
     }
 
-    /* 3. Allocate Coherent DMA Memory */
+    dev_info(dev, "IRQ %d registered\n", npu_instance->irq);
+
+    /* 3. Allocate coherent DMA buffer */
     npu_instance->dma_size = NPU_DMA_BUFFER_SIZE;
-    npu_instance->dma_vaddr = dma_alloc_coherent(dev, npu_instance->dma_size, &npu_instance->dma_paddr, GFP_KERNEL);
+    npu_instance->dma_vaddr = dma_alloc_coherent(dev, npu_instance->dma_size,
+                                                  &npu_instance->dma_paddr,
+                                                  GFP_KERNEL);
     if (!npu_instance->dma_vaddr) {
-        printk(KERN_ERR "[TERNARY NPU] Failed to allocate DMA memory\n");
+        dev_err(dev, "DMA coherent allocation failed (%zu bytes)\n",
+                npu_instance->dma_size);
         return -ENOMEM;
     }
-    printk(KERN_INFO "[TERNARY NPU] DMA buffer allocated at phys 0x%pad\n", &npu_instance->dma_paddr);
 
-    /* 4. Register Character Device (/dev/npu_ternaria) */
+    dev_info(dev, "DMA buffer: virt=%p phys=0x%pad size=%zu\n",
+             npu_instance->dma_vaddr,
+             &npu_instance->dma_paddr,
+             npu_instance->dma_size);
+
+    /* 4. Register character device */
     major_number = register_chrdev(0, DEVICE_NAME, &npu_fops);
-    npu_class = class_create(CLASS_NAME);
+    if (major_number < 0) {
+        dev_err(dev, "Failed to register char device\n");
+        return major_number;
+    }
+
+    npu_class = class_create(THIS_MODULE, CLASS_NAME);
+    if (IS_ERR(npu_class)) {
+        unregister_chrdev(major_number, DEVICE_NAME);
+        return PTR_ERR(npu_class);
+    }
+
     device_create(npu_class, NULL, MKDEV(major_number, 0), NULL, DEVICE_NAME);
 
     platform_set_drvdata(pdev, npu_instance);
-    printk(KERN_INFO "[TERNARY NPU] Probe successful. Ready for Zero-Copy inference.\n");
+    dev_info(dev, "NPU v2 probe successful. /dev/%s ready.\n", DEVICE_NAME);
+
     return 0;
 }
 
-/* Platform Driver Remove */
 static void npu_remove(struct platform_device *pdev)
 {
     struct npu_dev *npu = platform_get_drvdata(pdev);
@@ -197,26 +271,27 @@ static void npu_remove(struct platform_device *pdev)
     class_destroy(npu_class);
     unregister_chrdev(major_number, DEVICE_NAME);
 
-    if (npu->dma_vaddr)
-        dma_free_coherent(npu->dev, npu->dma_size, npu->dma_vaddr, npu->dma_paddr);
+    if (npu && npu->dma_vaddr)
+        dma_free_coherent(npu->dev, npu->dma_size,
+                          npu->dma_vaddr, npu->dma_paddr);
 
-    printk(KERN_INFO "[TERNARY NPU] Driver removed.\n");
+    dev_info(&pdev->dev, "NPU v2 driver removed.\n");
 }
 
-/* Device Tree Match Table */
+/* Device Tree match table */
 static const struct of_device_id npu_of_match[] = {
-    { .compatible = "ternary,npu-dma", },
+    { .compatible = "ternaryedge,npu-ternaria", },
     { /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, npu_of_match);
 
-static struct platform_driver npu_driver = {
-    .probe = npu_probe,
+static struct platform_driver npu_platform_driver = {
+    .probe  = npu_probe,
     .remove = npu_remove,
     .driver = {
-        .name = DEVICE_NAME,
+        .name           = DEVICE_NAME,
         .of_match_table = npu_of_match,
     },
 };
 
-module_platform_driver(npu_driver);
+module_platform_driver(npu_platform_driver);

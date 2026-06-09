@@ -52,7 +52,7 @@ LDFLAGS             := -static
 
 # Target binary and sources
 TARGET               = npu_inference
-SRC                  = dummy_app.c
+SRC                  = user_app.c
 
 # =============================================================================
 #  TARGETS

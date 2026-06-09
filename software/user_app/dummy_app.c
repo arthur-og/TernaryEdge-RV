@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/mmap.h>
+#include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
 #include <string.h>
