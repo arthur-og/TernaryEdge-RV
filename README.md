@@ -78,7 +78,7 @@ TernaryEdge-RV/
 | Domain | Lead | Phase | Status | Completion |
 |:-------|:-----|:------|:-------|:-----------|
 | **Hardware (RTL/SoC)** | Arthur | 2.5/4 | F1✅ F2✅ F3▶️ | ![60%](https://img.shields.io/badge/60%25-yellow) |
-| **OS (Buildroot)** | Gildo | 1.5/4 | F1✅ F2⏳ | ![35%](https://img.shields.io/badge/35%25-orange) |
+| **OS (Buildroot)** | Gildo | 2.0/4 | F1✅ F2✅ F3▶️ | ![50%](https://img.shields.io/badge/50%25-yellow) |
 | **Kernel Driver** | Gustavo | 3.0/4 | F1✅ F2✅ F3✅ | ![90%](https://img.shields.io/badge/90%25-brightgreen) |
 | **AI Pipeline** | Gilvan | 2.5/4 | F1✅ F2✅ F3▶️ | ![70%](https://img.shields.io/badge/70%25-yellowgreen) |
 
@@ -89,15 +89,15 @@ TernaryEdge-RV/
 - ⏳ **Bloqueado:** FPGA física (aguardando professor). Veja `hardware/litex_soc/requisitos_fpga.md`.
 
 ### Gildo (OS) — Buildroot & Device Tree
-- ✅ **Fase 1:** Buildroot external tree criada. Defconfig RV32IMA (kernel 6.18, OpenSBI, QEMU).
-- ⏳ **Pendente crítico:** Exportar toolchain `riscv32-buildroot-linux-gnu-gcc`. Criar `.dts` oficial com `0x40000000` + IRQ 10.
-- ⏳ **Pendente:** HIGH_RES_TIMERS no kernel.
+- ✅ **Phase 1:** Buildroot external tree created. RV32IMA defconfig (kernel 6.18, OpenSBI, QEMU).
+- ✅ **Phase 2:** Toolchain exported (relocatable SDK on Google Drive). LKM and HIGH_RES_TIMERS enabled in kernel.
+- ⏳ **Phase 3 (in progress):** Official `.dts` with `0x40000000` + IRQ 10. FAT32/ext4 in RootFS.
 
 ### Gustavo (Driver) — Kernel Module (Zero-Copy DMA)
 - 🚀 **Muito adiantado:** Platform driver completo com `dma_alloc_coherent`, `mmap`, `request_irq`, `wait_event_interruptible`.
 - ✅ QEMU DT injection funcionando. Testes sem FPGA realizados.
 - ✅ `software/include/npu_ioctl.h` e `dummy_app.c` criados.
-- ⏳ **Pendente:** Compilar `.ko` com a toolchain RISC-V (bloqueado por Gildo).
+- ✅ **Toolchain RISC-V disponível** via Google Drive. Compilação do `.ko` desbloqueada.
 
 ### Gilvan (AI) — QAT & Weight Export
 - ✅ **Fase 1-2:** Pipeline QAT completo (Larq + STE). 3 layers ternárias (784→1024→512→256). Sparsity L1 ativa. Fake quant INT8 entre layers.
@@ -109,7 +109,6 @@ TernaryEdge-RV/
 | Gap | Owner | Priority |
 |:----|:------|:---------|
 | Output layer FP32 (non-ternary) vs hardware | Gilvan / Arthur | **High** |
-| Toolchain not exported to team | Gildo | **Critical** |
 | No physical FPGA for synthesis | Arthur | **High** |
 | DMA master not implemented in RTL | Arthur | **High** |
 | No Verilator testbench | Arthur | **Medium** |
