@@ -6,7 +6,7 @@
 
 ## Resumo Executivo
 
-O projeto está em boa posição geral, com avanço significativo nas camadas de Software e IA. O gargalo principal está no Hardware (FPGA física) e na integração final entre os módulos. A toolchain RISC-V já foi exportada por Gildo via Google Drive (09/06/2026), desbloqueando Gustavo e Gilvan. Abaixo, o detalhamento por domínio.
+O projeto está em boa posição geral, com avanço significativo nas camadas de Software e IA. O gargalo principal está no Hardware (FPGA física) e na integração final entre os módulos. A toolchain RISC-V está configurada no Buildroot — cada membro compila a sua a partir do repositório (ver `software/os_buildroot/README.md`), eliminando a necessidade de distribuir binários por Drive. Abaixo, o detalhamento por domínio.
 
 ---
 
@@ -39,7 +39,7 @@ O projeto está em boa posição geral, com avanço significativo nas camadas de
 |--------|--------|---------|
 | Buildroot External Tree | ✅ `software/os_buildroot/` | Estrutura completa |
 | Defconfig RV32IMA | ✅ `configs/ternaryedge_rv_defconfig` | BR2_RISCV_32, kernel 6.18, OpenSBI, QEMU |
-| **Exportar Toolchain riscv32** | ✅ Google Drive | Link em `software/os_buildroot/README.md` |
+| **Exportar Toolchain riscv32** | ✅ Buildroot SDK | `software/os_buildroot/README.md` — cada um compila a sua |
 | **HIGH_RES_TIMERS** | ✅ Ativado | CONFIG_HIGH_RES_TIMERS habilitado |
 | **Device Tree (.dts) oficial** | ❌ Pendente (Fase 3) | Aguardando mapa de memória oficial do Arthur |
 | **FAT32/ext4 no RootFS** | ❌ Pendente (Fase 4) | Para deploy no SD Card |

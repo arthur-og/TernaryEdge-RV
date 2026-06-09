@@ -7,7 +7,7 @@
 
 A etapa inicial foca na compreensão do funcionamento do espaço de kernel (Kernel Space) e na configuração do ambiente de compilação isolado para a arquitetura alvo.
 - **Estudo da API do Kernel Linux:** O desenvolvimento de um Loadable Kernel Module (LKM) exige familiaridade com as estruturas de dados e macros específicas do Kernel Linux, que diferem drasticamente da programação convencional em espaço de usuário (User Space).
-- **Integração com a Toolchain:** Para compilar o módulo, será estritamente necessário utilizar a Cross-Compiler Toolchain (ex: riscv64-unknown-linux-gnu-gcc) gerada e exportada pela equipe responsável pela infraestrutura do Sistema Operacional.
+- **Integração com a Toolchain:** Para compilar o módulo, será estritamente necessário utilizar a Cross-Compiler Toolchain (`riscv32-buildroot-linux-gnu-gcc`) — cada membro compila a sua a partir da external tree do Buildroot versionada no Git (ver `software/os_buildroot/README.md`).
 - **Validação Básica via QEMU:** O primeiro marco prático desta fase é escrever, compilar e carregar um driver "Hello World" básico no sistema Linux genérico que estará rodando no emulador QEMU. Isso validará o processo de carga (insmod) e descarga (rmmod) de módulos na arquitetura RISC-V .
 
 ## Fase 2: Estruturação do Driver de Caractere e Mapeamento de Memória

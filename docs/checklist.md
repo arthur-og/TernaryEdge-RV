@@ -1,5 +1,5 @@
 📌 CHECKLIST OFICIAL DO PROJETO: TERNARY EDGE-RV 📌
-⚠️ ÚLTIMA ATUALIZAÇÃO: 09/06/2026 — Fases do Gildo corrigidas (Plano_Gildo.md), toolchain confirmada via Google Drive, módulo npu_ternaria_top.v atualizado
+⚠️ ÚLTIMA ATUALIZAÇÃO: 09/06/2026 — Fases do Gildo corrigidas (Plano_Gildo.md), toolchain por build próprio (cada um compila a sua, sem Drive), módulo npu_ternaria_top.v atualizado
 
 Regra de Ouro do Grupo:
 ⚠️ [BLOQUEIO]: Se você precisa de algo de outro membro para continuar.
@@ -25,9 +25,9 @@ Gildo (Sistema Operacional):
 [ X ] Instalar e configurar o Buildroot no PC. [External tree criada]
 [ X ] Selecionar a arquitetura RISC-V (RV32IMA) no make menuconfig. [ternaryedge_rv_defconfig]
 [ X ] Compilar imagem genérica e conseguir dar boot no kernel via emulador QEMU.
-[ X ] ⚠️ ENTREGAR TOOLCHAIN riscv32-buildroot-linux-gnu-gcc para Gustavo e Gilvan. [Google Drive]
+[ X ] ⚠️ ENTREGAR TOOLCHAIN riscv32-buildroot-linux-gnu-gcc para Gustavo e Gilvan. [Buildroot SDK — cada um compila a sua]
 
-Status REAL: ✅ Fase 1 completa. Toolchain exportada via Google Drive (link em software/os_buildroot/README.md).
+Status REAL: ✅ Fase 1 completa. Toolchain disponível via build próprio do Buildroot (ver software/os_buildroot/README.md).
 
 Gustavo (Driver de Kernel):
 [ X ] Criar ambiente de compilação de módulos (LKM).
@@ -61,10 +61,10 @@ Status REAL: ✅ Fase 2 completa. Próximo passo: controlador DMA Master para le
 
 Gildo (Sistema Operacional):
 [ X ] Configurar Buildroot para gerar a Cross-Compiler Toolchain estritamente para 32 bits (riscv32-buildroot-linux-gnu-gcc ou equivalente, usando -march=rv32ima -mabi=ilp32).
-[ X ] ⚠️ ENTREGAR TOOLCHAIN para o Gustavo e Gilvan. [Disponível no Google Drive]
+[ X ] ⚠️ ENTREGAR TOOLCHAIN para o Gustavo e Gilvan. [Buildroot SDK — cada um compila a sua, ver README]
 [ X ] Habilitar temporizadores de alta resolução no Kernel (CONFIG_HIGH_RES_TIMERS).
 
-Status REAL: ✅ Toolchain exportada + HIGH_RES_TIMERS ativado.
+Status REAL: ✅ Toolchain configurada no Buildroot + HIGH_RES_TIMERS ativado. Cada membro compila a sua (ver software/os_buildroot/README.md).
 
 Gustavo (Driver de Kernel):
 [ X ] Usar register_chrdev para criar o dispositivo /dev/npu_ternaria.

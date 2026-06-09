@@ -90,7 +90,7 @@ TernaryEdge-RV/
 
 ### Gildo (OS) — Buildroot & Device Tree
 - ✅ **Phase 1:** Buildroot external tree created. RV32IMA defconfig (kernel 6.18, OpenSBI, QEMU).
-- ✅ **Phase 2:** Toolchain exported (relocatable SDK on Google Drive). LKM and HIGH_RES_TIMERS enabled in kernel.
+- ✅ **Phase 2:** Toolchain configured in Buildroot (`make sdk`). HIGH_RES_TIMERS enabled in kernel. Each team member builds their own (see `software/os_buildroot/README.md`).
 - ⏳ **Phase 3:** Official `.dts` with `0x40000000` + IRQ 10.
 - ⏳ **Phase 4 (future):** FAT32/ext4 in RootFS. Flash image to SD Card.
 
@@ -98,7 +98,7 @@ TernaryEdge-RV/
 - 🚀 **Ahead of schedule:** Full platform driver with `dma_alloc_coherent`, `mmap`, `request_irq`, `wait_event_interruptible`.
 - ✅ QEMU DT injection working. Tests performed without FPGA.
 - ✅ `software/include/npu_ioctl.h` and `dummy_app.c` created.
-- ✅ **RISC-V toolchain available** via Google Drive. `.ko` compilation unblocked.
+- ✅ **RISC-V toolchain available** — build your own via `software/os_buildroot/README.md` (each team member compiles independently). `.ko` compilation unblocked.
 
 ### Gilvan (AI) — QAT & Weight Export
 - ✅ **Phase 1-2:** Full QAT pipeline (Larq + STE). 3 ternary layers (784→1024→512→256). L1 sparsity active. Fake quant INT8 between layers.
