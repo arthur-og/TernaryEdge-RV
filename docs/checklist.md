@@ -56,7 +56,7 @@ Arthur (Hardware):
 [ X ] Escrever o código Verilog da NPU Ternária (Apenas Somadores, Subtratores e Mux. ZERO multiplicadores).
 [ X ] Implementar pino de interrupção (IRQ) em hardware para sinalizar quando a NPU terminar a inferência, para evitar Polling que consome energia.
 [ X ] ternary_mac.v — MAC multiplierless com entradas INT8×ternário.
-[ X ] npu_core_wb.v — Wrapper Wishbone Slave com FSM, IRQ generator e registradores MMIO (0x40000000).
+[ X ] npu_ternaria_top.v — Módulo completo com Wishbone Slave + FSM real + memórias internas + IRQ.
 
 Status REAL: ✅ Fase 2 completa. Próximo passo: controlador DMA Master para ler RAM diretamente.
 
