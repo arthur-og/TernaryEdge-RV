@@ -79,7 +79,7 @@ TernaryEdge-RV/
 | Domain | Lead | Phase | Status | Completion |
 |:-------|:-----|:------|:-------|:-----------|
 | **Hardware (RTL/SoC)** | Arthur | 3.5/4 | F1✅ F2✅ F3✅ (NPU v2 done) | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
-| **OS (Buildroot)** | Gildo | 3.0/4 | F1✅ F2✅ F3✅ (.dts + RootFS) | ![75%](https://img.shields.io/badge/75%25-green) |
+| **OS (Buildroot)** | Gildo | 3.0/4 | F1✅ F2✅ F3✅ (.dts + RootFS) | ![80%](https://img.shields.io/badge/80%25-green) |
 | **Kernel Driver** | Gustavo | 3.5/4 | F1✅ F2✅ F3✅ (v2 adapted) | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
 | **AI Pipeline** | Gilvan | 3.0/4 | F1✅ F2✅ F3✅ (4/5 tasks) | ![80%](https://img.shields.io/badge/80%25-yellowgreen) |
 
