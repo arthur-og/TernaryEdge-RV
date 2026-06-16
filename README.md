@@ -79,7 +79,7 @@ TernaryEdge-RV/
 | Domain | Lead | Phase | Status | Completion |
 |:-------|:-----|:------|:-------|:-----------|
 | **Hardware (RTL/SoC)** | Arthur | 3.5/4 | F1✅ F2✅ F3✅ (NPU v2 done) | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
-| **OS (Buildroot)** | Gildo | 2.5/4 | F1✅ F2✅ F3▶️ | ![55%](https://img.shields.io/badge/55%25-yellow) |
+| **OS (Buildroot)** | Gildo | 3.0/4 | F1✅ F2✅ F3✅ (.dts + RootFS) | ![75%](https://img.shields.io/badge/75%25-green) |
 | **Kernel Driver** | Gustavo | 3.5/4 | F1✅ F2✅ F3✅ (v2 adapted) | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
 | **AI Pipeline** | Gilvan | 3.0/4 | F1✅ F2✅ F3✅ (4/5 tasks) | ![80%](https://img.shields.io/badge/80%25-yellowgreen) |
 
@@ -98,11 +98,12 @@ TernaryEdge-RV/
 
 ### Gildo (OS) — Buildroot & Device Tree
 - ✅ **Phase 1:** Buildroot external tree. RV32IMA defconfig. QEMU boot.
-- ✅ **Phase 2:** Toolchain via `make sdk`. HIGH_RES_TIMERS enabled.
-- 🚧 **Phase 3:**
-  - 【 】 Official `.dts` with NPU v2 node (`compatible = "ternaryedge,npu-ternaria"`, IRQ=10)
-  - 【 】 Preencher Config.in e external.mk (atualmente vazios)
-  - 【 】 Verificar RootFS para suporte a LKM + user_app
+- ✅ **Phase 2:** Toolchain via `make sdk`.
+- ✅ **Phase 3 — OS Infrastructure COMPLETE:**
+  - ✅ Official `.dts` (`setup_qemu/ternaryedge.dts`) — `compatible = "ternaryedge,npu-ternaria"`, IRQ=10, RV32IMA
+  - ✅ `CONFIG_HIGH_RES_TIMERS=y` — kernel config fragment (`configs/kernel-npu.cfg`)
+  - ✅ FAT32/ext4 no RootFS — via `BR2_PACKAGE_DOSFSTOOLS`, `e2fspogs`, `CONFIG_FAT_FS`, `CONFIG_EXT4_FS`
+  - ✅ `Config.in`, `external.mk`, `external.desc` preenchidos
 - ⏳ **Fase 4:** SD card image + deploy físico.
 
 ### Gustavo (Driver) — Adaptado para NPU v2
@@ -128,8 +129,6 @@ TernaryEdge-RV/
 |:----|:------|:---------|
 | Output layer FP32 vs hardware ternary | Gilvan (testar Opção A) | **High** |
 | No physical FPGA yet | Arthur + Professor | **High** — confirmado, aguardando |
-| Device Tree (.dts) para NPU v2 não criado | Gildo | **High** |
-| Config.in / external.mk vazios | Gildo | **Medium** |
 | QEMU setup usa CPU rv64imafdch (projeto é RV32) | Gildo/Gustavo | **Medium** |
 
 ---
