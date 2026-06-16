@@ -1,0 +1,77 @@
+/dts-v1/;
+
+/ {
+    #address-cells = <1>;
+    #size-cells = <1>;
+    compatible = "riscv-virtio";
+    model = "ternaryedge-rv32ima";
+
+    chosen {
+        stdout-path = "/soc/uart@10000000";
+        bootargs = "console=ttyS0 root=/dev/vda ro";
+    };
+
+    memory@80000000 {
+        device_type = "memory";
+        reg = <0x80000000 0x4000000>;
+    };
+
+    cpus {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        timebase-frequency = <10000000>;
+
+        cpu@0 {
+            device_type = "cpu";
+            reg = <0>;
+            status = "okay";
+            compatible = "riscv";
+            riscv,isa = "rv32ima";
+            mmu-type = "riscv,sv32";
+
+            interrupt-controller {
+                #interrupt-cells = <1>;
+                interrupt-controller;
+                compatible = "riscv,cpu-intc";
+            };
+        };
+    };
+
+    soc {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        compatible = "simple-bus";
+        ranges;
+
+        plic: interrupt-controller@c000000 {
+            compatible = "sifive,plic-1.0.0", "riscv,plic0";
+            reg = <0xc000000 0x400000>;
+            #address-cells = <0>;
+            #interrupt-cells = <1>;
+            interrupt-controller;
+            interrupts-extended = <&cpu_intc 11 &cpu_intc 9>;
+            riscv,ndev = <95>;
+        };
+
+        clint@2000000 {
+            compatible = "sifive,clint0", "riscv,clint0";
+            reg = <0x2000000 0x10000>;
+            interrupts-extended = <&cpu_intc 3 &cpu_intc 7>;
+        };
+
+        uart@10000000 {
+            compatible = "ns16550a";
+            reg = <0x10000000 0x100>;
+            interrupts = <10>;
+            interrupt-parent = <&plic>;
+            clock-frequency = <3686400>;
+        };
+
+        npu_ternaria: npu@40000000 {
+            compatible = "ternaryedge,npu-ternaria";
+            reg = <0x40000000 0x1000>;
+            interrupts = <11>;
+            interrupt-parent = <&plic>;
+        };
+    };
+};
