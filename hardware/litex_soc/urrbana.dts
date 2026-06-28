@@ -1,0 +1,127 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * urrbana.dts — Device Tree para a RealDigital Urbana Board
+ * FPGA: Spartan-7 XC7S50-CSGA324
+ * RAM:  128 MB DDR3 (0x80000000 - 0x87FFFFFF)
+ * SoC:  LiteX VexRiscv RV32IMA + NPU Ternária v2
+ *
+ * Uso: Incluir como referência no build do Linux.
+ *      O LiteX gera um .dts automático durante o build.
+ *      Este arquivo serve como especificação de contrato.
+ *
+ * Mapa de Memória (LiteX padrão):
+ *   0x00000000-0x3FFFFFFF: Regiões CSR / periféricos
+ *   0x40000000-0x4000FFFF: NPU Ternária v2 (MMIO + DMA)
+ *   0x80000000-0x87FFFFFF: 128 MB DDR3 (main_ram)
+ *   0xF0000000-0xF7FFFFFF: SPI Flash (mapeado em memória)
+ */
+
+/dts-v1/;
+
+/ {
+    #address-cells = <1>;
+    #size-cells = <1>;
+    compatible = "realdigital,urbana", "litex,vexriscv";
+    model = "TernaryEdge-RV on RealDigital Urbana";
+
+    chosen {
+        stdout-path = "/soc/uart@f0001000";
+        bootargs = "console=ttyS0,115200 root=/dev/mmcblk0p2 rootwait";
+    };
+
+    memory@80000000 {
+        device_type = "memory";
+        reg = <0x80000000 0x8000000>;  // 128 MB DDR3
+    };
+
+    cpus {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        timebase-frequency = <100000000>;  // 100 MHz
+
+        cpu@0 {
+            device_type = "cpu";
+            reg = <0>;
+            status = "okay";
+            compatible = "riscv";
+            riscv,isa = "rv32ima";
+            mmu-type = "riscv,sv32";
+            clock-frequency = <100000000>;
+
+            interrupt-controller {
+                #interrupt-cells = <1>;
+                interrupt-controller;
+                compatible = "riscv,cpu-intc";
+            };
+        };
+    };
+
+    soc {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        compatible = "simple-bus";
+        ranges;
+
+        /* LiteX CSR interconnect (base 0x00000000) */
+        /* Os periféricos LiteX são mapeados via CSR Bus */
+
+        /* UART (LiteX) — console Linux */
+        uart: uart@f0001000 {
+            compatible = "litex,liteuart";
+            reg = <0xf0001000 0x100>;
+            interrupts = <1>;
+            interrupt-parent = <&plic>;
+            current-speed = <115200>;
+        };
+
+        /* Timer (LiteX) */
+        timer0: timer@f0002000 {
+            compatible = "litex,litex-timer";
+            reg = <0xf0002000 0x100>;
+            interrupts = <2>;
+            interrupt-parent = <&plic>;
+        };
+
+        /* PLIC — Platform Level Interrupt Controller */
+        plic: interrupt-controller@f0c00000 {
+            compatible = "sifive,plic-1.0.0", "riscv,plic0";
+            reg = <0xf0c00000 0x400000>;
+            #address-cells = <0>;
+            #interrupt-cells = <1>;
+            interrupt-controller;
+            interrupts-extended = <&cpu_intc 11 &cpu_intc 9>;
+            riscv,ndev = <31>;
+        };
+
+        /* ================================================================
+         *  NPU Ternária v2 — 64 MACs Multiplierless
+         *  Base: 0x40000000
+         *  IRQ:  10
+         *  Wishbone Slave: registradores MMIO (4 KB)
+         *  Wishbone Master: DMA na RAM (acessa 0x80000000+)
+         * ================================================================ */
+        npu: npu@40000000 {
+            compatible = "ternaryedge,npu-ternaria";
+            reg = <0x40000000 0x10000>;     // 64 KB (CSR + DMA scratch)
+            interrupts = <10>;
+            interrupt-parent = <&plic>;
+
+            /* O driver usa dma_alloc_coherent() para o buffer DMA.
+             * O NPU lê/escreve na RAM física via Wishbone Master.
+             * Não precisa de dma-ranges — o LiteX crossbar conecta
+             * o Wishbone Master da NPU diretamente à main_ram. */
+        };
+
+        /* SD Card (LiteX SDCARD controller) */
+        mmc: mmc@f0003000 {
+            compatible = "litex,litex-mmc";
+            reg = <0xf0003000 0x100>;
+            interrupts = <3>;
+            interrupt-parent = <&plic>;
+            bus-width = <4>;
+            no-sdio;
+            no-sd;
+            status = "okay";
+        };
+    };
+};

@@ -1,6 +1,12 @@
 # Plano de Trabalho — Gustavo Alexandre dos Santos
 **Papel no Projeto:** Kernel Driver Development (LKM, MMIO, DMA, Hardware Synchronization)
-**Última atualização:** 10/06/2026
+**Última atualização:** 28/06/2026
+
+---
+
+## Nota sobre mudança de escopo
+
+O `user_app.c` (aplicação de usuário) foi transferido para o Gildo, que o refatorará para usar a NPU HAL. O driver de kernel (`npu_driver.c`) permanece com você — sua interface de ioctl (`struct npu_ioctl_args`) é a base sobre a qual a HAL do Gildo será construída.
 
 ---
 
@@ -10,9 +16,7 @@
 |:------|:---------|:-------|
 | M1 — Driver "Hello World" carregado no QEMU (insmod/lsmod/rmmod) | Concluído | ✅ |
 | M2 — Platform Driver com DT match + DMA Coherent + IRQ + wait_queue | Concluído | ✅ |
-| M3 — Driver adaptado para NPU v2 (DMA protocolo regs + 64 MACs) | Concluído | ✅ |
-| M3b — IOCTL com struct npu_ioctl_args implementado | Concluído | ✅ |
-| M3c — user_app.c revisado e funcional | Concluído | ✅ |
+| M3 — Driver adaptado para NPU v2 (10 registradores, IOCTL struct) | Concluído | ✅ |
 | M4 — Integração física testada na FPGA | Após M3 + FPGA | ⏳ |
 | M5 — Seção "Kernel Driver Design" do Paper 1 escrita | Antes prazo final | ⏳ |
 
@@ -37,7 +41,7 @@
 
 ### Contexto
 
-A NPU v2 introduziu **Wishbone Master** — ela mesma lê dados da RAM via DMA. O driver de Gustavo já estava escrito para DMA (com `dma_alloc_coherent`, `dma_mmap_coherent`), então se encaixou perfeitamente.
+A NPU v2 introduziu **Wishbone Master** — ela mesma lê dados da RAM via DMA. O driver já estava escrito para DMA (com `dma_alloc_coherent`, `dma_mmap_coherent`), então se encaixou perfeitamente.
 
 ### Ajustes realizados (npu_driver.c v3.0):
 
@@ -69,18 +73,14 @@ A NPU v2 introduziu **Wishbone Master** — ela mesma lê dados da RAM via DMA. 
 
 3. **IRQ handler:** `iowrite32(CLEAR_IRQ, CONTROL)` → `wake_up_interruptible()`
 
-### 3.1 — Revisão do user_app.c (concluída)
+### IOCTL Header
 
-`user_app.c` (236 linhas) implementa:
-- Abertura de `/dev/npu_ternaria`
-- `mmap()` do buffer DMA via driver
-- Carga de pesos sintéticos + ativações no buffer
-- `ioctl(START_INFERENCE)` com timing segregado (t_setup, t_inference, t_readback)
-- Baseline CPU com flag `--cpu` via `forward_ternary_layer()`
+`software/include/npu_ioctl.h` define:
+- `struct npu_ioctl_args` (5 campos)
+- `NPU_IOCTL_START_INFERENCE` com macro `_IOW()`
+- `NPU_DMA_BUFFER_SIZE` (4 MB)
 
-### 3.2 — Correção do dummy_app.c
-
-✅ `#include <sys/mman.h>` corrigido.
+> Este header é compartilhado com a HAL do Gildo e com o user_app.
 
 ## Fase 4 (Futura): Deploy Físico e Paper
 

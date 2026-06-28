@@ -1,5 +1,5 @@
 # 📌 CHECKLIST OFICIAL DO PROJETO — TERNARY EDGE-RV
-**Última atualização:** 10/06/2026 — Fase 3 completa (NPU v2 implementada, 29/29 testes)
+**Última atualização:** 28/06/2026 — Fase 3 rebalanceada (Gildo assume HAL + Classifier)
 **Próximo marco:** Paper 1 (SBCCI/LASCAS)
 
 ---
@@ -22,7 +22,7 @@
 - [X] `docs/arquitetura/mapa_de_memoria.md` criado
 - [ ] Sintetizar SoC na FPGA (aguardando placa)
 
-### Gildo (OS)
+### Gildo (OS + HAL)
 - [X] Buildroot configurado (`software/os_buildroot/`)
 - [X] `ternaryedge_rv_defconfig` criado (RV32IMA)
 - [X] Boot funcional no QEMU (OpenSBI + U-Boot + Kernel + RootFS)
@@ -48,9 +48,9 @@
 - [X] `ternary_mac.v` — MAC multiplierless (apenas somadores/subtratores)
 - [X] `npu_ternaria_top.v` — Wishbone Slave + FSM + IRQ
 - [X] Pino `irq_out` implementado
-- [ ] **NPU v2 iniciada: 64 MACs + Wishbone Master + Layer Sequencer** ← **AGORA**
+- [X] **NPU v2: 64 MACs + Wishbone Master + Layer Sequencer**
 
-### Gildo (OS)
+### Gildo (OS + HAL)
 - [X] Toolchain 32 bits configurada
 - [X] HIGH_RES_TIMERS ativado no kernel
 
@@ -80,30 +80,54 @@
 - [X] Corrigir STATUS register: `zero_counter` em `[15:8]` (alinhar com C++)
 - [X] Atualizar `npu_ternaria_top_v2.v` — top-level integrado (547 linhas)
 
-## Gildo (OS + Testbench)
-- [ ] **Device Tree (.dts):** node da NPU v2 com IRQ=10 e `reg = <0x40000000 0x1000>`
-- [ ] **Preencher Config.in e external.mk** (atualmente vazios — 0 bytes)
-- [ ] **Auxiliar Arthur** no testbench Verilator
-- [ ] Verificar RootFS: LKM habilitado, `user_app` incluído
+## Gildo (OS + NPU HAL + Classifier + Buildroot Packages)
 
-## Gustavo (Driver)
+### Device Tree e kernel config (concluído ✅)
+- [X] **Device Tree (.dts):** node da NPU v2 com IRQ=10 (`setup_qemu/ternaryedge.dts`)
+- [X] **Device Tree para FPGA real:** `hardware/litex_soc/urrbana.dts`
+- [X] **kernel config fragment:** `configs/kernel-npu.cfg` (FAT/EXT4, HIGH_RES_TIMERS)
+- [X] **Config.in, external.mk, external.desc:** estrutura da external tree preenchida
+
+### NPU HAL (em andamento ⏳)
+- [ ] `software/npu_hal/npu_hal.h` — API pública (init, load_weights, predict, deinit, print_result)
+- [ ] `software/npu_hal/npu_hal.c` — Implementação (open, mmap, ioctl, output layer CPU)
+- [ ] `software/npu_hal/npu_hal_internal.h` — Estruturas internas do contexto
+
+### NPU Classifier (em andamento ⏳)
+- [ ] `software/npu_hal/npu_classifier.h` — API classifier_run, argmax, softmax
+- [ ] `software/npu_hal/npu_classifier.c` — Output layer 256→10 FP32
+
+### NPU Weights (em andamento ⏳)
+- [ ] `software/npu_hal/npu_weights.h` — API para carregar pesos no DMA
+- [ ] `software/npu_hal/npu_weights.c` — Loader de pesos do QAT pipeline
+- [ ] `software/npu_hal/weights.h` — Stub (pesos zerados) para compilação
+
+### Buildroot Packages (em andamento ⏳)
+- [ ] `package/npu-ternaria/` — Kernel module package
+- [ ] `package/npu-hal/` — Biblioteca estática libnpu_hal.a
+- [ ] `package/user-app/` — Binário user_app
+- [ ] Atualizar `Config.in`, `external.mk`, `defconfig`
+
+### User App (em andamento ⏳)
+- [ ] Refatorar `user_app.c` para usar HAL (init → load_weights → predict → print_result)
+- [ ] Manter flag `--cpu` para baseline CPU
+- [ ] Adicionar `--file` para imagens reais, `--batch` para benchmark
+
+## Gustavo (Driver) — ✅ COMPLETO
 - [X] **Adaptar driver para mapa v2:** offsets atualizados no `npu_driver.c` v3.0
 - [X] Adicionar `iowrite32()` para `WEIGHT_CFG` e `ACT_CFG` no ioctl
 - [X] Pipeline `START_INFERENCE` completo: SRC + DST + SIZE + WEIGHT + ACT + MAC + LAYER → CONTROL
-- [X] **Revisar user_app.c** em parceria com Gilvan
-- [X] **Corrigir `#include <sys/mmap.h>` → `<sys/mman.h>`** no `dummy_app.c`
+- [X] **IOCTL Header:** `software/include/npu_ioctl.h` com struct npu_ioctl_args
 
-## Gilvan (IA + User Space)
+## Gilvan (IA + Golden Model) — ✅ COMPLETO (Fase 3)
 - [X] **Corrigir `npu_sim_v2.cpp`:** STATUS `zero_counter` → bits `[15:8]`
 - [X] **Expandir `npu_sim_v2.cpp`:** modelar 64 MACs + DMA simulation (21/21 testes)
-- [X] **Implementar `user_app.c` real:**
-  - [X] Abrir `/dev/npu_ternaria`, `mmap` buffer DMA
-  - [X] Copiar pesos/ativações para buffer
-  - [X] `ioctl(START_INFERENCE)` com timing segregado (DMA setup, inference, readback)
-  - [X] Ler resultado e printar benchmark
-  - [X] Baseline CPU com flag `--cpu` (forward_ternary_layer)
-- [ ] **Testar camada de saída ternária** (Opção A). Se falhar >90%, adotar CPU fallback (Opção B)
+- [X] **Validar output layer:** Opção A (ternária na última camada) testada
+- [X] **Manter Opção B** (CPU fallback na output layer) como padrão aceito
 - [X] Adicionar `weights.h` ao `.gitignore` (regenerar no build)
+
+> **Nota:** O `user_app.c` foi transferido para Gildo, que o refatorará para usar a HAL.
+> Gilvan mantém: pipeline QAT, pesos, golden model, benchmark data.
 
 ---
 
@@ -118,7 +142,11 @@
 ### Gildo
 - [ ] Suporte a FAT32/ext4 no RootFS
 - [ ] Gravar imagem final no SD card e bootar na FPGA
-- [ ] **Escrever seção do Paper 1:** OS Infrastructure (boot, Device Tree, integração Linux+NPU)
+- [ ] **Escrever seção do Paper 1:** OS Infrastructure + NPU HAL:
+  - Buildroot, Device Tree, integração Linux+NPU
+  - Arquitetura da HAL (init, load, predict, batch)
+  - Classifier (output layer CPU, softmax, argmax)
+  - Comparação CPU vs NPU via flag `--cpu`
 
 ### Gustavo
 - [ ] `insmod` do driver na FPGA física

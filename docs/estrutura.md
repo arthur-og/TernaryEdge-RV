@@ -5,14 +5,15 @@ TernaryEdge-RV/
 ├── docs/
 │   ├── estrutura.md
 │   ├── arquitetura/
-│   ├── planejamento/       <-- (Nova pasta para os planos detalhados)
-│   └── relatorios/         <-- (Agora focada no estado atual e entregas)
+│   ├── planejamento/       <-- (Planos detalhados por membro)
+│   └── relatorios/         <-- (Estado atual e entregas)
 ├── hardware/
 │   ├── litex_soc/
 │   └── npu_rtl/
 ├── software/
 │   ├── os_buildroot/
 │   ├── npu_driver/
+│   ├── npu_hal/            <-- (NOVO - Gildo: HAL, Classifier, Weights)
 │   └── user_app/
 ├── ai_training/
 │   ├── notebooks/
@@ -49,11 +50,13 @@ Contém todo o código-fonte de descrição de hardware e geração do System-on
 
 Diretório unificado contendo as camadas de software que executarão no processador RISC-V físico ou emulado.
 
-    os_buildroot/ (Gildo): Arquivos de configuração da distribuição Linux embarcada gerada via Buildroot. Contém os patches do kernel, configurações do bootloader (OpenSBI e U-Boot) e, de extrema importância, a Device Tree Source (.dts) que mapeia os endereços físicos da NPU.
+    os_buildroot/ (Gildo): Arquivos de configuração da distribuição Linux embarcada gerada via Buildroot. Contém os patches do kernel, configurações do bootloader (OpenSBI e U-Boot) e a Device Tree Source (.dts) que mapeia os endereços físicos da NPU.
 
     npu_driver/ (Gustavo): Código-fonte em linguagem C do Loadable Kernel Module (LKM). Contém as File Operations, as funções de conversão de memória física para virtual (ioremap), além da lógica de comunicação ponta a ponta (códigos usando copy_from_user, write, read) e rotinas de sincronização (Polling/IRQ) para o controle do hardware.
 
-    user_app/ (Gilvan): Aplicação executável (espaço de usuário) escrita em C. Responsável por realizar a leitura do dataset de imagens, acionar o driver e mensurar o tempo de execução (usando funções precisas do kernel como gettimeofday()) para compor os dados de benchmarking.
+    npu_hal/ (Gildo): Biblioteca de abstração de hardware (HAL) que encapsula a complexidade do driver para a aplicação de usuário. Contém o Classifier (output layer 256→10 na CPU), o Weights Loader (carregamento de pesos do pipeline QAT para o buffer DMA), e a interface pública npu_init/npu_predict/npu_deinit. Esta camada existe porque a NPU é puramente ternária — toda a lógica de classificação final e gerenciamento de pesos é feita em software.
+
+    user_app/ (Gildo): Aplicação executável (espaço de usuário) refatorada para usar a HAL. Responsável por realizar a leitura do dataset de imagens, acionar a HAL e mensurar o tempo de execução para compor os dados de benchmarking.
 
 4. ai_training/ (Escopo: Gilvan - Inteligência Artificial)
 
@@ -61,7 +64,7 @@ Ambiente voltado ao desenvolvimento, treinamento e quantização da Rede Neural 
 
     notebooks/: Ambientes interativos (Jupyter) para experimentação e validação de técnicas de Quantization-Aware Training (QAT) com frameworks como Larq ou Brevitas.
 
-    scripts/: Código Python automatizado (pipeline) focado em duas frentes: (1) treinar e validar o modelo atingindo as métricas requeridas de acurácia; (2) extrair os tensores, aplicar a codificação binária e empacotar 16 pesos de 2 bits em inteiros de 32 bits. O resultado final gerado aqui é o arquivo header weights.h utilizado na aplicação final.
+    scripts/: Código Python automatizado (pipeline) focado em duas frentes: (1) treinar e validar o modelo atingindo as métricas requeridas de acurácia; (2) extrair os tensores, aplicar a codificação binária e empacotar 16 pesos de 2 bits em inteiros de 32 bits. O resultado final gerado aqui é o arquivo header weights.h utilizado na HAL.
 
 5. paper/ (Artigo Científico)
 

@@ -44,15 +44,15 @@ Layer Sequencer (FSM 10 estados):
 | Componente | Status |
 |------------|--------|
 | Driver kernel (`npu_driver.c` v3.0) | Offsets v2, IOCTL com struct args (5 campos), IRQ handler |
-| `user_app.c` | Aplicação real com timing segregado + baseline CPU via `--cpu` |
-| `npu_ioctl.h` | Struct `npu_ioctl_args` com dma_size, weight_cfg, act_cfg, mac_cfg, layer_cfg |
+| Device Tree QEMU + FPGA | `setup_qemu/ternaryedge.dts` + `urrbana.dts` — IRQ=10 |
+| Kernel config fragment | `kernel-npu.cfg` — FAT/EXT4, HIGH_RES_TIMERS |
+| SoC base com NPU v2 | `base_soc.py` — wrapper v2, Wishbone slave+master, IRQ 10 |
+| **NPU HAL + Classifier** | 🔄 **Em andamento (Gildo)** — nova responsabilidade |
 
-**Documentação:**
-- `architecture_contract.md` v2.1 — spec formal da arquitetura
-- `checklist.md` — todas as 4 fases mapeadas com tarefas por membro
-- 4 planos individuais de trabalho (Arthur, Gildo, Gustavo, Gilvan)
-- `status_atual.md` — relatório completo do estado do projeto
-- `paper/paper1_template.tex` — template LaTeX SBCCI/LASCAS
+**Mudança organizacional importante:**
+- Gildo assume a **NPU HAL + Classifier + Buildroot Packages** — escopo expandido
+- Gilvan transfere `user_app.c` para Gildo e foca no pipeline de IA + golden model
+- Filosofia: *quanto menos complexa a NPU, mais complexo o software que a completa*
 
 ---
 
@@ -62,8 +62,8 @@ Layer Sequencer (FSM 10 estados):
 |--------|-------|:----:|:-:|:-------|
 | **Arthur** | Hardware RTL/SoC | 3.5/4 | 95% | F1✅ F2✅ **F3✅** F4▶️ |
 | **Gustavo** | Driver Kernel | 3.5/4 | 95% | F1✅ F2✅ **F3✅** F4▶️ |
-| **Gilvan** | IA + User Space | 3.0/4 | 80% | F1✅ F2✅ **F3✅** (4/5 tasks) |
-| **Gildo** | OS/Buildroot/DT | 2.5/4 | 55% | F1✅ F2✅ F3▶️ |
+| **Gilvan** | IA + Golden Model | 3.0/4 | 85% | F1✅ F2✅ **F3✅** (weights + golden) |
+| **Gildo** | OS + HAL + Classifier | 3.0/4 | 60% | F1✅ F2✅ **F3⏳** (HAL/Classifier) |
 
 ---
 
@@ -84,9 +84,8 @@ Layer Sequencer (FSM 10 estados):
 ### 🟡 **Pendências dos membros:**
 | Pendência | Dono | Impacto |
 |-----------|------|---------|
-| Device Tree (.dts) com node da NPU v2 | Gildo | Driver não faz probe sem DT |
-| Config.in / external.mk vazios | Gildo | Buildroot external tree incompleta |
-| Última camada FP32 (não ternária) | Gilvan | Hardware não acelera 100% da rede |
+| HAL + Classifier não implementados | Gildo | User space sem abstração |
+| Buildroot packages não configurados | Gildo | Build incompleto |
 | Compilar `.ko` do driver para RV32 | Gustavo + Gildo | Sem toolchain compilada ainda |
 
 ---
@@ -96,9 +95,9 @@ Layer Sequencer (FSM 10 estados):
 | Prioridade | Tarefa | Dono |
 |:----------:|--------|:----:|
 | 🔴 | Conseguir FPGA + sintetizar SoC | Professor + Arthur |
-| 🔴 | Device Tree oficial com node NPU v2 | Gildo |
-| 🟡 | Compilar driver + user_app para RV32 | Gustavo + Gildo |
-| 🟡 | Testar saída ternária na última layer (Opção A) | Gilvan |
+| 🔴 | Implementar NPU HAL + Classifier | Gildo |
+| 🟡 | Configurar Buildroot packages | Gildo |
+| 🟡 | Compilar driver + HAL para RV32 | Gildo + Gustavo |
 | 🟢 | Iniciar escrita do Paper 1 (seções individuais) | **Equipe toda** |
 
 ### Cronograma estimado para Paper 1:
@@ -134,9 +133,9 @@ Layer Sequencer (FSM 10 estados):
 | Camadas iteradas automaticamente | **3** (784→1024→512→256) |
 | Precisão do modelo MNIST | **>95%** |
 | Testes de validação | **29/29 (100%)** |
-| Arquivos no repositório | **~70** |
+| Arquivos no repositório | **~75** |
 | Linhas de RTL Verilog | **~1.600** |
 | Linhas de C++ golden model | **~900** |
+| **Nova camada: NPU HAL** | 📝 Em especificação por Gildo |
 
 ---
-

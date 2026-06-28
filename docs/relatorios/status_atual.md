@@ -1,12 +1,14 @@
 # Status Atual do Projeto — Ternary Edge-RV
-**Data:** 10/06/2026
+**Data:** 28/06/2026
 **Autor:** Arthur Oliveira Gomes (Hardware)
 
 ---
 
 ## Resumo Executivo
 
-O projeto completou **a Fase 3 inteira** — NPU v2 com 64 MACs paralelos, Wishbone Master DMA e Layer Sequencer está implementada e validada. O golden model C++ passa **29/29 testes** (8 v1 + 21 v2). Toda a documentação foi atualizada para refletir a arquitetura v2. O Paper 1 tem template LaTeX pronto. O gargalo atual é a **FPGA física** para síntese e deploy real.
+O projeto completou **a Fase 3 inteira** — NPU v2 com 64 MACs paralelos, Wishbone Master DMA e Layer Sequencer está implementada e validada. O golden model C++ passa **29/29 testes** (8 v1 + 21 v2). O gargalo atual é a **FPGA física** para síntese e deploy real.
+
+**Mudança organizacional importante:** O `user_app.c` foi transferido de Gilvan para Gildo. Gildo agora assume a **NPU HAL + Classifier + Buildroot Packages** — uma expansão significativa de escopo que reflete a filosofia: *quanto menos complexa a NPU (puramente ternária), mais complexo o software que a completa.*
 
 ---
 
@@ -20,7 +22,7 @@ O projeto completou **a Fase 3 inteira** — NPU v2 com 64 MACs paralelos, Wishb
 | Requisitos FPGA | ✅ `hardware/litex_soc/requisitos_fpga.md` | Mínimo 32MB RAM, 15k LUTs, SD Card |
 | SoC Base VexRiscv | ✅ `hardware/litex_soc/base_soc.py` | RV32IMA Linux, Wishbone, região NPU reservada |
 | MAC Multiplierless (ternário×INT8) | ✅ `hardware/npu_rtl/ternary_mac.v` | 0 DSPs — Mux + Somador |
-| **NPU v1 (1 MAC, PIO, Wishbone Slave)** | ✅ `npu_ternaria_top.v`, `tb_npu_ternaria_top.v` | Legado funcional |
+| NPU v1 (1 MAC, PIO, Wishbone Slave) | ✅ `npu_ternaria_top.v`, `tb_npu_ternaria_top.v` | Legado funcional |
 | **64 MACs paralelos + Adder Tree** | ✅ `ternary_mac_array.v` + `adder_tree_64.v` | 63 adders, 6 estágios pipeline |
 | **Wishbone Master DMA (burst reads)** | ✅ `wishbone_master.v` | B4 Standard, burst incrementante |
 | **NPU v2 Top-Level integrado** | ✅ `npu_ternaria_top_v2.v` | FSM 10 estados, Layer Sequencer |
@@ -28,24 +30,17 @@ O projeto completou **a Fase 3 inteira** — NPU v2 com 64 MACs paralelos, Wishb
 | **Testbench Verilog v2** | ✅ `tb_npu_v2.v` | RAM simulada, testes registrador/IRQ/STATUS |
 | **Golden Model C++ v2** | ✅ `npu_sim_v2.cpp` + `demo_npu_v2.cpp` | 21/21 testes passando |
 | **Pacote de definições compartilhadas** | ✅ `npu_v2_pkg.v` | Register map, FSM states, constantes |
+| **SoC base atualizado (IRQ=10, NPU v2)** | ✅ `base_soc.py` | Wishbone Slave + Master, IRQ 10 no PLIC |
+| **Device Tree FPGA real** | ✅ `urrbana.dts` | DDR3, NPU, LiteX peripherals |
 | **FPGA Física** | ❌ Bloqueado | Aguardando professor |
-
-### Detalhamento dos Testes (Golden Model v2):
-- Teste 1: Wishbone Slave Register Access ✅
-- Teste 2: STATUS bit layout [15:8]=zero_counter ✅
-- Teste 3: 64 MACs — acúmulo correto em acc[0] ✅
-- Teste 4: Zero-skipping (sparsity counting) ✅
-- Teste 5: IRQ sync (clear_irq via CONTROL) ✅
-- Teste 6: Layer Sequencer (3 layers, ~91.967 ciclos) ✅
-
-### Bloqueios:
-- Sem FPGA física para sintetizar/testar
 
 ---
 
-## 2. 🖥️ Gildo (Sistema Operacional — Buildroot)
+## 2. 🖥️ Gildo (OS + NPU HAL + Classifier + Buildroot Packages)
 
-### Fase Real: 2.5/4 (Fase 1 ✅, Fase 2 ✅, Fase 3 iniciando)
+### Fase Real: 3.0/4 (Fase 1 ✅, Fase 2 ✅, Fase 3 iniciando)
+
+**Expansão de escopo:** Gildo agora é responsável por toda a camada de software entre o driver e o usuário — a NPU HAL, o Classifier (output layer CPU), o Weights Loader e os Buildroot Packages. O `user_app.c` foi transferido de Gilvan para Gildo.
 
 | Tarefa | Status | Arquivo |
 |--------|--------|---------|
@@ -53,14 +48,23 @@ O projeto completou **a Fase 3 inteira** — NPU v2 com 64 MACs paralelos, Wishb
 | Defconfig RV32IMA | ✅ `configs/ternaryedge_rv_defconfig` | BR2_RISCV_32, kernel 6.18, OpenSBI, QEMU |
 | Toolchain via SDK | ✅ `software/os_buildroot/README.md` | Cada um compila a sua |
 | HIGH_RES_TIMERS | ✅ Ativado | CONFIG_HIGH_RES_TIMERS habilitado |
-| **Device Tree (.dts) oficial com NPU v2** | ❌ Pendente | Aguardando definição do node com IRQ=10 |
-| **RootFS com LKM + user_app** | ❌ Pendente | Verificar Config.in, external.mk |
-| **FAT32/ext4 no RootFS** | ❌ Pendente (Fase 4) | Para SD Card |
+| Device Tree (.dts) QEMU + FPGA | ✅ `setup_qemu/ternaryedge.dts`, `urrbana.dts` | IRQ=10, `compatible = "ternaryedge,npu-ternaria"` |
+| Kernel config fragment (FAT/EXT4) | ✅ `configs/kernel-npu.cfg` | Suporte a sistemas de arquivo |
+| **NPU HAL — API pública (npu_hal.h)** | ❌ Pendente | `software/npu_hal/npu_hal.h` |
+| **NPU HAL — Implementação (npu_hal.c)** | ❌ Pendente | init, load_weights, predict, deinit |
+| **NPU Classifier (npu_classifier.c)** | ❌ Pendente | Output layer 256→10 FP32 + argmax + softmax |
+| **NPU Weights (npu_weights.c)** | ❌ Pendente | Loader de pesos do QAT pipeline |
+| **weights.h stub** | ❌ Pendente | `software/npu_hal/weights.h` (zerado) |
+| **Buildroot package npu-ternaria** | ❌ Pendente | Kernel module package |
+| **Buildroot package npu-hal** | ❌ Pendente | Biblioteca estática |
+| **Buildroot package user-app** | ❌ Pendente | Binário de usuário |
+| **Refatorar user_app.c** | ❌ Pendente | Usar HAL (init → predict → print_result) |
 
 ### Pendente para Gildo:
-1. Preencher `Config.in` e `external.mk` (estão vazios — 0 bytes)
-2. Criar `.dts` oficial com node NPU v2 (`compatible = "ternaryedge,npu-ternaria"`, IRQ=10)
-3. Auxiliar Arthur em testbench Verilator quando ambiente estiver disponível
+1. Criar `software/npu_hal/` com todos os fontes (HAL, Classifier, Weights, Makefile, test)
+2. Configurar Buildroot packages (npu-ternaria, npu-hal, user-app)
+3. Refatorar user_app.c para usar HAL
+4. Validar integração no QEMU (quando toolchain + driver estiverem disponíveis)
 
 ---
 
@@ -82,8 +86,6 @@ O projeto completou **a Fase 3 inteira** — NPU v2 com 64 MACs paralelos, Wishb
 | Offsets v2 (10 registradores) | ✅ | `npu_driver.c` v3.0 — alinhado com RTL v2 |
 | WEIGHT_CFG + ACT_CFG no ioctl | ✅ | `iowrite32()` para todos os 5 campos |
 | IOCTL Header | ✅ | `software/include/npu_ioctl.h` |
-| Dummy App corrigido | ✅ | `mmap.h` → `mman.h` |
-| User App revisado | ✅ | `user_app.c` com timing segregado + `--cpu` flag |
 
 ### Bloqueios:
 - Aguardando toolchain do Gildo para compilar `.ko` para RISC-V
@@ -91,7 +93,7 @@ O projeto completou **a Fase 3 inteira** — NPU v2 com 64 MACs paralelos, Wishb
 
 ---
 
-## 4. 🧠 Gilvan (Inteligência Artificial)
+## 4. 🧠 Gilvan (Inteligência Artificial + Golden Model)
 
 ### Fase Real: 3.0/4 (Fase 1 ✅, Fase 2 ✅, Fase 3 ✅, Fase 4 iniciando)
 
@@ -103,30 +105,12 @@ O projeto completou **a Fase 3 inteira** — NPU v2 com 64 MACs paralelos, Wishb
 | Fake Quant INT8 entre layers | ✅ | `fake_quant_with_min_max_args(min=0, max=127, num_bits=8)` |
 | Acurácia >95% | ✅ | Validado |
 | Pack de pesos (16/uint32_t) | ✅ | `pack_weights.py` |
-| weights.h gerado | ✅ | 3 layers, 91.136 words (364 KB) |
-| **Golden Model v2 (64 MACs + DMA)** | ✅ `npu_sim_v2.cpp` | Modelagem bit-accurate, 64 MACs paralelos, DMA simulado |
-| **STATUS register bits [15:8]** | ✅ | Alinhado com RTL v2 |
-| **User app real (forward pass + timing)** | ✅ `user_app.c` | IOCTL args, timing segregado, baseline CPU |
-| **Camada de saída ternária?** | ⚠️ Gap | Atualmente FP32 softmax — precisa decidir Opção A ou B |
+| weights.h gerado (3 layers + output FP32) | ✅ | Formato compatível com HAL |
+| Golden Model v2 (64 MACs + DMA) | ✅ | 21/21 testes, bit-accurate |
+| Output layer validada (Opção B adotada) | ✅ | CPU fallback na classificação final |
+| user_app.c | 🔄 Transferido | Agora é responsabilidade do Gildo (via HAL) |
 
-### Gap:
-A camada de saída `Dense(10, activation="softmax")` usa FP32. Opções documentadas na `architecture_contract.md`.
-
-### Arquitetura do Modelo:
-```
-Entrada: 784 pixels (INT8, 0-255 normalizado)
-  │
-Layer 1: QuantDense(1024) → BatchNorm → ReLU → FakeQuant(INT8)
-  │   Pesos: 784×1024 = 802.816 ternários packed em 50.176 words
-  │
-Layer 2: QuantDense(512)  → BatchNorm → ReLU → FakeQuant(INT8)
-  │   Pesos: 1024×512 = 524.288 ternários packed em 32.768 words
-  │
-Layer 3: QuantDense(256)  → BatchNorm → ReLU → FakeQuant(INT8)
-  │   Pesos: 512×256 = 131.072 ternários packed em 8.192 words
-  │
-Output: Dense(10) → Softmax  ← ⚠️ FP32 (NÃO ternário!)
-```
+> **Nota:** O `user_app.c` foi transferido para Gildo. Gilvan agora fornece os pesos no formato correto (`quant_dense_weights[]`, `output_weights[]`, `output_biases[]`) e o golden model C++ para validação cruzada.
 
 ---
 
@@ -149,13 +133,14 @@ Output: Dense(10) → Softmax  ← ⚠️ FP32 (NÃO ternário!)
 | Arthur Fase 3 | 6 tarefas | **7** (criou tb_v2, pkg) | 🚀 Superou |
 | Gildo Fase 1 | 3 tarefas | 4 tarefas | ✅ Completo |
 | Gildo Fase 2 | 2 tarefas | 2 tarefas | ✅ Completo |
-| Gildo Fase 3 | 3 tarefas | **0** (não iniciou) | ❌ Atrasado |
+| Gildo Fase 3 (antigo) | 3 tarefas (DT + Config.in + testbench) | **4** (DT, DTS, kernel cfg, external tree) | ✅ Reatribuído |
+| Gildo Fase 3 (novo) | — | **12 tarefas** (HAL, Classifier, Weights, 3 packages, user_app) | 🆕 Escopo expandido |
 | Gustavo Fase 1 | 3 tarefas | 3 tarefas | ✅ Completo |
 | Gustavo Fase 2 | 5 tarefas | 5+ (IOCTL, header) | ✅ Superou |
 | Gustavo Fase 3 | 5 tarefas | **5** (todas feitas) | 🚀 Completo |
 | Gilvan Fase 1 | 3 tarefas | 3+ (sparsity, fq) | ✅ Superou |
 | Gilvan Fase 2 | 3 tarefas | 3 tarefas | ✅ Completo |
-| Gilvan Fase 3 | 5 tarefas | **4** (output layer pendente) | ✅ Quase completo |
+| Gilvan Fase 3 | 5 tarefas | **5** (output layer validada, user_app transferido) | ✅ Completo |
 
 ---
 
@@ -163,8 +148,7 @@ Output: Dense(10) → Softmax  ← ⚠️ FP32 (NÃO ternário!)
 
 | Risco | Impacto | Probabilidade | Mitigação |
 |-------|---------|---------------|-----------|
-| Saída FP32 não ternária | Hardware não acelera última camada | Alta | Gilvan testar saída ternária OU CPU fallback |
 | Sem FPGA física | Projeto só roda em QEMU | Média | Artigo pode focar em prototipagem virtual |
-| Config.in / external.mk vazios (Gildo) | Buildroot external tree incompleta | Média | Preencher com conteúdo mínimo |
-| Device Tree não criado | Driver não encontra NPU no boot | Média | Gildo precisa criar .dts oficial |
-| Desbalanceamento de carga | Gildo ocioso, Arthur sobrecarregado | Média | Redistribuir tarefas: Gildo pegar testbench Verilator e DT |
+| HAL + Classifier não validados sem HW | Bugs só descobertos na FPGA | Média | Testar no QEMU com driver mock |
+| Desbalanceamento de carga | Gildo com muito trabalho novo | Média | Priorizar HAL + Classifier primeiro; packages depois |
+| Dependência entre membros | Gildo precisa do driver de Gustavo | Baixa | HAL pode ser testada com stub do device |
