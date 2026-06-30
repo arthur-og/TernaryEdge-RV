@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 /*
  * adder_tree_64.v — 6-Stage Pipelined Adder Tree (64 → 1)
  * Ternary Edge-RV Project

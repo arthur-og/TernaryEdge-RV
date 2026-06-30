@@ -66,6 +66,7 @@ module tb_npu_v2;
     reg        wb_m_got_stb;
     integer    wb_m_delay;
 
+    int tb_ack_cnt = 0;
     always @(posedge clk) begin
         if (!rst_n) begin
             wb_m_ack_i <= 1'b0;
@@ -74,6 +75,7 @@ module tb_npu_v2;
             wb_m_got_stb <= 1'b0;
             wb_m_lat_addr <= 32'd0;
             wb_m_delay <= 0;
+            tb_ack_cnt <= 0;
         end else begin
             wb_m_ack_i <= 1'b0;
 
@@ -86,6 +88,7 @@ module tb_npu_v2;
             if (wb_m_got_stb) begin
                 wb_m_got_stb <= 1'b0;
                 wb_m_ack_i <= 1'b1;
+                tb_ack_cnt <= tb_ack_cnt + 1;
 
                 if (!wb_m_we_o) begin
                     // Read from external RAM
@@ -274,7 +277,19 @@ module tb_npu_v2;
         $display("  Waiting for IRQ...");
 
         // Wait for IRQ with timeout
-        wait (irq_out === 1'b1);
+        begin
+            int wc;
+            wc = 0;
+            while (!irq_out) begin
+                @(posedge clk);
+                wc++;
+                if (wc > 5000000) begin
+                    $display("  ✗ TIMEOUT after %0d cycles", wc);
+                    $finish;
+                end
+            end
+            $display("  ✓ IRQ received after %0d cycles", wc);
+        end
         $display("  ✓ IRQ received! NPU v2 completed inference.");
 
         // Read result

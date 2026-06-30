@@ -19,6 +19,8 @@
 `define REG_RESULT      8'h1C   // RO: Final accumulated result
 `define REG_MAC_CFG     8'h20   // RW: [5:0]=num_macs (default 64)
 `define REG_LAYER_CFG   8'h24   // RW: [7:0]=num_layers (default 3)
+`define REG_RESULT_WINDOW 8'h28 // RO: Windowed read of acc_reg[0..63], indexed by [5:0]
+`define REG_LAYER_CTRL  8'h2C   // RW: [0]=irq_per_layer, [5:0]=result_window_idx
 
 // =============================================================================
 // Memory Sizes
@@ -45,6 +47,12 @@
 `define ST_DMA_ACT       4'd4   // Reading activations from RAM
 `define ST_COMPUTE_BATCH 4'd5   // Computing one batch (64 MACs)
 `define ST_NEXT_OUTPUT   4'd6   // Moving to next output neuron
-`define ST_LAYER_DONE    4'd7   // Layer finished, write output
-`define ST_NEXT_LAYER    4'd8   // Transition to next layer
-`define ST_DONE          4'd9   // All layers complete, assert IRQ
+`define ST_WRITE_RESULT  4'd7   // DMA write acc_reg to external RAM
+`define ST_LAYER_DONE    4'd8   // Layer finished
+`define ST_NEXT_LAYER    4'd9   // Transition to next layer
+`define ST_DONE          4'd10  // All layers complete, assert IRQ
+
+// Compute sub-steps (used inside ST_COMPUTE_BATCH via compute_step register)
+`define COMPUTE_STEP_LOAD_WEIGHTS 2'd0  // DMA read 4 weight words from RAM
+`define COMPUTE_STEP_UNPACK       2'd1  // Unpack weights into mac_weights
+`define COMPUTE_STEP_ACCUMULATE   2'd2  // Compute 64 MACs and accumulate

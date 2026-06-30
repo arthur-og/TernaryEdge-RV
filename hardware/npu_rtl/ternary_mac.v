@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 /*
  * Ternary MAC (Multiply-Accumulate) sem multiplicadores
  * Projeto: Ternary Edge-RV

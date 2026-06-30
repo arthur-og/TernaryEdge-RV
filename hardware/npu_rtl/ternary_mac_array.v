@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 /*
  * ternary_mac_array.v — 64× Parallel Multiplierless MAC Array
  * Ternary Edge-RV Project
