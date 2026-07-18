@@ -1,0 +1,5 @@
+NPU_TERNARIA_VERSION = 1.0
+NPU_TERNARIA_SITE = $(BR2_EXTERNAL_TERNARYEDGE_RV_PATH)/../npu_driver
+NPU_TERNARIA_SITE_METHOD = local
+
+$(eval $(kernel-module))

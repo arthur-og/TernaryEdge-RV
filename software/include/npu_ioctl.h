@@ -1,8 +1,13 @@
 #ifndef _NPU_IOCTL_H
 #define _NPU_IOCTL_H
 
+#ifdef __KERNEL__
 #include <linux/ioctl.h>
 #include <linux/types.h>
+#else
+#include <sys/ioctl.h>
+#include <stdint.h>
+#endif
 
 #define NPU_MAGIC 'N'
 

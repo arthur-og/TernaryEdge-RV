@@ -1,0 +1,5 @@
+config BR2_PACKAGE_NPU_HAL
+    bool "npu-hal"
+    help
+      NPU Hardware Abstraction Layer for Ternary Edge-RV.
+      Provides libnpu_hal.a with npu_init, npu_predict, npu_deinit, etc.

@@ -1,3 +1,7 @@
 #
 # Ternary Edge-RV Buildroot External Tree
 #
+
+source "$BR2_EXTERNAL_TERNARYEDGE_RV_PATH/package/npu-ternaria/Config.in"
+source "$BR2_EXTERNAL_TERNARYEDGE_RV_PATH/package/npu-hal/Config.in"
+source "$BR2_EXTERNAL_TERNARYEDGE_RV_PATH/package/user-app/Config.in"

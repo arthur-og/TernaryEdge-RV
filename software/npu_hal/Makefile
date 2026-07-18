@@ -1,0 +1,23 @@
+BUILDROOT_DIR       ?= $(abspath $(PWD)/../../../buildroot)
+BUILDROOT_OUTPUT     = $(BUILDROOT_DIR)/output
+CROSS_COMPILE       ?= $(BUILDROOT_OUTPUT)/host/bin/riscv32-buildroot-linux-gnu-
+CC                  := $(CROSS_COMPILE)gcc
+AR                  := $(CROSS_COMPILE)ar
+CFLAGS              := -Wall -Wextra -O2 -static -march=rv32ima -mabi=ilp32
+LIBNAME             := libnpu_hal.a
+
+SRCS                := npu_hal.c npu_classifier.c npu_weights.c
+OBJS                := $(SRCS:.c=.o)
+
+all: $(LIBNAME)
+
+$(LIBNAME): $(OBJS)
+	$(AR) rcs $@ $^
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+	rm -f $(OBJS) $(LIBNAME)
+
+.PHONY: all clean
