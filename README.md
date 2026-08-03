@@ -85,12 +85,12 @@ TernaryEdge-RV/
 
 ## 📊 Project Status (Active Development)
 
-<!-- Status updated 2026-06-28 — Fase 3 rebalanceada: Gildo assume HAL + Classifier -->
+<!-- Status updated when Gildo completed Phase 3: HAL + Classifier + Buildroot packages -->
 
 | Domain | Lead | Phase | Status | Completion |
 |:-------|:-----|:------|:-------|:-----------|
 | **Hardware (RTL/SoC)** | Arthur | 3.5/4 | F1✅ F2✅ F3✅ (NPU v2 done) | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
-| **OS + HAL (Buildroot + Classifier)** | Gildo | 3.0/4 | F1✅ F2✅ **F3⏳** (HAL/Classifier) | ![60%](https://img.shields.io/badge/60%25-yellow) |
+| **OS + HAL (Buildroot + Classifier)** | Gildo | 3.5/4 | F1✅ F2✅ F3✅ (HAL/Classifier/packages) | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
 | **Kernel Driver** | Gustavo | 3.5/4 | F1✅ F2✅ F3✅ (v2 adapted) | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
 | **AI Pipeline** | Gilvan | 3.0/4 | F1✅ F2✅ F3✅ (weights + golden) | ![85%](https://img.shields.io/badge/85%25-green) |
 
@@ -105,51 +105,51 @@ TernaryEdge-RV/
   - ✅ Verilog testbench (`tb_npu_v2.v`) — RAM simulada, testes registrador/IRQ/STATUS
   - ✅ STATUS register `zero_counter` at bits `[15:8]` — alinhado C++/RTL
   - ✅ Golden Model C++ v2 — 21/21 testes passando
-  - ✅ SoC base atualizado: `base_soc.py` com NPU v2 wrapper, IRQ 10, Wishbone slave + master
-  - ✅ Device Tree para FPGA real: `urrbana.dts`
-- ⏳ FPGA confirmado pelo professor (E2). Bitstream alvo para Fase 4.
+  - ✅ SoC base updated: `base_soc.py` with NPU v2 wrapper, IRQ 10, Wishbone slave + master
+  - ✅ Device Tree for real FPGA: `urrbana.dts`
+- ⏳ FPGA confirmed by the professor (E2). Bitstream target for Phase 4.
 
 ### Gildo (OS + HAL) — Buildroot, Device Tree, NPU HAL, Classifier
 
-**Expansão de escopo:** Gildo agora é responsável pela NPU HAL e Classifier — a camada de software que completa a NPU (quanto mais simples o hardware, mais complexo o software).
+**Scope expansion:** Gildo is now responsible for the NPU HAL and Classifier — the software layer that completes the NPU (the simpler the hardware, the more complex the software).
 
 - ✅ **Phase 1:** Buildroot external tree. RV32IMA defconfig. QEMU boot.
 - ✅ **Phase 2:** Toolchain via `make sdk`.
 - ✅ **Phase 3 — Infrastructure:**
   - ✅ Official `.dts` (QEMU + FPGA) — `compatible = "ternaryedge,npu-ternaria"`, IRQ=10, RV32IMA
   - ✅ `CONFIG_HIGH_RES_TIMERS=y` — kernel config fragment (`configs/kernel-npu.cfg`)
-  - ✅ FAT32/ext4 no RootFS — via `BR2_PACKAGE_DOSFSTOOLS`, `e2fspogs`, `CONFIG_FAT_FS`, `CONFIG_EXT4_FS`
-  - ✅ `Config.in`, `external.mk`, `external.desc` estruturados
-- ⏳ **Phase 3 — NPU HAL + Classifier (em andamento):**
-  - **Pendente:** `npu_hal.h`, `npu_hal.c` — API e implementação da HAL
-  - **Pendente:** `npu_classifier.c` — Output layer 256→10 CPU (FP32)
-  - **Pendente:** `npu_weights.c` — Weights loader do QAT pipeline
-  - **Pendente:** Buildroot packages (npu-ternaria, npu-hal, user-app)
-  - **Pendente:** Refatorar `user_app.c` para usar a HAL
+  - ✅ FAT32/ext4 in RootFS — via `BR2_PACKAGE_DOSFSTOOLS`, `e2fspogs`, `CONFIG_FAT_FS`, `CONFIG_EXT4_FS`
+  - ✅ Structured `Config.in`, `external.mk`, `external.desc`
+  - ✅ **NPU HAL + Classifier + Buildroot Packages COMPLETE:**
+    - ✅ `npu_hal.h` / `npu_hal.c` — API and implementation (init, load_weights, predict, batch, deinit)
+    - ✅ `npu_classifier.c` — Output layer 256->10 CPU (FP32: score, argmax, softmax)
+    - ✅ `npu_weights.c` — Weights loader from the QAT pipeline
+    - ✅ `weights.h` stub + `npu_ioctl.h` fixed for user-space (`#ifdef __KERNEL__`)
+    - ✅ Buildroot packages (npu-ternaria, npu-hal, user-app) + `Config.in`/`external.mk`/`defconfig`
+    - ✅ `user_app.c` refactored: HAL API + `--cpu`, `--file`, `--batch` flags
+  - ✅ `libnpu_hal.a` built and validated (native)
 
-### Gustavo (Driver) — Adaptado para NPU v2 ✅
+### Gustavo (Driver) — Adapted for NPU v2 ✅
 - ✅ Platform driver with `dma_alloc_coherent`, `mmap`, `request_irq`, `wait_event_interruptible`.
-- ✅ **Adaptação para NPU v2 COMPLETA (npu_driver.c v3.0):**
-  - ✅ Offsets revisados (10 registradores, 0x00–0x24)
-  - ✅ `iowrite32()` para WEIGHT_CFG + ACT_CFG + MAC_CFG + LAYER_CFG
-  - ✅ IOCTL com struct `npu_ioctl_args` (5 campos de configuração)
+- ✅ **NPU v2 adaptation COMPLETE (npu_driver.c v3.0):**
+  - ✅ Offsets revised (10 registers, 0x00–0x24)
+  - ✅ `iowrite32()` for WEIGHT_CFG + ACT_CFG + MAC_CFG + LAYER_CFG
+  - ✅ IOCTL with struct `npu_ioctl_args` (5 configuration fields)
   - ✅ IOCTL header compartilhado: `software/include/npu_ioctl.h`
 
 ### Gilvan (AI) — Golden Model + weights.h ✅
 - ✅ QAT pipeline (Larq + STE). 3 ternary layers. weights.h gerado.
 - ✅ Golden Model C++ v2: 21/21 testes (64 MACs, DMA, Layer Sequencer)
 - ✅ Output layer validada: Opção B (CPU fallback) adotada
-- ✅ weights.h no formato compatível com a HAL (arrays por camada + output FP32)
+- ✅ weights.h in a format compatible with the HAL (per-layer arrays + FP32 output)
 
-> O `user_app.c` foi transferido para Gildo, que o refatorará para usar a HAL.
+> The `user_app.c` was transferred to Gildo, who refactored it to use the HAL.
 
-### Known Gaps (updated 28/06/2026)
+### Known Gaps
 | Gap | Owner | Priority |
 |:----|:------|:---------|
-| HAL + Classifier não implementados | Gildo | **High** |
-| Buildroot packages não configurados | Gildo | **High** |
 | No physical FPGA yet | Arthur + Professor | **High** |
-| Toolchain não compilada por todos | Equipe | **High** |
+| Toolchain not built by all members | Team | **High** |
 
 ---
 
