@@ -139,3 +139,15 @@ Layer Sequencer (FSM 10 estados):
 | **Nova camada: NPU HAL** | 📝 Em especificação por Gildo |
 
 ---
+
+## 📝 Adendo (agosto/2026)
+
+Esta ata reflete o estado na data da reunião (16/06/2026). Atualizações posteriores para registro:
+
+- ✅ **FPGA recebida:** RealDigital Urrbana (AMD Spartan-7 XC7S50-CSGA324, 128 MB DDR3, MicroSD). Bloqueio crítico #1 resolvido.
+- ✅ **Fase 3 100% completa:** Além do relatado acima, Gildo entregou a NPU HAL completa (`npu_hal.c`, `npu_classifier.c`, `npu_weights.c`), os packages Buildroot (`npu-ternaria`, `npu-hal`, `user-app`) e o `user_app.c` refatorado com flags `--cpu`/`--file`/`--batch`. `weights.h` real já está no repositório.
+- ✅ **`base_soc.py`** preparado para `litex_boards.realdigital_urbana` (importa o target correto).
+- ⏳ **Fase 4 iniciada:** Caminho crítico agora é físico — síntese FPGA, boot Linux, `insmod`, benchmark real. Tudo documentado em `docs/relatorios/status_atual.md` (atualizado em 04/08/2026).
+
+---
+
