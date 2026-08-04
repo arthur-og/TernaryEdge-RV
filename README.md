@@ -5,10 +5,13 @@
 [![OS: Linux](https://img.shields.io/badge/OS-Embedded%20Linux-lightgrey.svg)]()
 [![Status: Active](https://img.shields.io/badge/Status-Active%20Research-success.svg)]()
 [![Paper 1](https://img.shields.io/badge/Paper-SBCCI%2FLASCAS%20Template-blueviolet.svg)](paper/paper1_template.tex)
+[![FPGA: RealDigital Urbana](https://img.shields.io/badge/FPGA-RealDigital%20Urbana%20(Spartan--7%20XC7S50)-blue.svg)](http://www.realdigital.org/)
 
 **Ternary Edge-RV** is a complete hardware-software co-design project aimed at achieving extreme energy efficiency for Edge Artificial Intelligence. This repository contains the full stack—from custom silicon architecture to the AI application—demonstrating a multiplierless Ternary Neural Network (TNN) accelerator integrated into a Linux-capable RISC-V System-on-Chip (SoC).
 
-This project is currently under active development for academic publication (Paper 1 — target: SBCCI/LASCAS). The paper template is available at [`paper/paper1_template.tex`](paper/paper1_template.tex). It aims to prove that inferencing heavily quantized models ($\in \{-1, 0, 1\}$) on custom hardware without DSPs significantly outperforms CPU-bound execution in both latency and power consumption.
+This project is currently in **Phase 4 — Physical Deployment & Paper 1** (target: SBCCI/LASCAS). The paper template is available at [`paper/paper1_template.tex`](paper/paper1_template.tex). It aims to prove that inferencing heavily quantized models ($\in \{-1, 0, 1\}$) on custom hardware without DSPs significantly outperforms CPU-bound execution in both latency and power consumption.
+
+> **Update (Aug 2026):** The RealDigital Urbana board (AMD Spartan-7 XC7S50-CSGA324, 128 MB DDR3, MicroSD) has been received. The full stack is code-complete and validated in simulation (29/29 tests). Physical synthesis on the Urbana, kernel boot, and real-hardware benchmarks are the remaining Phase 4 work.
 
 ---
 
@@ -83,16 +86,17 @@ TernaryEdge-RV/
 
 ---
 
-## 📊 Project Status (Active Development)
+## 📊 Project Status (Phase 4 — Physical Deployment & Paper)
 
-<!-- Status updated when Gildo completed Phase 3: HAL + Classifier + Buildroot packages -->
+<!-- Status updated Aug 2026: FPGA Urbana received, all software code-complete, Phase 4 in progress -->
 
 | Domain | Lead | Phase | Status | Completion |
 |:-------|:-----|:------|:-------|:-----------|
-| **Hardware (RTL/SoC)** | Arthur | 3.5/4 | F1✅ F2✅ F3✅ (NPU v2 done) | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
-| **OS + HAL (Buildroot + Classifier)** | Gildo | 3.5/4 | F1✅ F2✅ F3✅ (HAL/Classifier/packages) | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
-| **Kernel Driver** | Gustavo | 3.5/4 | F1✅ F2✅ F3✅ (v2 adapted) | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
-| **AI Pipeline** | Gilvan | 3.0/4 | F1✅ F2✅ F3✅ (weights + golden) | ![85%](https://img.shields.io/badge/85%25-green) |
+| **Hardware (RTL/SoC)** | Arthur | 4.0/4 | F1✅ F2✅ F3✅ (NPU v2 done) — FPGA received, synthesis pending | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
+| **OS + HAL (Buildroot + Classifier)** | Gildo | 4.0/4 | F1✅ F2✅ F3✅ (HAL/Classifier/packages code-complete) — SD image pending | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
+| **Kernel Driver** | Gustavo | 4.0/4 | F1✅ F2✅ F3✅ (v3.0 adapted) — `insmod` on FPGA pending | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
+| **AI Pipeline** | Gilvan | 4.0/4 | F1✅ F2✅ F3✅ (weights + golden model) — FPGA benchmark pending | ![90%](https://img.shields.io/badge/90%25-green) |
+| **Paper 1** | Team | Draft | Skeleton + abstract done; all sections awaiting real metrics | ![30%](https://img.shields.io/badge/30%25-orange) |
 
 ### Arthur (Hardware) — NPU v2: 64 MACs + Wishbone Master DMA
 - ✅ **Phase 1:** Official memory map defined (`0x40000000`, IRQ 10, Little-Endian). VexRiscv-RV32IMA base SoC.
@@ -105,9 +109,9 @@ TernaryEdge-RV/
   - ✅ Verilog testbench (`tb_npu_v2.v`) — RAM simulada, testes registrador/IRQ/STATUS
   - ✅ STATUS register `zero_counter` at bits `[15:8]` — alinhado C++/RTL
   - ✅ Golden Model C++ v2 — 21/21 testes passando
-  - ✅ SoC base updated: `base_soc.py` with NPU v2 wrapper, IRQ 10, Wishbone slave + master
-  - ✅ Device Tree for real FPGA: `urrbana.dts`
-- ⏳ FPGA confirmed by the professor (E2). Bitstream target for Phase 4.
+- ✅ **SoC base updated: `base_soc.py` with NPU v2 wrapper, IRQ 10, Wishbone slave + master** (targets `litex_boards.realdigital_urbana`)
+  - ✅ Device Tree for real FPGA: `urrbana.dts` (RealDigital Urbana, Spartan-7 XC7S50-CSGA324, 128 MB DDR3 @ `0x80000000`)
+- ✅ **Phase 4 (in progress):** RealDigital Urbana board received (Aug 2026). Pending: synthesis + timing closure, resource report (LUTs, 0 DSPs, FFs, BRAM) for Paper 1.
 
 ### Gildo (OS + HAL) — Buildroot, Device Tree, NPU HAL, Classifier
 
@@ -125,9 +129,10 @@ TernaryEdge-RV/
     - ✅ `npu_classifier.c` — Output layer 256->10 CPU (FP32: score, argmax, softmax)
     - ✅ `npu_weights.c` — Weights loader from the QAT pipeline
     - ✅ `weights.h` stub + `npu_ioctl.h` fixed for user-space (`#ifdef __KERNEL__`)
-    - ✅ Buildroot packages (npu-ternaria, npu-hal, user-app) + `Config.in`/`external.mk`/`defconfig`
-    - ✅ `user_app.c` refactored: HAL API + `--cpu`, `--file`, `--batch` flags
+  - ✅ Buildroot packages (npu-ternaria, npu-hal, user-app) + `Config.in`/`external.mk`/`defconfig`
+  - ✅ `user_app.c` refactored: HAL API + `--cpu`, `--file`, `--batch` flags
   - ✅ `libnpu_hal.a` built and validated (native)
+- ⏳ **Phase 4 (pending):** Generate final Buildroot image (kernel 6.18.7 + OpenSBI 1.6 + RootFS), partition SD card (FAT32 boot + ext4 rootfs), boot on Urbana, validate `dmesg`.
 
 ### Gustavo (Driver) — Adapted for NPU v2 ✅
 - ✅ Platform driver with `dma_alloc_coherent`, `mmap`, `request_irq`, `wait_event_interruptible`.
@@ -136,20 +141,26 @@ TernaryEdge-RV/
   - ✅ `iowrite32()` for WEIGHT_CFG + ACT_CFG + MAC_CFG + LAYER_CFG
   - ✅ IOCTL with struct `npu_ioctl_args` (5 configuration fields)
   - ✅ IOCTL header compartilhado: `software/include/npu_ioctl.h`
+- ⏳ **Phase 4 (pending):** `insmod` on the physical Urbana, IRQ/DMA validation via `dmesg`, end-to-end inference check on real hardware. Nota: revisão recomendada do cast de leitura do `npu_output` no `npu_hal.c` (ler 32 bits por neurônio, não 8 bits) antes de integrar com o NPU real.
 
 ### Gilvan (AI) — Golden Model + weights.h ✅
 - ✅ QAT pipeline (Larq + STE). 3 ternary layers. weights.h gerado.
 - ✅ Golden Model C++ v2: 21/21 testes (64 MACs, DMA, Layer Sequencer)
 - ✅ Output layer validada: Opção B (CPU fallback) adotada
 - ✅ weights.h in a format compatible with the HAL (per-layer arrays + FP32 output)
+- ⏳ **Phase 4 (pending):** Run real MNIST inference on the Urbana, save `.csv` benchmark (CPU vs NPU latencies), generate graphs, write §IV "Experimental Results" of Paper 1.
 
 > The `user_app.c` was transferred to Gildo, who refactored it to use the HAL.
 
 ### Known Gaps
-| Gap | Owner | Priority |
-|:----|:------|:---------|
-| No physical FPGA yet | Arthur + Professor | **High** |
-| Toolchain not built by all members | Team | **High** |
+| Gap | Owner | Priority | Status (Aug 2026) |
+|:----|:------|:---------|:------------------|
+| Physical FPGA synthesis & bitstream | Arthur | **High** | Board received (Urbana XC7S50); synthesis pending |
+| Buildroot SD image + boot on FPGA | Gildo | **High** | Tree ready; image build + SD flash pending |
+| Driver `insmod` on physical FPGA | Gustavo | **High** | Driver code-complete; physical validation pending |
+| Real-hardware benchmark (CPU × NPU) | Gilvan | **High** | Code path ready; awaiting FPGA boot |
+| Paper 1 — all sections | Team | **High** | Skeleton + abstract done; awaiting real metrics from FPGA |
+| Toolchain not built by all members | Team | Medium | Buildroot SDK is self-service; each member runs `make sdk` |
 
 ---
 
@@ -203,6 +214,74 @@ The pipeline generates `weights.h` with the format expected by the NPU HAL:
 - `quant_dense_2_weights[8192]` — Layer 2 (512→256)
 - `output_weights[2560]` — Output layer FP32 (256×10)
 - `output_biases[10]` — Output layer bias
+
+---
+
+## 🔧 Target Hardware: RealDigital Urbana (Phase 4)
+
+The project targets the **RealDigital Urbana** board, which satisfies all `requisitos_fpga.md` requirements:
+
+| Component | Urbana Board | Project Requirement |
+|:----------|:-------------|:--------------------|
+| FPGA | AMD Spartan-7 **XC7S50-CSGA324** | Xilinx 7-series (Wishbone + LiteX) |
+| Logic Cells | ~52K LUTs | ≥ 15K (VexRiscv Linux + NPU) |
+| External RAM | 128 MB DDR3 (`0x80000000–0x87FFFFFF`) | ≥ 32 MB (Linux + RootFS) |
+| Storage | MicroSD slot | Boot + RootFS (FAT32 + ext4) |
+| Console | UART via FTDI micro-USB | Linux console @ 115200 baud |
+| Programmer | FTDI over micro-USB | openFPGALoader / Vivado Hardware Manager |
+
+### Hardware Synthesis (Arthur)
+
+Two supported toolchains for the Spartan-7:
+
+**Option A — Xilinx Vivado (WebPACK, Spartan-7 supported, free):**
+```bash
+cd hardware/litex_soc
+source <vivado>/settings64.sh
+python3 base_soc.py --build       # Synthesize → bitstream
+python3 base_soc.py --load       # Load bitstream to SRAM (volatile)
+python3 base_soc.py --flash      # Flash bitstream to SPI flash (persistent)
+```
+
+**Option B — Open-source toolchain (openXC7: yosys + nextpnr-xilinx + openFPGALoader):**
+```bash
+# Install (one-time)
+nix profile install nixpkgs#yosys nixpkgs#nextpnr-xilinx nixpkgs#openfpgaloader
+sudo snap install openxc7
+
+# Build and flash
+cd hardware/litex_soc
+python3 base_soc.py --build --toolchain yosysnextpnr
+openFPGALoader --board realdigital_urbana build/ternaryedge-urbana/bit.bin
+```
+
+### SD Card Preparation (Gildo)
+
+Two partitions on the MicroSD card:
+- **Partition 1 (FAT32, ~64 MB):** `boot.json` + `boot.scr` (U-Boot) + Linux kernel `Image` + `rv32.dtb` (LiteX-generated, based on `urrbana.dts`)
+- **Partition 2 (ext4, rest):** Buildroot RootFS — including `/lib/modules/<ver>/npu_driver.ko`, `/usr/lib/libnpu_hal.a`, `/usr/bin/user_app`, `/root/mnist/*.raw` (test images)
+
+### FPGA Boot & Inference (Gustavo + Gilvan)
+
+```bash
+# On Urbana UART console (via micro-USB FTDI @ 115200):
+# 1. OpenSBI → U-Boot → Linux boot from mmcblk0p2
+
+# 2. Load the NPU kernel module
+insmod npu_driver.ko
+dmesg | grep npu         # Expect "NPU v2 probe successful. /dev/npu_ternaria ready"
+
+# 3. Run baseline CPU inference (3-layer ternary MLP in software, no NPU)
+./user_app --cpu --file /root/mnist/sample_7.raw
+
+# 4. Run NPU-accelerated inference
+./user_app --file /root/mnist/sample_7.raw
+#  Output: predicted class, confidence, time_copy_us, time_npu_us, time_output_us, time_total_us
+
+# 5. Batch benchmark (100 images) → save CSV for Paper 1
+./user_app --batch 100 --file /root/mnist/batch/  > benchmark_npu.csv
+./user_app --cpu --batch 100 --file /root/mnist/batch/ > benchmark_cpu.csv
+```
 
 ---
 

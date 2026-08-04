@@ -1,5 +1,5 @@
 # 📌 CHECKLIST OFICIAL DO PROJETO — TERNARY EDGE-RV
-**Última atualização:** 28/06/2026 — Fase 3 rebalanceada (Gildo assume HAL + Classifier)
+**Última atualização:** 04/08/2026 — FPGA Urrbana recebida, Fase 3 100% completa, Fase 4 em andamento
 **Próximo marco:** Paper 1 (SBCCI/LASCAS)
 
 ---
@@ -20,7 +20,7 @@
 - [X] Mapa de memória esboçado (0x40000000, IRQ=10)
 - [X] Endianness definido (Little-Endian)
 - [X] `docs/arquitetura/mapa_de_memoria.md` criado
-- [ ] Sintetizar SoC na FPGA (aguardando placa)
+- [ ] Sintetizar SoC na FPGA Urrbana (placa recebida ago/2026, síntese pendente)
 
 ### Gildo (OS + HAL)
 - [X] Buildroot configurado (`software/os_buildroot/`)
@@ -88,30 +88,30 @@
 - [X] **kernel config fragment:** `configs/kernel-npu.cfg` (FAT/EXT4, HIGH_RES_TIMERS)
 - [X] **Config.in, external.mk, external.desc:** estrutura da external tree preenchida
 
-### NPU HAL (em andamento ⏳)
-- [ ] `software/npu_hal/npu_hal.h` — API pública (init, load_weights, predict, deinit, print_result)
-- [ ] `software/npu_hal/npu_hal.c` — Implementação (open, mmap, ioctl, output layer CPU)
-- [ ] `software/npu_hal/npu_hal_internal.h` — Estruturas internas do contexto
+### NPU HAL (CONCLUÍDO ✅)
+- [X] `software/npu_hal/npu_hal.h` — API pública (init, load_weights, predict, deinit, print_result)
+- [X] `software/npu_hal/npu_hal.c` — Implementação (open, mmap, ioctl, output layer CPU)
+- [X] `software/npu_hal/npu_hal_internal.h` — Estruturas internas do contexto
 
-### NPU Classifier (em andamento ⏳)
-- [ ] `software/npu_hal/npu_classifier.h` — API classifier_run, argmax, softmax
-- [ ] `software/npu_hal/npu_classifier.c` — Output layer 256→10 FP32
+### NPU Classifier (CONCLUÍDO ✅)
+- [X] `software/npu_hal/npu_classifier.h` — API classifier_run, argmax, softmax
+- [X] `software/npu_hal/npu_classifier.c` — Output layer 256→10 FP32
 
-### NPU Weights (em andamento ⏳)
-- [ ] `software/npu_hal/npu_weights.h` — API para carregar pesos no DMA
-- [ ] `software/npu_hal/npu_weights.c` — Loader de pesos do QAT pipeline
-- [ ] `software/npu_hal/weights.h` — Stub (pesos zerados) para compilação
+### NPU Weights (CONCLUÍDO ✅)
+- [X] `software/npu_hal/npu_weights.h` — API para carregar pesos no DMA
+- [X] `software/npu_hal/npu_weights.c` — Loader de pesos do QAT pipeline
+- [X] `software/npu_hal/weights.h` — Stub (pesos zerados) para compilação
 
-### Buildroot Packages (em andamento ⏳)
-- [ ] `package/npu-ternaria/` — Kernel module package
-- [ ] `package/npu-hal/` — Biblioteca estática libnpu_hal.a
-- [ ] `package/user-app/` — Binário user_app
-- [ ] Atualizar `Config.in`, `external.mk`, `defconfig`
+### Buildroot Packages (CONCLUÍDO ✅)
+- [X] `package/npu-ternaria/` — Kernel module package
+- [X] `package/npu-hal/` — Biblioteca estática libnpu_hal.a
+- [X] `package/user-app/` — Binário user_app
+- [X] Atualizar `Config.in`, `external.mk`, `defconfig`
 
-### User App (em andamento ⏳)
-- [ ] Refatorar `user_app.c` para usar HAL (init → load_weights → predict → print_result)
-- [ ] Manter flag `--cpu` para baseline CPU
-- [ ] Adicionar `--file` para imagens reais, `--batch` para benchmark
+### User App (CONCLUÍDO ✅)
+- [X] Refatorar `user_app.c` para usar HAL (init → load_weights → predict → print_result)
+- [X] Manter flag `--cpu` para baseline CPU
+- [X] Adicionar `--file` para imagens reais, `--batch` para benchmark
 
 ## Gustavo (Driver) — ✅ COMPLETO
 - [X] **Adaptar driver para mapa v2:** offsets atualizados no `npu_driver.c` v3.0
@@ -133,15 +133,21 @@
 
 # 🔴 FASE 4: DEPLOY FÍSICO E PAPER 1 (Semanas 14–16)
 **Objetivo:** Rodar no silício real, extrair métricas, escrever paper.
+**Status:** FPGA RealDigital Urrbana (Spartan-7 XC7S50-CSGA324) recebida em agosto/2026. Caminho crítico desbloqueado.
 
 ### Arthur
-- [ ] Sintetizar SoC final + NPU v2 na FPGA (timing closure)
-- [ ] Extrair relatório: 0 DSPs, LUTs, FFs, BRAM
+- [ ] Sintetizar SoC final + NPU v2 na FPGA Urrbana via `base_soc.py --build` (timing closure)
+- [ ] Opção A: Vivado WebPACK (Spartan-7 suportado) ou Opção B: openXC7 (yosys+nextpnr, mais leve)
+- [ ] Extrair relatório: 0 DSPs, LUTs, FFs, BRAM (comprovação central da tese do Paper 1)
+- [ ] Validar testbench pós-síntese (gate-level sim) antes do flash
 - [ ] **Escrever seção do Paper 1:** Arquitetura Multiplierless + 64 MACs + DMA
+- [ ] **Escrever §III-B** do paper: tabela de registradores MMIO (já está 90% pronta no template)
 
 ### Gildo
-- [ ] Suporte a FAT32/ext4 no RootFS
-- [ ] Gravar imagem final no SD card e bootar na FPGA
+- [ ] Suporte a FAT32/ext4 no RootFS (já configurado em `configs/kernel-npu.cfg`)
+- [ ] Gerar imagem final Buildroot (kernel 6.18.7 + OpenSBI 1.6 + RootFS com `npu-ternaria`, `npu-hal`, `user-app`)
+- [ ] Particionar SD card (FAT32 boot + ext4 rootfs) e gravar imagem
+- [ ] Bootar Linux na Urrbana via SD e validar `dmesg` (sem kernel panic, periféricos OK)
 - [ ] **Escrever seção do Paper 1:** OS Infrastructure + NPU HAL:
   - Buildroot, Device Tree, integração Linux+NPU
   - Arquitetura da HAL (init, load, predict, batch)
@@ -149,17 +155,21 @@
   - Comparação CPU vs NPU via flag `--cpu`
 
 ### Gustavo
-- [ ] `insmod` do driver na FPGA física
-- [ ] Verificar `dmesg` — sem kernel panic
+- [ ] Cross-compilar driver (`.ko`) para RV32IMA usando toolchain Buildroot
+- [ ] `insmod` do driver na FPGA Urrbana física
+- [ ] Verificar `dmesg` — sem kernel panic, IRQ registrado, `/dev/npu_ternaria` criado
+- [ ] Validar IOCTL, IRQ e DMA no hardware real (transação completa com a NPU)
 - [ ] **Escrever seção do Paper 1:** Kernel Driver Design (MMIO, DMA, sincronização IRQ, overhead)
 
 ### Gilvan
-- [ ] Executar inferência de imagens de teste na FPGA
-- [ ] Salvar .csv com tempos (CPU vs NPU)
-- [ ] Gerar gráficos de benchmark
+- [ ] Preparar imagens MNIST de teste (raw 784 bytes cada) para SD card
+- [ ] Executar inferência na FPGA com `user_app --file`
+- [ ] Salvar .csv com tempos (CPU vs NPU) — usa timing segregado da HAL
+- [ ] Gerar gráficos de benchmark (bar chart ou box plot)
 - [ ] **Escrever seção do Paper 1:** AI Pipeline (QAT, empacotamento, golden model, resultados)
 - [ ] **Escrever seção do Paper 1:** Resultados e Discussão (tabela comparativa CPU × NPU)
 
 ### Equipe
-- [ ] Abstract, Introdução, Trabalhos Relacionados, Conclusão
-- [ ] Revisão final e submissão
+- [ ] Abstract, Introdução, Trabalhos Relacionados, Conclusão (esqueletos já existem no template)
+- [ ] Revisão final e submissão SBCCI/LASCAS
+- [ ] Preencher dados institucionais no `paper1_template.tex` (departamento, universidade, contatos)

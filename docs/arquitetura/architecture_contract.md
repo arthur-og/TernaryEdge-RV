@@ -1,6 +1,6 @@
 # Architecture Contract: Ternary Edge-RV
-**Última atualização:** 28/06/2026
-**Versão:** 2.2 — NPU HAL adicionada ao contrato de arquitetura
+**Última atualização:** 04/08/2026
+**Versão:** 2.3 — FPGA Urrbana recebida, HAL implementada, Phase 4 in progress
 
 This document formalizes the architectural decisions and "Design by Contract" parameters that all team members must follow to ensure the successful integration of the Hardware (RTL), OS (Linux), Kernel Driver (LKM), HAL (NPU Abstraction), and User Space (AI) components.
 
@@ -208,10 +208,16 @@ Classifier (CPU):
 
 ## 11. Current Known Gaps
 
-| Gap | Impact | Owner | Priority |
-|:----|:-------|:------|:---------|
-| **FPGA física não recebida** | Cannot synthesize or run real hardware | Arthur + Professor | **Critical** |
-| HAL + Classifier não implementados | User space não tem abstração sobre o driver | Gildo | High |
-| Buildroot packages não configurados | Build incompleto no CI | Gildo | High |
-| Toolchain não compilada por todos | Ninguém consegue compilar .ko / HAL | Gildo, Gustavo, Gilvan | High |
-| QEMU setup usa CPU rv64imafdch (projeto é RV32) | Ambiente de teste não reflete alvo real | Gildo/Gustavo | Medium |
+**Status (Aug 2026):** Phase 3 fully complete (software code-complete, validated by 29/29 golden model tests). RealDigital Urbana board received. The project is now in Phase 4 (physical deployment + Paper 1).
+
+| Gap | Impact | Owner | Priority | Resolution Path |
+|:----|:-------|:------|:---------|:----------------|
+| **FPGA synthesis & bitstream** | Cannot run on real hardware | Arthur | **Critical** | `python3 base_soc.py --build` (Opção A: Vivado / Opção B: openXC7) |
+| **Linux boot on FPGA** | Cannot test driver / HAL | Gildo | **High** | Buildroot image → SD card (FAT32+ext4) → boot via OpenSBI → U-Boot → kernel |
+| **Driver `insmod` on physical hardware** | No `/dev/npu_ternaria` | Gustavo | **High** | Cross-compile `.ko` for RV32IMA, `insmod`, validate IRQ/DMA via `dmesg` |
+| **Real benchmark (CPU × NPU latency)** | No data for Paper 1 §IV | Gilvan | **High** | `user_app --cpu` vs default; save CSV from FPGA |
+| **Paper 1 sections** | No submission | Team | **High** | Each member writes their section after real metrics; skeleton in `paper/paper1_template.tex` |
+| Possible HAL bug at `npu_hal.c:76` | Inference returns garbage | Gildo | Medium | Review 8-bit vs 32-bit cast of `npu_output[i]` against RTL `npu_ternaria_top_v2.v` |
+| Possible HAL/RTL mismatch at `npu_hal.c:51` | Activations written to wrong DMA offset | Gildo + Arthur | Medium | Verify offset `0x5C000` matches `WEIGHT_CFG`/`ACT_CFG` semantics in `wishbone_master.v` |
+| Toolchain not built by all members | Each member cannot build `.ko` locally | All | Low | Each member runs `make sdk` in `software/os_buildroot/` (documented in their README) |
+| Notebook do Arthur (i5-5200U, 8 GB RAM) | Vivado swap-heavy, slow synthesis | Arthur | Low | Use openXC7 (Opção B) — ~600 MB total, RAM-friendly |
