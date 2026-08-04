@@ -1,6 +1,6 @@
 # Plano de Trabalho — Arthur Oliveira Gomes
 **Papel no Projeto:** Hardware Architecture & RTL Design (LiteX, Verilog, SoC Generation)
-**Última atualização:** 10/06/2026
+**Última atualização:** 04/08/2026
 
 ---
 
@@ -12,8 +12,10 @@
 | M2 — NPU v1 (PIO, 1 MAC, Wishbone Slave) funcional em simulação Verilator | Concluído | ✅ |
 | M3 — NPU v2 (64 MACs, Wishbone Master DMA, Layer Sequencer) implementada e simulada | Concluído | ✅ |
 | M3b — Golden Model C++ v2 validado (21/21 testes passando) | Concluído | ✅ |
-| M4 — SoC final + NPU v2 sintetizados na FPGA, bitstream rodando | Após M3 + 1 sem | ⏳ |
+| M3c — `base_soc.py` preparado para RealDigital Urrbana | Concluído | ✅ |
+| M4 — SoC final + NPU v2 sintetizados na FPGA Urrbana, bitstream rodando | Ago/2026 — em andamento | ⏳ |
 | M5 — Relatório de síntese extraído e documentado (0 DSPs, LUTs, FFs) | Após M4 | ⏳ |
+| M6 — Seção "Hardware" do Paper 1 escrita | Antes da submissão | ⏳ |
 
 ---
 
@@ -22,7 +24,9 @@
 - ✅ Definição do core VexRiscv (RV32IMA, variante linux)
 - ✅ Utilização do framework LiteX para gerar o SoC com barramento Wishbone, UART, temporizadores
 - ✅ Definição do mapa de memória base (0x40000000) e IRQ=10
-- ⚠️ **Síntese na FPGA pendente** — aguardando placa física (professor confirmou, E2)
+- ✅ `base_soc.py` preparado para `realdigital_urbana` (importa `litex_boards.targets.realdigital_urbana`)
+- ✅ Device Tree `urrbana.dts` escrito para a RealDigital Urrbana (Spartan-7 XC7S50-CSGA324)
+- ✅ **FPGA recebida (ago/2026)** — RealDigital Urrbana. Síntese pendente.
 
 ## Fase 2 (Concluída): NPU v1 — Prova de Conceito (1 MAC, PIO)
 
@@ -98,8 +102,43 @@ Implementado em `npu_sim_v2.cpp` (477 linhas) + `demo_npu_v2.cpp` (257 linhas):
 
 ---
 
-## Fase 4 (Futura): Síntese Física e Documentação
+## Fase 4 (Em Andamento): Síntese Física, Métricas e Paper
 
-- 【 】 Timing closure do SoC completo + NPU v2 no FPGA alvo
-- 【 】 Extrair relatório de utilização (0 DSPs, LUTs, FFs, BRAM)
-- 【 】 Escrever seção de Hardware do Paper 1 (arquitetura multiplierless, 64 MACs, DMA)
+A RealDigital Urbana chegou em agosto/2026. O caminho crítico do projeto depende agora exclusivamente da síntese FPGA + boot Linux real.
+
+### 4.1 — Síntese FPGA (Opção A ou B)
+
+O notebook do Arthur (i5-5200U, 8 GB RAM) comporta ambas as opções, mas com ressalvas.
+
+**Opção A — Vivado WebPACK (Spartan-7 suportado)**
+- Prós: Integração LiteX perfeita, wizard completo
+- Contras: Instalação 30-70 GB, sintese usa 6-9 GB RAM (swap no note)
+- Comando: `python3 base_soc.py --build`
+
+**Opção B — openXC7 (recomendada para o note)**
+- Prós: ~600 MB total, usa 1-2 GB RAM, código open-source (ótimo para o paper)
+- Contras: Sem wizard, controle primitivos limitados (cativa para SoC LiteX padrão)
+- Ferramentas: `yosys synth_xilinx -arch xc7` → `nextpnr-xilinx --chipdb xc7s50csga324.bin` → `fasm2frames` → `xc7frames2bit` → `openFPGALoader`
+- Disponibilidade: `nixpkgs` tem `yosys`, `nextpnr-xilinx`, `openfpgaloader`. `prjxray-db` via `snap install openxc7`
+
+### 4.2 — Validação pós-síntese
+
+- 【 】 Gate-level simulation do netlist pós-place-and-route usando `tb_npu_v2.v`
+- 【 】 Confirmar timing closure (target: 100 MHz no sistema, DDR3 é ponto crítico)
+- 【 】 Flash bitstream para a SPI flash (`--flash` ou `openFPGALoader --flash`)
+
+### 4.3 — Relatório de síntese (comprovação da tese)
+
+- 【 】 Extrair: **0 DSPs** (comprovação central!), LUTs, FFs, BRAM utilizados
+- 【 】 Comparar com SoC base sem NPU (delta LUTs/FFs/BRAM)
+- 【 】 Frequência máxima (Fmax) reportada
+- 【 】 Documentar em `docs/arquitetura/sintese_urbbana.md` (a criar)
+
+### 4.4 — Paper 1
+
+- 【 ] **Figura 1** (arquitetura do sistema) — diagrama de blocos TikZ ou gráfico vetorial
+- 【 ] **Figura 2** (NPU interna — 64 MAC array + adder tree + DMA + Layer Sequencer)
+- 【 ] **Figura 3** (FSM do Layer Sequencer — 10 estados)
+- 【 ] Escrever §III-A "Hardware: Multiplierless NPU" (esqueleto existe no `paper1_template.tex`)
+- 【 ] Revisar §III-B "Memory-Mapped Register Map" (tabela já está pronta, validar contra RTL)
+- 【 ] §II-A "Ternary Neural Networks" (compartilhado com Gilvan)

@@ -1,14 +1,14 @@
 # Plano de Trabalho — Gilvan Alves Pastor Junior
 **Papel no Projeto:** AI Pipeline & Golden Model (QAT, C++ Simulation, Benchmark Data)
-**Última atualização:** 28/06/2026
+**Última atualização:** 04/08/2026
 
 ---
 
 ## Mudança de Escopo
 
-O `user_app.c` (aplicação de usuário) foi **transferido para o Gildo**, que o refatorará para usar a NPU HAL. 
+O `user_app.c` (aplicação de usuário) foi **transferido para o Gildo**, que o refatorou com sucesso para usar a NPU HAL (entregue em agosto/2026).
 
-Gilvan mantém o foco no **pipeline de IA** (treinamento, quantização, geração de pesos) e no **golden model C++** (validação bit-accurate). Os gráficos de benchmark e dados comparativos CPU × NPU continuam com você, mas agora usando a HAL do Gildo como interface.
+Gilvan mantém o foco no **pipeline de IA** (treinamento, quantização, geração de pesos) e no **golden model C++** (validação bit-accurate). Os gráficos de benchmark e dados comparativos CPU × NPU continuam com você, usando a HAL do Gildo como interface para a FPGA real.
 
 ---
 
@@ -19,7 +19,7 @@ Gilvan mantém o foco no **pipeline de IA** (treinamento, quantização, geraç�
 | M1 — TNN treinada (>95% accuracy, pesos ternários) + weights.h exportado | Concluído | ✅ |
 | M2 — Golden Model C++ v2 (64 MACs + DMA + Layer Sequencer) | Concluído | ✅ |
 | M3 — Output layer validada (Opção A: ternária ou Opção B: CPU fallback) | Concluído | ✅ |
-| M4 — Inferência funcional na FPGA rodando | Após FPGA + 1 sem | ⏳ |
+| M4 — Inferência funcional na FPGA Urrbana rodando | Ago/2026 — em andamento | ⏳ |
 | M5 — Seção "AI Pipeline" do Paper 1 + gráficos CPU vs NPU | Antes prazo final | ⏳ |
 
 ---
@@ -73,9 +73,24 @@ static const float output_weights[2560];               // 256 × 10
 static const float output_biases[10];                  // bias
 ```
 
-## Fase 4 (Futura): Deploy Físico e Paper
+## Fase 4 (Em Andamento): Deploy Físico e Paper
 
-- 【 】 Executar inferência completa de imagens de teste na FPGA
-- 【 】 Salvar milissegundos em .csv comprovando speedup NPU > CPU
-- 【 】 Gerar gráficos de tempo para o Paper 1
-- 【 】 Escrever seção **"AI Pipeline"** do Paper 1: QAT, empacotamento, golden model, resultados de benchmark
+A RealDigital Urrbana chegou em agosto/2026. Síntese do hardware (Arthur) e boot Linux (Gildo + Gustavo) destravaram o caminho crítico. Sua contribuição na Fase 4 é coletar métricas reais e finalizar §IV "Experimental Results" do paper.
+
+- 【 】 Preparar 10-100 imagens MNIST de teste em formato `.raw` (784 bytes cada, uint8_t) para serem enviadas à FPGA
+- 【 】 Empacotar as imagens junto com a RootFS (ou via scp na UART) para `/root/mnist/`
+- 【 】 Executar inferência na FPGA Urrbana com `user_app --file /root/mnist/sample_X.raw` para cada amostra
+- 【 】 Salvar saída em `.csv` — usar o timing segregado da HAL (`time_copy_us`, `time_npu_us`, `time_output_us`, `time_total_us`)
+- 【 】 Rodar baseline CPU no mesmo set: `user_app --cpu --file /root/mnist/sample_X.raw`
+- 【 】 Gerar gráficos (Python + matplotlib):
+  - Bar chart: latência CPU vs NPU por layer
+  - Box plot: distribuição de speedup sobre N amostras
+  - Scatter: accuracy (golden model) vs accuracy (real FPGA)
+  - Exportar para `paper/figures/`
+- 【 】 **Escrever §IV "Experimental Results"** do `paper1_template.tex`:
+  - Tabela de síntese (Arthur preenche: LUTs, FFs, DSPs=0, BRAM, Fmax)
+  - Tabela de benchmark (sua, do Gilvan): 784→1024, 1024→512, 512→256 — CPU vs NPU (ms)
+  - Speedup total (placeholder atual de 9.3× será substituído pelo número real)
+  - Gráficos de benchmark
+- 【 】 **Escrever §II-B "Existing FPGA Accelerators"** com análise comparativa contra FINN, Larq Compute Engine (esqueleto existe no template)
+- 【 】 Contribuir com §V "Conclusion" reforçada com números reais
