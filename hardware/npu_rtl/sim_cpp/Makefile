@@ -49,7 +49,7 @@ VERILOG1_SRC  = ../tb_npu_ternaria_top.v ../npu_ternaria_top.v ../ternary_mac.v
 VERILOG1_BIN  = tb_npu.vvp
 
 $(VERILOG1_BIN): $(VERILOG1_SRC)
-	$(IVERILOG) -o $@ $^
+	$(IVERILOG) -g2012 -o $@ $^
 
 verilog: $(VERILOG1_BIN)
 	$(VVP) $(VERILOG1_BIN)
@@ -63,7 +63,7 @@ VERILOG2_SRC  = ../tb_npu_v2.v ../npu_ternaria_top_v2.v \
 VERILOG2_BIN  = tb_npu_v2.vvp
 
 $(VERILOG2_BIN): $(VERILOG2_SRC)
-	$(IVERILOG) -I.. -o $@ $^
+	$(IVERILOG) -g2012 -I.. -o $@ $^
 
 verilog_v2: $(VERILOG2_BIN)
 	$(VVP) $(VERILOG2_BIN)
