@@ -1,9 +1,18 @@
 BUILDROOT_DIR       ?= $(abspath $(PWD)/../../../buildroot)
 BUILDROOT_OUTPUT     = $(BUILDROOT_DIR)/output
 CROSS_COMPILE       ?= $(BUILDROOT_OUTPUT)/host/bin/riscv32-buildroot-linux-gnu-
+
+ifeq ($(origin CC), default)
 CC                  := $(CROSS_COMPILE)gcc
+endif
+ifeq ($(origin AR), default)
 AR                  := $(CROSS_COMPILE)ar
-CFLAGS              := -Wall -Wextra -O2 -static -march=rv32ima -mabi=ilp32
+endif
+
+CFLAGS              ?= -Wall -Wextra -O2 -static
+ifneq (,$(findstring riscv,$(CC)))
+CFLAGS              += -march=rv32ima -mabi=ilp32
+endif
 LIBNAME             := libnpu_hal.a
 
 SRCS                := npu_hal.c npu_classifier.c npu_weights.c
