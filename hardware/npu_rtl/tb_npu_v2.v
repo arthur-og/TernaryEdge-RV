@@ -61,49 +61,56 @@ module tb_npu_v2;
     // =========================================================================
     reg [31:0] ext_ram [0:262143];  // 1 MB simulated RAM
 
+    integer test_errors;
+    reg [31:0] readback;
+    integer i;
+
+    localparam integer WB_TIMEOUT_CYCLES  = 64;
+    localparam integer IRQ_TIMEOUT_CYCLES = 1000000;
+    localparam [31:0] TEST_SRC_ADDR = 32'h0000_0000;
+    localparam [31:0] TEST_DST_ADDR = 32'h0004_0000;
+
     // Wishbone Master slave logic (responds to NPU's read requests)
     reg [31:0] wb_m_lat_addr;
+    reg        wb_m_lat_we;
     reg        wb_m_got_stb;
-    integer    wb_m_delay;
 
-    int tb_ack_cnt = 0;
+    integer tb_ack_cnt;
+
+    // The response phase is registered, and read data is combinational from
+    // the latched address.  This makes the data stable before the DUT samples
+    // the acknowledgement edge.
+    always @(*) begin
+        wb_m_ack_i = wb_m_got_stb;
+        wb_m_err_i = 1'b0;
+        wb_m_dat_i = 32'd0;
+
+        if (wb_m_got_stb && !wb_m_lat_we) begin
+            if ((wb_m_lat_addr / 4) < 262144)
+                wb_m_dat_i = ext_ram[wb_m_lat_addr / 4];
+            else
+                wb_m_dat_i = 32'hDEAD;
+        end
+    end
+
     always @(posedge clk) begin
         if (!rst_n) begin
-            wb_m_ack_i <= 1'b0;
-            wb_m_dat_i <= 32'd0;
-            wb_m_err_i <= 1'b0;
             wb_m_got_stb <= 1'b0;
             wb_m_lat_addr <= 32'd0;
-            wb_m_delay <= 0;
+            wb_m_lat_we <= 1'b0;
             tb_ack_cnt <= 0;
         end else begin
-            wb_m_ack_i <= 1'b0;
-
-            if (wb_m_cyc_o && wb_m_stb_o && !wb_m_ack_i) begin
-                // Latch address and respond next cycle (1-cycle latency)
-                wb_m_lat_addr <= wb_m_adr_o;
-                wb_m_got_stb <= 1'b1;
-            end
-
             if (wb_m_got_stb) begin
                 wb_m_got_stb <= 1'b0;
-                wb_m_ack_i <= 1'b1;
                 tb_ack_cnt <= tb_ack_cnt + 1;
 
-                if (!wb_m_we_o) begin
-                    // Read from external RAM
-                    if (wb_m_lat_addr / 4 < 262144) begin
-                        wb_m_dat_i <= ext_ram[wb_m_lat_addr / 4];
-                    end else begin
-                        wb_m_dat_i <= 32'hDEAD;
-                    end
-                end else begin
-                    // Write to external RAM
-                    if (wb_m_lat_addr / 4 < 262144) begin
-                        ext_ram[wb_m_lat_addr / 4] <= wb_m_dat_o;
-                    end
-                    wb_m_dat_i <= 32'd0;
-                end
+                if (wb_m_lat_we && ((wb_m_lat_addr / 4) < 262144))
+                    ext_ram[wb_m_lat_addr / 4] <= wb_m_dat_o;
+            end else if (wb_m_cyc_o && wb_m_stb_o) begin
+                // Latch the request, then expose a response on the next cycle.
+                wb_m_lat_addr <= wb_m_adr_o;
+                wb_m_lat_we <= wb_m_we_o;
+                wb_m_got_stb <= 1'b1;
             end
         end
     end
@@ -145,51 +152,104 @@ module tb_npu_v2;
     // Wishbone Slave Helper Tasks
     // =========================================================================
     task wb_write(input [31:0] addr, input [31:0] data);
+        integer cycle_count;
+        reg ack_seen;
         begin
-            @(posedge clk);
-            wb_s_adr_i <= addr;
-            wb_s_dat_i <= data;
-            wb_s_sel_i <= 4'b1111;
-            wb_s_we_i  <= 1'b1;
-            wb_s_cyc_i <= 1'b1;
-            wb_s_stb_i <= 1'b1;
-            @(posedge clk);
-            while (!wb_s_ack_o) @(posedge clk);
-            wb_s_cyc_i <= 1'b0;
-            wb_s_stb_i <= 1'b0;
-            wb_s_we_i  <= 1'b0;
+            @(negedge clk);
+            wb_s_adr_i = addr;
+            wb_s_dat_i = data;
+            wb_s_sel_i = 4'b1111;
+            wb_s_we_i  = 1'b1;
+            wb_s_cyc_i = 1'b1;
+            wb_s_stb_i = 1'b1;
+            ack_seen = 1'b0;
+            for (cycle_count = 0;
+                 cycle_count < WB_TIMEOUT_CYCLES && !ack_seen;
+                 cycle_count = cycle_count + 1) begin
+                @(posedge clk);
+                #1;
+                if (wb_s_ack_o === 1'b1)
+                    ack_seen = 1'b1;
+            end
+
+            if (!ack_seen) begin
+                $display("  ✗ Wishbone write timeout at 0x%08X", addr);
+                test_errors = test_errors + 1;
+            end
+
+            @(negedge clk);
+            wb_s_cyc_i = 1'b0;
+            wb_s_stb_i = 1'b0;
+            wb_s_we_i  = 1'b0;
+            wb_s_sel_i = 4'b0000;
         end
     endtask
 
     task wb_read(input [31:0] addr, output [31:0] data);
+        integer cycle_count;
+        reg ack_seen;
         begin
-            @(posedge clk);
-            wb_s_adr_i <= addr;
-            wb_s_sel_i <= 4'b1111;
-            wb_s_we_i  <= 1'b0;
-            wb_s_cyc_i <= 1'b1;
-            wb_s_stb_i <= 1'b1;
-            @(posedge clk);
-            while (!wb_s_ack_o) @(posedge clk);
-            data = wb_s_dat_o;
-            wb_s_cyc_i <= 1'b0;
-            wb_s_stb_i <= 1'b0;
+            @(negedge clk);
+            wb_s_adr_i = addr;
+            wb_s_sel_i = 4'b1111;
+            wb_s_we_i  = 1'b0;
+            wb_s_cyc_i = 1'b1;
+            wb_s_stb_i = 1'b1;
+            ack_seen = 1'b0;
+            data = 32'd0;
+            for (cycle_count = 0;
+                 cycle_count < WB_TIMEOUT_CYCLES && !ack_seen;
+                 cycle_count = cycle_count + 1) begin
+                @(posedge clk);
+                #1;
+                if (wb_s_ack_o === 1'b1) begin
+                    ack_seen = 1'b1;
+                    data = wb_s_dat_o;
+                end
+            end
+
+            if (!ack_seen) begin
+                $display("  ✗ Wishbone read timeout at 0x%08X", addr);
+                test_errors = test_errors + 1;
+            end
+
+            @(negedge clk);
+            wb_s_cyc_i = 1'b0;
+            wb_s_stb_i = 1'b0;
+            wb_s_sel_i = 4'b0000;
+        end
+    endtask
+
+    task wait_for_irq(input integer max_cycles);
+        integer cycle_count;
+        reg irq_seen;
+        begin
+            irq_seen = (irq_out === 1'b1);
+            for (cycle_count = 0;
+                 cycle_count < max_cycles && !irq_seen;
+                 cycle_count = cycle_count + 1) begin
+                @(posedge clk);
+                #1;
+                if (irq_out === 1'b1)
+                    irq_seen = 1'b1;
+            end
+
+            if (!irq_seen) begin
+                $display("  ✗ IRQ timeout after %0d cycles", max_cycles);
+                test_errors = test_errors + 1;
+            end else begin
+                $display("  ✓ IRQ received after %0d cycles", cycle_count);
+            end
         end
     endtask
 
     // =========================================================================
     // Test
     // =========================================================================
-    integer test_errors;
-    reg [31:0] readback;
-    integer i, j;
-    reg [7:0] test_acts [0:63];
-    reg [31:0] test_weights [0:3];
-
     initial begin
         $display("==================================================");
         $display(" NPU Ternária v2 — Testbench de Validação");
-        $display(" 64 MACs | Wishbone Master DMA | Layer Sequencer");
+        $display(" 64 MACs | Wishbone Master DMA | Fixed Layer-0 Contract");
         $display(" Ternary Edge-RV Project");
         $display("==================================================");
 
@@ -224,19 +284,28 @@ module tb_npu_v2;
 
         wb_write(`REG_SRC_ADDR, 32'hAABBCCDD);
         wb_read(`REG_SRC_ADDR, readback);
-        if (readback == 32'hAABBCCDD)
+        if (readback === 32'hAABBCCDD)
             $display("  ✓ SRC_ADDR write/read");
         else begin
             $display("  ✗ SRC_ADDR: expected AABBCCDD, got %h", readback);
             test_errors = test_errors + 1;
         end
 
-        wb_write(`REG_LAYER_CFG, 32'd3);
+        wb_write(`REG_DST_ADDR, TEST_DST_ADDR);
+        wb_read(`REG_DST_ADDR, readback);
+        if (readback === TEST_DST_ADDR)
+            $display("  ✓ DST_ADDR write/read");
+        else begin
+            $display("  ✗ DST_ADDR: expected %h, got %h", TEST_DST_ADDR, readback);
+            test_errors = test_errors + 1;
+        end
+
+        wb_write(`REG_LAYER_CFG, 32'd1);
         wb_read(`REG_LAYER_CFG, readback);
-        if (readback == 32'd3)
+        if (readback === 32'd1)
             $display("  ✓ LAYER_CFG write/read");
         else begin
-            $display("  ✗ LAYER_CFG: expected 3, got %d", readback);
+            $display("  ✗ LAYER_CFG: expected 1, got %d", readback);
             test_errors = test_errors + 1;
         end
 
@@ -255,111 +324,127 @@ module tb_npu_v2;
         $display("\n[TEST 2] STATUS Register — Idle State");
 
         wb_read(`REG_STATUS, readback);
-        if ((readback & 3'b001) == 1'b0)
-            $display("  ✓ STATUS busy bit = 0 (idle)");
+        if (readback === 32'd0)
+            $display("  ✓ STATUS = 0x00000000 (idle)");
         else begin
-            $display("  ✗ STATUS busy bit = 1 (unexpected)");
+            $display("  ✗ STATUS idle value: expected 00000000, got %h", readback);
             test_errors = test_errors + 1;
         end
 
         // =====================================================================
-        // TEST 3: Start IRQ → No-Data Inference
+        // TEST 3: Fixed layer-0 DMA/accumulation regression
         // =====================================================================
-        $display("\n[TEST 3] Start Inference (empty RAM → should complete)");
+        $display("\n[TEST 3] Fixed layer-0 DMA/accumulation regression");
 
-        // Configure for single layer
+        // The first 64 activation bytes are 1..64.  The remaining bytes of
+        // layer 0 are already zero from RAM initialization.  The four words
+        // below encode +1,+1,-1,-1 in the repository's 2-bit format.
+        for (i = 0; i < 64; i = i + 1)
+            ext_ram[i / 4][(i % 4) * 8 +: 8] = i + 1;
+
+        for (i = 0; i < 50176; i = i + 1)
+            ext_ram[(TEST_SRC_ADDR + 4096) / 4 + i] = 32'd0;
+        ext_ram[(TEST_SRC_ADDR + 4096) / 4 + 0] = 32'h55555555;
+        ext_ram[(TEST_SRC_ADDR + 4096) / 4 + 1] = 32'h55555555;
+        ext_ram[(TEST_SRC_ADDR + 4096) / 4 + 2] = 32'hFFFFFFFF;
+        ext_ram[(TEST_SRC_ADDR + 4096) / 4 + 3] = 32'hFFFFFFFF;
+
+        // Sentinels ensure the output assertions prove that every checked
+        // destination word was written by the result DMA.
+        for (i = 0; i < 1024; i = i + 1)
+            ext_ram[TEST_DST_ADDR / 4 + i] = 32'hA5A5A5A5;
+
+        wb_write(`REG_SRC_ADDR, TEST_SRC_ADDR);
+        wb_write(`REG_DST_ADDR, TEST_DST_ADDR);
         wb_write(`REG_MAC_CFG, 32'd64);
         wb_write(`REG_LAYER_CFG, 32'd1);
-        wb_write(`REG_SRC_ADDR, 32'd0);
-
-        // Start
         wb_write(`REG_CONTROL, 32'd1);
-        $display("  Waiting for IRQ...");
+        wait_for_irq(IRQ_TIMEOUT_CYCLES);
 
-        // Wait for IRQ with timeout
-        begin
-            int wc;
-            wc = 0;
-            while (!irq_out) begin
-                @(posedge clk);
-                wc++;
-                if (wc > 5000000) begin
-                    $display("  ✗ TIMEOUT after %0d cycles", wc);
-                    $finish;
-                end
-            end
-            $display("  ✓ IRQ received after %0d cycles", wc);
-        end
-        $display("  ✓ IRQ received! NPU v2 completed inference.");
-
-        // Read result
-        wb_read(`REG_RESULT, readback);
-        $display("  RESULT = %d (0x%08X)", $signed(readback), readback);
-
-        // Read STATUS
-        wb_read(`REG_STATUS, readback);
-        $display("  STATUS = 0x%08X (zero_skip=%d, irq=%d, busy=%d)",
-                 readback, (readback >> 8) & 8'hFF,
-                 (readback >> 1) & 1'b1, readback & 1'b1);
-
-        // Clear IRQ
-        wb_write(`REG_CONTROL, 32'd2);
-        $display("  ✓ IRQ cleared");
-
-        // =====================================================================
-        // TEST 4: Data-Dependent Inference with Status Verification
-        // =====================================================================
-        $display("\n[TEST 4] Weighted Inference with Zero-Skipping Check");
-
-        // Prepare test data in external RAM at address 0x1000
-        // Activations: 64 bytes at 0x1000
-        for (i = 0; i < 64; i = i + 1) begin
-            ext_ram[(32'd0 + i) / 4] = (i + 1) * 2;  // Store in byte-addressable way
-        end
-
-        // Weights: 4 words at 0x1000 + 4096
-        // Word 0: all +1 (01) → 0x55555555
-        // Word 1: all +1 (01) → 0x55555555
-        // Word 2: all -1 (11) → 0xFFFFFFFF
-        // Word 3: all -1 (11) → 0xFFFFFFFF
-        ext_ram[(32'd0 + 4096) / 4] = 32'h55555555;
-        ext_ram[(32'd0 + 4100) / 4] = 32'h55555555;
-        ext_ram[(32'd0 + 4104) / 4] = 32'hFFFFFFFF;
-        ext_ram[(32'd0 + 4108) / 4] = 32'hFFFFFFFF;
-
-        // Expected: first 32 acts sum - last 32 acts sum
-        // acts[i] = (i+1)*2 for i=0..63
-        // sum(i=0..31) (i+1)*2 - sum(i=32..63) (i+1)*2
-        // = 2*sum(1..32) - 2*sum(33..64)
-        // = 2*(32*33/2) - 2*(32*97/2)
-        // = 1056 - 3104 = -2048 ... wait let me recalculate
-        // sum(1..32) = 528, times 2 = 1056
-        // sum(33..64) = (33+64)*32/2 = 97*16 = 1552, times 2 = 3104
-        // diff = 1056 - 3104 = -2048
-        $display("  Loading test data (64 activations, 4 weight words)...");
-
-        // Configure and start
-        wb_write(`REG_SRC_ADDR, 32'd0);
-        wb_write(`REG_MAC_CFG, 32'd64);
-        wb_write(`REG_LAYER_CFG, 32'd1);
-        wb_write(`REG_CONTROL, 32'd1);  // Start
-
-        wait (irq_out === 1'b1);
-        $display("  ✓ IRQ received");
-
-        wb_read(`REG_RESULT, readback);
-        $display("  RESULT = %0d (signed)", $signed(readback));
-        // With all zeros in RAM (our test loaded data at non-standard addresses
-        // but the NPU reads from SRC_ADDR which we set to 0)
-        // The NPU reads from address 0 which has all zeros → result = 0
-        if ($signed(readback) === 32'd0)
-            $display("  ✓ Result = 0 (expected with zero data)");
+        if (irq_out === 1'b1)
+            $display("  ✓ completion IRQ asserted");
         else begin
-            $display("  ✗ Result = %0d (not zero)", $signed(readback));
+            $display("  ✗ completion IRQ is not asserted");
             test_errors = test_errors + 1;
         end
 
-        // Clear IRQ
+        if (ext_ram[TEST_DST_ADDR / 4] === 32'hFFFF_FC00)
+            $display("  ✓ destination output 0 = 0xFFFFFC00");
+        else begin
+            $display("  ✗ destination output 0: expected FFFFFC00, got %h",
+                     ext_ram[TEST_DST_ADDR / 4]);
+            test_errors = test_errors + 1;
+        end
+
+        if (ext_ram[TEST_DST_ADDR / 4 + 1] === 32'd0)
+            $display("  ✓ destination output 1 = 0");
+        else begin
+            $display("  ✗ destination output 1: expected 00000000, got %h",
+                     ext_ram[TEST_DST_ADDR / 4 + 1]);
+            test_errors = test_errors + 1;
+        end
+
+        if (ext_ram[TEST_DST_ADDR / 4 + 1023] === 32'd0)
+            $display("  ✓ destination output 1023 = 0");
+        else begin
+            $display("  ✗ destination output 1023: expected 00000000, got %h",
+                     ext_ram[TEST_DST_ADDR / 4 + 1023]);
+            test_errors = test_errors + 1;
+        end
+
+        for (i = 2; i < 1023; i = i + 1) begin
+            if (ext_ram[TEST_DST_ADDR / 4 + i] !== 32'd0) begin
+                $display("  ✗ destination output %0d: expected 00000000, got %h",
+                         i, ext_ram[TEST_DST_ADDR / 4 + i]);
+                test_errors = test_errors + 1;
+            end
+        end
+
+        wb_read(`REG_STATUS, readback);
+        if (readback === 32'h0000_C003)
+            $display("  ✓ STATUS = 0x0000C003");
+        else begin
+            $display("  ✗ STATUS: expected 0000C003, got %h", readback);
+            test_errors = test_errors + 1;
+        end
+
+        wb_write(`REG_CONTROL, 32'd2);
+        if (irq_out === 1'b0)
+            $display("  ✓ clear_irq deasserted IRQ");
+        else begin
+            $display("  ✗ clear_irq left IRQ asserted");
+            test_errors = test_errors + 1;
+        end
+
+        wb_read(`REG_STATUS, readback);
+        if (readback === 32'h0000_C000)
+            $display("  ✓ STATUS after clear = 0x0000C000");
+        else begin
+            $display("  ✗ STATUS after clear: expected 0000C000, got %h", readback);
+            test_errors = test_errors + 1;
+        end
+
+        // =====================================================================
+        // TEST 4: Two-layer all-zero termination smoke test
+        // =====================================================================
+        $display("\n[TEST 4] Two-layer all-zero termination smoke test");
+        for (i = 0; i < 262144; i = i + 1)
+            ext_ram[i] = 32'd0;
+
+        wb_write(`REG_SRC_ADDR, TEST_SRC_ADDR);
+        wb_write(`REG_DST_ADDR, TEST_DST_ADDR);
+        wb_write(`REG_MAC_CFG, 32'd64);
+        wb_write(`REG_LAYER_CFG, 32'd2);
+        wb_write(`REG_CONTROL, 32'd1);
+        wait_for_irq(IRQ_TIMEOUT_CYCLES);
+
+        if (irq_out === 1'b1)
+            $display("  ✓ two-layer completion IRQ asserted");
+        else begin
+            $display("  ✗ two-layer completion IRQ is not asserted");
+            test_errors = test_errors + 1;
+        end
+
         wb_write(`REG_CONTROL, 32'd2);
 
         // =====================================================================
@@ -368,20 +453,16 @@ module tb_npu_v2;
         #100;
         $display("\n==================================================");
         if (test_errors == 0) begin
-            $display(" ✅ TODOS OS TESTES PASSARAM!");
-            $display("    NPU Ternária v2 validada:");
-            $display("    • 64 MAC array + adder tree (0 DSPs)");
-            $display("    • Wishbone Master DMA");
-            $display("    • Layer Sequencer (3 layers)");
-            $display("    • IRQ synchronization");
-            $display("    • STATUS bit layout [15:8]=zero_skip");
+            $display(" PASS: fixed layer-0 regression");
         end else begin
-            $display(" ❌ %d teste(s) falharam.", test_errors);
+            $display(" FAIL: %d test error(s)", test_errors);
         end
         $display("==================================================");
 
-        #100;
-        $finish;
+        if (test_errors == 0)
+            $finish;
+        else
+            $fatal(1);
     end
 
 endmodule

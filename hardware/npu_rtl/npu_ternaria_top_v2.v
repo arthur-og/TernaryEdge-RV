@@ -131,12 +131,15 @@ module npu_ternaria_top_v2 (
     reg [31:0] cur_output;
     reg [31:0] cur_in_batch;
     reg [31:0] total_ops;
+    wire       final_input_batch;
+    assign final_input_batch =
+        ((cur_in_batch + 32'd1) * 32'd64 >= layer_in[cur_layer]);
 
     // =========================================================================
     // 3. Activation Buffer (1024 × 8-bit)
     // =========================================================================
     reg [7:0]  act_mem [0:1023];
-    reg [9:0]  act_waddr;
+    reg [10:0] act_waddr;
     reg [9:0]  act_raddr;
     wire [7:0] act_rdata;
     assign act_rdata = act_mem[act_raddr];
@@ -158,7 +161,6 @@ module npu_ternaria_top_v2 (
     reg        dma_done;
     reg        dma_busy;
     wire       dma_word_valid;  // Combinational: pulses when ack received on read
-    reg [31:0] dma_word_data;
     reg [31:0] dma_rdata;
 
     localparam DMA_IDLE = 2'd0, DMA_ISSUE = 2'd1, DMA_WAIT = 2'd2, DMA_COMPLETE = 2'd3;
@@ -190,7 +192,7 @@ module npu_ternaria_top_v2 (
     // 9. Weight temp buffer (4 × 32-bit para o batch atual)
     // =========================================================================
     reg [31:0] wt_buf [0:3];
-    reg [1:0]  wt_buf_idx;
+    reg [2:0]  wt_buf_idx;
 
     // =========================================================================
     // 10. Address helper wires
@@ -221,12 +223,12 @@ module npu_ternaria_top_v2 (
             total_ops    <= 32'd0;
             zero_counter <= 16'd0;
             compute_step <= `COMPUTE_STEP_LOAD_WEIGHTS;
-            wt_buf_idx   <= 2'd0;
+            wt_buf_idx   <= 3'd0;
 
             for (integer a = 0; a < 64; a = a + 1) acc_reg[a] <= 32'd0;
             for (integer w = 0; w < 4; w = w + 1) wt_buf[w] <= 32'd0;
 
-            act_waddr <= 10'd0;
+            act_waddr <= 11'd0;
             wt_waddr  <= 11'd0;
             mac_clear <= 1'b0;
             mac_en    <= 1'b0;
@@ -252,7 +254,7 @@ module npu_ternaria_top_v2 (
                         total_ops    <= 32'd0;
                         zero_counter <= 16'd0;
                         compute_step <= `COMPUTE_STEP_LOAD_WEIGHTS;
-                        wt_buf_idx   <= 2'd0;
+                        wt_buf_idx   <= 3'd0;
                         for (integer a = 0; a < 64; a = a + 1) acc_reg[a] <= 32'd0;
                     end
                     if (cmd_clear) irq_out <= 1'b0;
@@ -260,9 +262,9 @@ module npu_ternaria_top_v2 (
 
                 // =============================================================
                 `ST_CFG_ACT: begin
-                    act_waddr   <= 10'd0;
+                    act_waddr   <= 11'd0;
                     compute_step <= `COMPUTE_STEP_LOAD_WEIGHTS;
-                    wt_buf_idx   <= 2'd0;
+                    wt_buf_idx   <= 3'd0;
                     dma_start <= 1'b1;
                     dma_addr  <= cfg_src_addr + (cur_layer * 1024);
                     dma_bytes <= layer_in[cur_layer];
@@ -271,10 +273,10 @@ module npu_ternaria_top_v2 (
 
                 `ST_DMA_ACT: begin
                     if (dma_word_valid) begin
-                        act_mem[act_waddr + 0] <= dma_word_data[7:0];
-                        act_mem[act_waddr + 1] <= dma_word_data[15:8];
-                        act_mem[act_waddr + 2] <= dma_word_data[23:16];
-                        act_mem[act_waddr + 3] <= dma_word_data[31:24];
+                        act_mem[act_waddr + 0] <= wb_m_dat_i[7:0];
+                        act_mem[act_waddr + 1] <= wb_m_dat_i[15:8];
+                        act_mem[act_waddr + 2] <= wb_m_dat_i[23:16];
+                        act_mem[act_waddr + 3] <= wb_m_dat_i[31:24];
                         act_waddr <= act_waddr + 4;
                     end
                 end
@@ -282,17 +284,31 @@ module npu_ternaria_top_v2 (
                 // =============================================================
                 // COMPUTE — multi-ciclo: LOAD_WEIGHTS → ACCUMULATE
                 // =============================================================
-                `ST_COMPUTE_BATCH: begin
-                    // Captura palavras de peso que chegam via DMA
-                    if (dma_word_valid && compute_step == `COMPUTE_STEP_LOAD_WEIGHTS) begin
-                        wt_buf[wt_buf_idx] <= dma_word_data;
-                        wt_buf_idx <= wt_buf_idx + 1;
+                `ST_COMPUTE_BATCH: begin : compute_batch_logic
+                    integer m;
+                    integer act_idx;
+                    integer w_idx;
+                    integer b_idx;
+                    integer batch_zero_count;
+                    reg [1:0] w_val;
+                    reg signed [31:0] batch_acc;
+                    reg signed [31:0] act_value;
+
+                    if (dma_word_valid &&
+                        compute_step == `COMPUTE_STEP_LOAD_WEIGHTS) begin
+                        if (wt_buf_idx < 3'd4) begin
+                            wt_buf[wt_buf_idx] <= wb_m_dat_i;
+                            if (wt_buf_idx == 3'd3)
+                                wt_buf_idx <= 3'd4;
+                            else
+                                wt_buf_idx <= wt_buf_idx + 3'd1;
+                        end
                     end
 
                     case (compute_step)
                         `COMPUTE_STEP_LOAD_WEIGHTS: begin
                             // Só dispara o DMA na primeira vez (wt_buf_idx == 0)
-                            if (wt_buf_idx == 0 && !dma_busy) begin
+                            if (wt_buf_idx == 3'd0 && !dma_busy) begin
                                 dma_start <= 1'b1;
                                 dma_addr  <= wt_ram_base
                                            + (cur_output * words_per_output * 4)
@@ -301,44 +317,48 @@ module npu_ternaria_top_v2 (
                                 dma_read  <= 1'b1;
                             end
 
-                            // Quando todos os 4 words chegaram, avança
-                            if (wt_buf_idx >= 4 && !dma_busy && !dma_word_valid) begin
+                            // The fourth acknowledged word completes this tile;
+                            // wait for DMA idle before accumulating it.
+                            if (wt_buf_idx == 3'd4 &&
+                                !dma_busy && !dma_word_valid) begin
                                 compute_step <= `COMPUTE_STEP_ACCUMULATE;
-                                wt_buf_idx   <= 2'd0;
                             end
                         end
 
                         `COMPUTE_STEP_ACCUMULATE: begin
-                            for (integer m = 0; m < 64; m = m + 1) begin
-                                integer act_idx;
-                                integer w_idx, b_idx;
-                                reg [1:0] w_val;
+                            batch_acc = $signed(acc_reg[0]);
+                            batch_zero_count = 0;
+
+                            for (m = 0; m < 64; m = m + 1) begin
                                 act_idx = cur_in_batch * 64 + m;
                                 w_idx = m / 16;
                                 b_idx = (m % 16) * 2;
                                 w_val = wt_buf[w_idx][b_idx +: 2];
                                 if (act_idx < layer_in[cur_layer]) begin
+                                    act_value = $signed({{24{act_mem[act_idx][7]}},
+                                                         act_mem[act_idx]});
                                     if (w_val == 2'b01) begin
-                                        acc_reg[0] <= acc_reg[0]
-                                            + {{24{act_mem[act_idx][7]}}, act_mem[act_idx]};
+                                        batch_acc = batch_acc + act_value;
                                     end else if (w_val == 2'b11) begin
-                                        acc_reg[0] <= acc_reg[0]
-                                            - {{24{act_mem[act_idx][7]}}, act_mem[act_idx]};
+                                        batch_acc = batch_acc - act_value;
                                     end else if (w_val == 2'b00) begin
-                                        zero_counter <= zero_counter + 1;
+                                        batch_zero_count = batch_zero_count + 1;
                                     end
                                 end
                             end
+
+                            acc_reg[0] <= batch_acc;
+                            zero_counter <= zero_counter + batch_zero_count;
                             total_ops <= total_ops + 64;
 
                             // Avança batch ou termina este neurônio
-                            if (cur_in_batch * 64 + 64 >= layer_in[cur_layer] + 63) begin
+                            if (final_input_batch) begin
                                 // Último batch — vai para WRITE_RESULT
                                 // (next_state cuida da transição)
                             end else begin
                                 cur_in_batch <= cur_in_batch + 1;
                                 compute_step <= `COMPUTE_STEP_LOAD_WEIGHTS;
-                                wt_buf_idx   <= 2'd0;
+                                wt_buf_idx   <= 3'd0;
                             end
                         end
                     endcase
@@ -346,11 +366,13 @@ module npu_ternaria_top_v2 (
 
                 // =============================================================
                 `ST_WRITE_RESULT: begin
-                    dma_start <= 1'b1;
-                    dma_addr  <= cfg_dst_addr + (cur_output * 4);
-                    dma_bytes <= 4;
-                    dma_read  <= 1'b0;
-                    dma_wdata <= acc_reg[0];
+                    if (!dma_busy && !dma_done) begin
+                        dma_start <= 1'b1;
+                        dma_addr  <= cfg_dst_addr + (cur_output * 4);
+                        dma_bytes <= 4;
+                        dma_read  <= 1'b0;
+                        dma_wdata <= acc_reg[0];
+                    end
                 end
 
                 // =============================================================
@@ -359,7 +381,7 @@ module npu_ternaria_top_v2 (
                     cur_output    <= cur_output + 1;
                     cur_in_batch  <= 32'd0;
                     compute_step  <= `COMPUTE_STEP_LOAD_WEIGHTS;
-                    wt_buf_idx    <= 2'd0;
+                    wt_buf_idx    <= 3'd0;
                 end
 
                 // =============================================================
@@ -367,7 +389,7 @@ module npu_ternaria_top_v2 (
                     cur_output    <= 32'd0;
                     cur_in_batch  <= 32'd0;
                     compute_step  <= `COMPUTE_STEP_LOAD_WEIGHTS;
-                    wt_buf_idx    <= 2'd0;
+                    wt_buf_idx    <= 3'd0;
                 end
 
                 // =============================================================
@@ -376,7 +398,7 @@ module npu_ternaria_top_v2 (
                     cur_output   <= 32'd0;
                     cur_in_batch <= 32'd0;
                     compute_step <= `COMPUTE_STEP_LOAD_WEIGHTS;
-                    wt_buf_idx   <= 2'd0;
+                    wt_buf_idx   <= 3'd0;
                     for (integer a = 0; a < 64; a = a + 1) acc_reg[a] <= 32'd0;
                 end
 
@@ -384,7 +406,10 @@ module npu_ternaria_top_v2 (
                 `ST_DONE: begin
                     mac_en   <= 1'b0;
                     adder_en <= 1'b0;
-                    irq_out  <= 1'b1;
+                    if (cmd_clear)
+                        irq_out <= 1'b0;
+                    else
+                        irq_out <= 1'b1;
                 end
 
                 default: ;
@@ -411,7 +436,7 @@ module npu_ternaria_top_v2 (
 
             `ST_COMPUTE_BATCH: begin
                 if (compute_step == `COMPUTE_STEP_ACCUMULATE) begin
-                    if (cur_in_batch * 64 + 64 >= layer_in[cur_layer] + 63) begin
+                    if (final_input_batch) begin
                         next_state = `ST_WRITE_RESULT;
                     end
                 end
@@ -447,15 +472,6 @@ module npu_ternaria_top_v2 (
     // dma_word_valid pulses for 1 cycle when ack received on a read transfer
     assign dma_word_valid = (dma_state == DMA_ISSUE || dma_state == DMA_WAIT)
                           && wb_m_ack_i && dma_read;
-
-    // dma_word_data captures the last word received from a DMA read
-    always @(posedge clk) begin
-        if (!rst_n) begin
-            dma_word_data <= 32'd0;
-        end else if (wb_m_ack_i && dma_read) begin
-            dma_word_data <= wb_m_dat_i;
-        end
-    end
 
     always @(posedge clk) begin
         if (!rst_n) begin
@@ -567,7 +583,8 @@ module npu_ternaria_top_v2 (
                 end else begin
                     case (wb_s_adr_i[7:0])
                         `REG_STATUS: begin
-                            wb_s_dat_o <= {16'd0, zero_counter, 14'd0, irq_out,
+                            wb_s_dat_o <= {16'd0, zero_counter[7:0],
+                                           cur_layer[5:0], irq_out,
                                            (state != `ST_IDLE)};
                         end
                         `REG_SRC_ADDR:     wb_s_dat_o <= cfg_src_addr;
