@@ -1,7 +1,7 @@
 # Direcionamento pós-Gilvan: organização operacional e fechamento do Paper 1
 
-**Data de referência:** 14/08/2026  
-**Janela de fechamento proposta:** até 31/08/2026  
+**Data de referência:** 14/08/2026
+**Janela de fechamento proposta:** até 31/08/2026
 **Status:** proposta operacional, pendente de confirmação do Professor Ramon e da equipe
 
 > Este documento é a fonte de verdade atual para a transição de responsabilidades e para o escopo de fechamento do Paper 1. As atas e planos anteriores continuam válidos como registros históricos das decisões e entregas de suas respectivas datas.
@@ -115,7 +115,7 @@ Se a FPGA não produzir evidência de síntese, boot ou inferência até o prazo
 
 ### Equipe e paper
 
-**Deliverables:** revisão de consistência, preservação dos quatro autores, tabela de limitações e decisão final entre escopo físico e fallback.  
+**Deliverables:** revisão de consistência, preservação dos quatro autores, tabela de limitações e decisão final entre escopo físico e fallback.
 **Evidência de aceitação:** template sem métricas fabricadas, referências para logs e relatórios, e aprovação explícita do escopo pelo Professor Ramon.
 
 ## 9. Script curto para Arthur falar com o Professor Ramon
