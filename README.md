@@ -7,11 +7,11 @@
 [![Paper 1](https://img.shields.io/badge/Paper-SBCCI%2FLASCAS%20Template-blueviolet.svg)](paper/paper1_template.tex)
 [![FPGA: RealDigital Urbana](https://img.shields.io/badge/FPGA-RealDigital%20Urbana%20(Spartan--7%20XC7S50)-blue.svg)](http://www.realdigital.org/)
 
-**Ternary Edge-RV** is a complete hardware-software co-design project aimed at achieving extreme energy efficiency for Edge Artificial Intelligence. This repository contains the full stack—from custom silicon architecture to the AI application—demonstrating a multiplierless Ternary Neural Network (TNN) accelerator integrated into a Linux-capable RISC-V System-on-Chip (SoC).
+**Ternary Edge-RV** is a hardware-software co-design project aimed at studying energy-efficient Edge Artificial Intelligence. This repository contains the proposed full stack, from custom RTL and SoC architecture to the AI application, for a multiplierless Ternary Neural Network (TNN) accelerator integrated into a Linux-capable RISC-V System-on-Chip (SoC).
 
-This project is currently in **Phase 4 — Physical Deployment & Paper 1** (target: SBCCI/LASCAS). The paper template is available at [`paper/paper1_template.tex`](paper/paper1_template.tex). It aims to prove that inferencing heavily quantized models ($\in \{-1, 0, 1\}$) on custom hardware without DSPs significantly outperforms CPU-bound execution in both latency and power consumption.
+This project is currently in **Phase 4: Physical Deployment and Paper 1** (target: SBCCI/LASCAS). The paper template is available at [`paper/paper1_template.tex`](paper/paper1_template.tex). The research question is whether heavily quantized models ($\in \{-1, 0, 1\}$) on custom hardware can improve latency and energy use relative to CPU execution; that comparison remains subject to measurement.
 
-> **Update (Aug 2026):** The RealDigital Urbana board (AMD Spartan-7 XC7S50-CSGA324, 128 MB DDR3, MicroSD) has been received. The full stack is code-complete and validated in simulation (29/29 tests). Physical synthesis on the Urbana, kernel boot, and real-hardware benchmarks are the remaining Phase 4 work.
+> **Current status (14/08/2026):** The RealDigital Urbana board (AMD Spartan-7 XC7S50-CSGA324, 128 MB DDR3, MicroSD) has been received. Current evidence is limited to source-level RTL audit, documented interfaces and C++ v2 host-side tests with 21/21 checks passing. RTL runtime, FPGA synthesis and bitstream, Linux boot, physical inference and performance or power measurements are pending. The current transition plan is [`docs/planejamento/direcionamento_pos_gilvan.md`](docs/planejamento/direcionamento_pos_gilvan.md), pending Professor Ramon and team confirmation.
 
 ---
 
@@ -50,7 +50,7 @@ graph TD
     end
     subgraph HardwareSpace ["Hardware Space"]
         D --> E[LiteX SoC: VexRiscv RV32IMA]
-        D --> F[NPU v2: 64 MACs multiplierless + Wishbone DMA]
+        D --> F[NPU v2: proposed multiplierless array + Wishbone DMA]
     end
     subgraph AIPipeline ["AI Pipeline (host)"]
         G[Python QAT Training] -->|weights.h| B
@@ -86,17 +86,16 @@ TernaryEdge-RV/
 
 ---
 
-## 📊 Project Status (Phase 4 — Physical Deployment & Paper)
+## 📊 Current Status (14/08/2026)
 
-<!-- Status updated Aug 2026: FPGA Urbana received, all software code-complete, Phase 4 in progress -->
+The current evidence boundary and the provisional post-Gilvan organization are maintained in [`docs/planejamento/direcionamento_pos_gilvan.md`](docs/planejamento/direcionamento_pos_gilvan.md). The ownership below is a proposal pending Professor Ramon and team confirmation. Completion percentages are intentionally omitted because synthesis, runtime and physical evidence are still pending.
 
-| Domain | Lead | Phase | Status | Completion |
-|:-------|:-----|:------|:-------|:-----------|
-| **Hardware (RTL/SoC)** | Arthur | 4.0/4 | F1✅ F2✅ F3✅ (NPU v2 done) — FPGA received, synthesis pending | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
-| **OS + HAL (Buildroot + Classifier)** | Gildo | 4.0/4 | F1✅ F2✅ F3✅ (HAL/Classifier/packages code-complete) — SD image pending | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
-| **Kernel Driver** | Gustavo | 4.0/4 | F1✅ F2✅ F3✅ (v3.0 adapted) — `insmod` on FPGA pending | ![95%](https://img.shields.io/badge/95%25-brightgreen) |
-| **AI Pipeline** | Gilvan | 4.0/4 | F1✅ F2✅ F3✅ (weights + golden model) — FPGA benchmark pending | ![90%](https://img.shields.io/badge/90%25-green) |
-| **Paper 1** | Team | Draft | Skeleton + abstract done; all sections awaiting real metrics | ![30%](https://img.shields.io/badge/30%25-orange) |
+| Domain | Operational ownership proposed | Current evidence or pending gate |
+|:-------|:-------------------------------|:---------------------------------|
+| **Hardware (RTL/SoC)** | Arthur, provisional | Source-level audit and documented interfaces; Verilog runtime, synthesis and bitstream pending |
+| **Linux, Buildroot, driver integration, HAL and user-space** | Gildo, provisional | Software interfaces documented; physical image, boot and end-to-end integration pending |
+| **AI pipeline, weights, golden model and benchmark methodology/results** | Gustavo, provisional | C++ v2 host-side 21/21 checks; export and physical benchmark evidence pending |
+| **Paper 1** | Four authors, with operational tasks provisional | Draft template retained; measured results and final scope pending |
 
 ### Arthur (Hardware) — NPU v2: 64 MACs + Wishbone Master DMA
 - ✅ **Phase 1:** Official memory map defined (`0x40000000`, IRQ 10, Little-Endian). VexRiscv-RV32IMA base SoC.
