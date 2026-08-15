@@ -84,14 +84,14 @@ LAYER_DONE -> DONE -> IRQ
 
 - **Ativações:** `ST_CFG_ACT` dispara uma leitura DMA em `cfg_src_addr + cur_layer * 1024`, com tamanho `layer_in[cur_layer]`. `ST_DMA_ACT` distribui cada palavra recebida em quatro bytes de `act_mem`.
 - **Pesos:** no subestado `COMPUTE_STEP_LOAD_WEIGHTS`, o RTL lê 16 bytes, ou quatro words, por lote. O endereço usa `wt_ram_base`, o neurônio atual e `cur_in_batch`.
-- **Compute pretendido:** o bloco `COMPUTE_STEP_ACCUMULATE` percorre `m = 0..63`, decodifica o peso e tenta atualizar `acc_reg[0]`.
-- **Resultado:** `ST_WRITE_RESULT` faz uma escrita DMA de 32 bits em `cfg_dst_addr + cur_output * 4`, com `dma_wdata <= acc_reg[0]`.
+- **Compute no código atual:** o bloco `COMPUTE_STEP_ACCUMULATE` percorre `m = 0..63`, decodifica o peso, acumula em `batch_acc` e atualiza `acc_reg[0]` uma vez por lote.
+- **Resultado:** `ST_WRITE_RESULT` faz uma escrita DMA de 32 bits em `cfg_dst_addr + cur_output * 4`, com `dma_wdata <= acc_reg[0]`; esse write-back ainda depende da regressão Verilog não executada.
 - **Próximo neurônio:** `ST_NEXT_OUTPUT` zera `acc_reg[0]`, incrementa `cur_output` e reinicia o lote de entrada.
 - **Próxima camada:** `ST_LAYER_DONE` compara `cur_layer + 1` com `cfg_layer_cfg`; `ST_NEXT_LAYER` incrementa `cur_layer`.
 
-Há um blocker antes de chamar esse fluxo de executável: `wt_buf_idx` é declarado como `reg [1:0]`, mas a transição de `COMPUTE_STEP_LOAD_WEIGHTS` espera `wt_buf_idx >= 4`. O contador pode voltar de 3 para 0 antes de chegar ao estado de acumulação. Além disso, `dma_word_data` é capturado em outro bloco sequencial, o que exige um teste de sincronização para confirmar qual word o consumidor observa no mesmo clock.
+ A versão atual do RTL já contém correções mecânicas para os três pontos anteriormente descritos como blockers de fonte: `wt_buf_idx` foi ampliado para alcançar `3'd4`; os consumidores de dados usam diretamente `wb_m_dat_i` no pulso válido de DMA; e a acumulação do lote usa uma variável temporária `batch_acc` antes de atualizar `acc_reg[0]`. Essas mudanças são evidência de inspeção do código-fonte. O runtime/testbench Verilog ainda não foi executado neste ambiente por indisponibilidade das ferramentas, portanto não se deve chamar o caminho de RTL de validado em execução.
 
-Mesmo que esses blockers sejam corrigidos, o caminho não deve ser descrito como uma matriz integrada de 64 MACs. `ternary_mac_array.v` e `adder_tree_64.v` existem como módulos separados e são incluídos na lista de fontes do LiteX, mas não há instanciação desses módulos no corpo de `npu_ternaria_top_v2.v`. O top-level usa um loop procedural sobre 64 posições e várias atribuições não bloqueantes ao mesmo `acc_reg[0]`; isso ainda não comprova uma redução de 64 termos. Não há base no RTL atual para afirmar 64 MACs integrados por ciclo, lote de um ciclo ou throughput específico.
+Mesmo com essas correções mecânicas no código-fonte, o caminho não deve ser descrito como uma matriz integrada de 64 MACs. `ternary_mac_array.v` e `adder_tree_64.v` existem como módulos separados e são incluídos na lista de fontes do LiteX, mas não há instanciação desses módulos no corpo de `npu_ternaria_top_v2.v`. O top-level usa um loop procedural sobre 64 posições e uma variável temporária `batch_acc`; isso ainda não comprova uma redução de 64 termos em hardware paralelo. Não há base no RTL atual para afirmar 64 MACs integrados por ciclo, lote de um ciclo ou throughput específico.
 
 ## 5. Representação dos dados e dimensões do workload
 
@@ -184,15 +184,16 @@ Por isso, não é correto chamar o HAL ou o user app de implementação de Batch
 
 | Evidência | Leitura correta |
 |---|---|
-| 29/29 verificações do golden model registradas no repositório | **Simulado:** valida comportamento de modelos e testes, não a placa |
-| Python golden model | **Simulado:** referência matemática da codificação ternária |
-| Simulador C++ | **Simulado:** testes de registradores, lote, zeros, IRQ e sequenciador |
-| Testbench Verilog | **Simulado quando executado com ferramenta disponível**; o script consultado marca a execução RTL como dependente de Icarus |
+| C++ golden model v2 | **PASS:** 21/21 casos executados |
+| Runtime/testbench RTL Verilog | **NÃO EXECUTADO:** ferramentas indisponíveis no ambiente consultado |
+| Contrato HAL/weights | **ABERTO:** exportação, símbolos, transforms, offsets e unidades ainda não fecham |
+| FPGA e benchmark | **PENDENTES:** síntese, timing, boot, IRQ/DMA físicos, inferência e métricas ainda não executados |
 
-O agregado 29/29 é evidência de simulação. Ele não comprova síntese, fechamento de timing, recursos reais, boot Linux, probe do driver, transferência DMA no hardware, inferência física ou benchmark real.
+O resultado C++ v2 de 21/21 casos é evidência de simulação host-side. Ele não comprova execução do RTL Verilog, síntese, fechamento de timing, recursos reais, boot Linux, probe do driver, transferência DMA no hardware, inferência física ou benchmark real.
 
 No estado consultado, permanecem **não verificados**:
 
+- execução do runtime/testbench Verilog do patch atual;
 - síntese e relatório de recursos da FPGA;
 - bitstream carregado na placa;
 - boot Linux no SoC LiteX/VexRiscv alvo;
@@ -207,11 +208,11 @@ Não há base atual para afirmar 9,3x de speedup, 64 MACs por ciclo, uma carga d
 
 ### Gates mínimos
 
-1. **Contrato do datapath:** decidir se o caminho ativo continuará no loop que atualiza `acc_reg[0]` ou se `ternary_mac_array.v` e `adder_tree_64.v` serão realmente integrados e conectados.
+1. **Contrato do datapath:** decidir se o caminho ativo continuará no loop procedural que atualiza `acc_reg[0]` ou se `ternary_mac_array.v` e `adder_tree_64.v` serão realmente integrados e conectados.
 2. **Contrato de camada:** decidir entre um start por camada e um sequenciador autônomo. Se a primeira opção for escolhida, especificar e implementar `layer_override`.
 3. **Contrato de memória:** fixar offsets para ativações, pesos e resultados e alinhar RTL, driver, HAL e aplicação em um único mapa testável.
 4. **Contrato de pós-processamento:** exportar BN e saída FP32, implementar BN/ReLU/fake quant no software, ou alterar o modelo para uma forma compatível com o hardware escolhido.
-5. **Corrigir e testar a FSM/DMA:** ajustar a largura/condição de `wt_buf_idx`, validar a captura de `dma_word_data`, a redução no `acc_reg[0]` e o write-back por neurônio.
+5. **Executar e testar a FSM/DMA:** executar a regressão Verilog do patch atual, cobrindo o loader de pesos, os dados DMA, a acumulação com `batch_acc` e o write-back por neurônio.
 6. **Regressão do caminho real:** exercitar o top-level RTL corrigido com vetores não nulos, sem depender apenas do simulador C++.
 7. **Validação física:** sintetizar, gerar bitstream, inicializar Linux, fazer probe do driver, testar IRQ/DMA e só então medir a inferência.
 
@@ -247,6 +248,6 @@ As faixas abaixo apontam para o código consultado, não para a apresentação h
 | `hardware/npu_rtl/sim_cpp/demo_npu_v2.cpp` | `8-16`, `34-41`, `236-256` |
 | `hardware/npu_rtl/python/golden_model.py` | `232-267` |
 | `hardware/npu_rtl/tb_npu_v2.v` | `341-380` |
-| `docs/relatorios/status_atual.md` | `126-132` registra o agregado 29/29; é status de simulação, não prova física |
+| `docs/relatorios/status_atual.md` | registro histórico de simulação; não substitui a evidência atual de 21/21 no C++ v2 nem prova física |
 
-**Conclusão para a apresentação:** a contribuição atual pode ser apresentada como uma base RTL e software parcialmente integrados, com evidência de simulação e lacunas explícitas no contrato de camadas, pós-processamento e memória. A próxima afirmação de desempenho deve esperar a arquitetura ser alinhada e o fluxo ser validado na implementação física.
+**Conclusão para a apresentação:** a contribuição atual pode ser apresentada como uma base RTL com correções de fonte, evidência C++ v2 de 21/21 casos e software parcialmente integrado, com lacunas explícitas no contrato de camadas, pós-processamento e memória. O runtime Verilog ainda não foi executado, e qualquer afirmação de desempenho deve esperar a arquitetura ser alinhada e o fluxo ser validado na implementação física.

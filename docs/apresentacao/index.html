@@ -98,7 +98,7 @@
     .section-head .rule { width: 72px; height: 2px; background: var(--blue); }
     .content { display: grid; gap: var(--space-5); min-height: 0; }
     .mt-5 { margin-top: var(--space-5); }
-    .content.two { grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); }
+     .content.two { grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); }
     .content.equal { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .content.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .stack { display: grid; gap: var(--space-3); align-content: start; }
@@ -141,9 +141,9 @@
     .proposed { color: var(--amber); background: var(--surface-amber); }
     .unverified { color: var(--red); background: var(--surface-red); }
 
-    .flow { display: flex; align-items: stretch; gap: var(--space-2); flex-wrap: wrap; }
+     .flow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: stretch; gap: var(--space-2); }
     .flow-node { flex: 1 1 132px; min-width: 120px; padding: var(--space-4); border: 1px solid var(--line-strong); background: var(--surface); border-radius: var(--radius-md); }
-    .flow-node:not(:last-child)::after { content: "→"; position: absolute; top: 50%; right: -18px; transform: translateY(-50%); color: var(--blue); font-size: 20px; font-weight: 700; z-index: 1; }
+     .flow-node:not(:last-child)::after { content: "→"; position: absolute; top: 50%; right: -18px; transform: translateY(-50%); color: var(--blue); font-size: 20px; font-weight: 700; z-index: 1; }
     .flow-node { position: relative; }
     .flow-node strong { display: block; margin: var(--space-2) 0; font-size: 15px; }
     .flow-node small { display: block; color: var(--ink-muted); font-size: 11px; line-height: 1.35; }
@@ -174,7 +174,7 @@
     .registers td:nth-child(2) { width: 148px; font-family: var(--font-mono); }
     .table-note { margin-top: var(--space-3); color: var(--ink-muted); font-size: 12px; }
 
-    .metric-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+     .metric-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
     .metric { padding: var(--space-4); border: 1px solid var(--line); border-top: 3px solid var(--blue); background: var(--surface); }
     .metric .value { color: var(--blue-dark); font-family: var(--font-mono); font-size: clamp(18px, 2.5vw, 32px); font-weight: 700; white-space: nowrap; letter-spacing: -.05em; }
     .metric .label { margin-top: var(--space-1); color: var(--ink-muted); font-size: 11px; }
@@ -225,15 +225,16 @@
       .content.two, .content.equal, .hero-grid { grid-template-columns: 1fr; }
       .hero-grid { align-content: center; gap: var(--space-6); }
       .hero-mark { max-width: 300px; }
-      .flow-node { flex-basis: 150px; }
-      .flow-node:not(:last-child)::after { display: none; }
+       .flow { grid-template-columns: 1fr; }
+       .flow-node { min-width: 0; }
+       .flow-node:not(:last-child)::after { display: none; }
       .content.three { grid-template-columns: 1fr; }
       .gate-list { grid-template-columns: 1fr; }
       .content, .stack { min-height: max-content; flex-shrink: 0; }
       .slide { padding-bottom: 96px; scroll-padding-bottom: 96px; }
       .overview { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-right: 6vw; padding-left: 6vw; }
     }
-    @media (max-width: 560px) {
+     @media (max-width: 560px) {
       h1 { font-size: 48px; }
       h2 { font-size: 34px; }
       .section-head { gap: 6px; margin-bottom: 12px; }
@@ -246,14 +247,12 @@
       th, td { padding: 5px 6px; }
       pre { padding: 10px; font-size: 10px; }
       .source { font-size: 9px; }
-      .slide[data-title="O que o top-level RTL atual faz"] .code-caption,
-      .slide[data-title="O que o top-level RTL atual faz"] pre { display: none; }
-      .slide[data-title="O sistema em uma página"] .flow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+       .slide[data-title="O que o top-level RTL atual faz"] pre { max-height: 240px; overflow: auto; font-size: 9px; }
+       .slide[data-title="O sistema em uma página"] .flow { grid-template-columns: 1fr; gap: 8px; }
       .slide[data-title="O sistema em uma página"] .flow-node { min-width: 0; padding: 8px; }
       .slide[data-title="O sistema em uma página"] .flow-node strong { font-size: 13px; }
-      .slide[data-title="O sistema em uma página"] .flow-node small,
-      .slide[data-title="O sistema em uma página"] .legend { display: none; }
-      .metric-row { grid-template-columns: 1fr; }
+       .slide[data-title="O sistema em uma página"] .flow-node small { display: block; }
+       .metric-row { grid-template-columns: 1fr; }
       .gate-list li { grid-template-columns: 28px 1fr; }
       .gate-list .status { grid-column: 2; }
       .gate-list li { display: flex; grid-template-columns: none; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
@@ -262,7 +261,14 @@
       .gate-list li > span:not(.status) { margin-left: 36px; }
       .gate-list li .status { grid-column: auto; margin-left: auto; }
       .overview { grid-template-columns: 1fr; }
-    }
+     }
+     .slide[data-title="O que já foi validado"] .metric-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+     @media (max-width: 860px) {
+       .slide[data-title="O que já foi validado"] .metric-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+     }
+     @media (max-width: 560px) {
+       .slide[data-title="O que já foi validado"] .metric-row { grid-template-columns: 1fr; }
+     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
     }
@@ -284,8 +290,8 @@
           <span class="status documented">escopo: auditoria atual, não relatório de benchmark</span>
         </div>
         <div class="hero-mark">
-          <span class="big">9</span>
-          <p>slides para separar o que está no código, o que está documentado e o que ainda precisa ser medido.</p>
+           <span class="big">9</span>
+           <p>slides para separar o que está no código, o que está documentado e o que ainda precisa ser medido.</p>
         </div>
       </div>
       <div class="meta"><span><strong>Para</strong> Professor Ramon</span><span><strong>Autor</strong> Arthur Oliveira Gomes</span><span><strong>Projeto</strong> Ternary Edge-RV</span></div>
@@ -300,21 +306,21 @@
 
     <section class="slide" data-title="O sistema em uma página">
       <div class="section-head"><div class="eyebrow">01 · mapa de evidências</div><h2>O sistema em uma página</h2><div class="rule"></div></div>
-      <div class="panel flat">
-        <div class="flow" aria-label="Fluxo QAT até RAM compartilhada">
-          <div class="flow-node"><span class="status documented">documentado</span><strong>QAT + pesos</strong><small>modelo ternário e empacotamento de QuantDense</small></div>
-           <div class="flow-node"><span class="status unverified">não verificado</span><strong>HAL</strong><small>carga e chamada existem; transforms entre camadas não fecham</small></div>
-          <div class="flow-node"><span class="status documented">documentado</span><strong>Driver</strong><small>interface IRQ/MMIO descrita; execução física não verificada</small></div>
-          <div class="flow-node"><span class="status current">atual</span><strong>Wishbone NPU</strong><small>top-level RTL auditado; caminho ativo é procedural</small></div>
-          <div class="flow-node"><span class="status unverified">não verificado</span><strong>RAM compartilhada</strong><small>endereços e formatos precisam de teste integrado</small></div>
-        </div>
-        <div class="legend"><span class="status current">ATUAL</span><span class="status documented">DOCUMENTADO</span><span class="status proposed">PROPOSTO</span><span class="status unverified">NÃO VERIFICADO</span></div>
-      </div>
-       <div class="panel amber"><h3>A fronteira ainda aberta</h3><p><strong>RTL:</strong> lê dados e escreve resultado. <strong>Software:</strong> precisa preparar o próximo tensor no formato e offset corretos. Integração end-to-end, boot na FPGA e benchmark físico ainda não são evidência.</p></div>
+       <div class="panel flat">
+         <div class="flow" aria-label="Fluxo QAT até RAM compartilhada">
+           <div class="flow-node"><span class="status documented">documentado</span><strong>QAT + pesos</strong><small>modelo ternário e empacotamento de QuantDense</small></div>
+           <div class="flow-node"><span class="status unverified">não verificado</span><strong>HAL</strong><small>carga existe; transforms e header de saída ainda não fecham</small></div>
+           <div class="flow-node"><span class="status documented">documentado</span><strong>Driver</strong><small>interface IRQ/MMIO descrita; probe físico ainda não verificado</small></div>
+           <div class="flow-node"><span class="status current">atual no código</span><strong>Wishbone NPU</strong><small>patch RTL presente; runtime Verilog ainda não executado</small></div>
+           <div class="flow-node"><span class="status unverified">não verificado</span><strong>RAM compartilhada</strong><small>endereços, offsets e formatos precisam de teste integrado</small></div>
+         </div>
+         <div class="legend" aria-label="Legenda de evidência"><span class="status current">ATUAL NO CÓDIGO</span><span class="status documented">DOCUMENTADO</span><span class="status proposed">PROPOSTO</span><span class="status unverified">NÃO VERIFICADO</span></div>
+       </div>
+        <div class="panel amber"><h3>A fronteira ainda aberta</h3><p><strong>Patch RTL:</strong> corrige mecanicamente contador de pesos, captura DMA e acumulação por lote no código-fonte. <strong>Integração:</strong> o software ainda precisa aplicar as transformações do modelo, alinhar offsets e unidades DMA e produzir a próxima ativação no formato esperado. Runtime Verilog, boot na FPGA e benchmark físico continuam pendentes.</p></div>
       <div class="source">Fonte: apêndice §3 · RTL v2 · HAL</div>
       <div class="notes">
-        <p>Este é o mapa que vou usar durante toda a conversa. No lado esquerdo, o treinamento QAT produz um modelo com camadas ternárias e um exportador que empacota pesos. No centro, a HAL e o driver deveriam transformar essa intenção em chamadas, buffers e registradores. No lado direito, o top-level RTL conversa com a RAM compartilhada por Wishbone.</p>
-        <p>Os rótulos são deliberadamente conservadores. **Documentado** significa que existe uma descrição ou um caminho de código para a ideia. **Atual** significa que conseguimos apontar para uma implementação concreta que está sendo auditada. **Ressalva:** nenhum desses rótulos substitui um teste de integração. **Não verificado** significa que ainda não há evidência de que as partes funcionem juntas. E **proposto** será usado apenas para mudanças futuras, como o seletor de camada.</p>
+          <p>Este é o mapa que vou usar durante toda a conversa. No lado esquerdo, o treinamento QAT produz um modelo com camadas ternárias e um exportador que empacota pesos. No centro, a HAL e o driver deveriam transformar essa intenção em chamadas, buffers e registradores. No lado direito, o top-level RTL conversa com a RAM compartilhada por Wishbone.</p>
+         <p>Os rótulos são deliberadamente conservadores. **Documentado** significa que existe uma descrição ou um caminho de código para a ideia. **Atual no código** significa que conseguimos apontar para uma implementação concreta que está sendo auditada; o patch RTL está nessa categoria, mas o runtime Verilog ainda não foi executado. **Ressalva:** nenhum desses rótulos substitui um teste de integração. **Não verificado** significa que ainda não há evidência de que as partes funcionem juntas. E **proposto** será usado apenas para mudanças futuras, como o seletor de camada.</p>
         <p>O ponto de atenção está na fronteira: o hardware escreve resultados, mas a próxima camada precisa receber ativações transformadas e endereçadas corretamente. Se o software não fizer essa ponte, a presença do DMA ou da IRQ não completa a inferência.</p>
         <p>Então, a pergunta da apresentação não é “qual é a velocidade?”. É “qual fluxo de dados podemos defender hoje?”. Com esse critério estabelecido, agora vamos descer ao caminho que o top-level realmente executa.</p>
       </div>
@@ -325,27 +331,28 @@
       <div class="content two">
         <div class="stack">
            <div class="code-caption">ST_COMPUTE_BATCH · caminho procedural auditado</div>
-           <pre><code>for (m = 0; m &lt; 64; m = m + 1) begin
-   act_idx = cur_in_batch * 64 + m;
-   w_val = wt_buf[m / 16][(m % 16) * 2 +: 2];
-   if (act_idx &lt; layer_in[cur_layer]) begin
-     if (w_val == 2'b01)
-       acc_reg[0] &lt;= acc_reg[0] + act_mem[act_idx];
-     else if (w_val == 2'b11)
-       acc_reg[0] &lt;= acc_reg[0] - act_mem[act_idx];
-   end
-end</code></pre>
-           <div class="panel blue"><h3>Leitura correta do trecho</h3><p>O loop percorre <code>m=0..63</code> e tenta atualizar <code>acc_reg[0]</code>. A acumulação efetiva ainda precisa de validação temporal.</p></div>
+            <pre><code>batch_acc = $signed(acc_reg[0]);
+
+for (m = 0; m &lt; 64; m = m + 1) begin
+  ...
+  if (w_val == 2'b01)
+    batch_acc = batch_acc + act_value;
+  else if (w_val == 2'b11)
+    batch_acc = batch_acc - act_value;
+end
+
+acc_reg[0] &lt;= batch_acc;</code></pre>
+            <div class="panel blue"><h3>Leitura correta do trecho</h3><p>O patch usa <code>batch_acc</code> para acumular os 64 termos e faz uma única atualização de <code>acc_reg[0]</code>. A execução do runtime Verilog ainda não foi realizada.</p></div>
         </div>
         <div class="stack">
            <div class="panel"><span class="status current">FSM NOMINAL</span><h3>Estados observáveis</h3><ul class="bullets"><li><code>ST_CFG_ACT</code> calcula leitura de ativações.</li><li><code>ST_COMPUTE_BATCH</code> dispara a carga de pesos.</li><li><code>ST_WRITE_RESULT</code> existe, mas depende do loader.</li></ul></div>
-           <div class="panel red"><span class="status unverified">BLOCKER ATUAL</span><h3>Loader não fecha</h3><p><code>wt_buf_idx</code> é <code>[1:0]</code>, mas a lógica espera <code>&gt;= 4</code>; a captura de <code>dma_word_data</code> no mesmo clock também precisa de teste.</p></div>
+            <div class="panel green"><span class="status current">PATCH PRESENTE NO CÓDIGO</span><h3>Loader e acumulação corrigidos</h3><p><code>wt_buf_idx</code> alcança <code>3'd4</code>, os dados DMA são consumidos diretamente de <code>wb_m_dat_i</code> e o lote usa <code>batch_acc</code>. Falta executar o runtime Verilog.</p></div>
         </div>
       </div>
        <div class="source">Fonte: RTL v2 · módulos MAC/adder</div>
       <div class="notes">
-          <p>Aqui está a diferença entre o que o nome da arquitetura sugere e o que o top-level atual faz. No estado de computação, o RTL percorre um loop procedural com **m de zero a 63**, extrai cada peso de dois bits e tenta atualizar o `acc_reg[0]`.</p>
-          <p>Há dois cuidados: o loader atual pode não alcançar o estado de acumulação porque `wt_buf_idx` tem largura insuficiente, e as atribuições não bloqueantes repetidas não comprovam uma redução de 64 termos. **Ressalva:** a próxima validação deve comparar a intenção matemática com o comportamento temporal observado.</p>
+          <p>Aqui está a diferença entre o que o nome da arquitetura sugere e o que o top-level atual faz. No estado de computação, o RTL percorre um loop procedural com **m de zero a 63**, extrai cada peso de dois bits e acumula o lote em uma variável temporária antes de atualizar o `acc_reg[0]`.</p>
+           <p>Os problemas mecânicos de largura do loader, captura do dado DMA e múltiplas atribuições ao acumulador já foram corrigidos no código-fonte. **Ressalva:** a regressão Verilog ainda precisa executar o comportamento temporal e confirmar o resultado no write-back.</p>
         <p>Há uma segunda distinção importante. Os arquivos `ternary_mac_array.v` e `adder_tree_64.v` estão no repositório, então fazem parte do inventário de componentes disponíveis. Mas, na fonte do top-level auditada, eles não aparecem instanciados no caminho ativo. **Existência não é integração.**</p>
         <p>Essa leitura evita um erro comum: atribuir ao protótipo uma estrutura que está apenas projetada ou arquivada. Agora que o caminho de acumulação está claro, podemos tratar os dados que entram nele: a codificação ternária, os words e o tamanho de cada camada.</p>
       </div>
@@ -353,13 +360,13 @@ end</code></pre>
 
     <section class="slide" data-title="Como os dados são representados">
       <div class="section-head"><div class="eyebrow">03 · representação e escala</div><h2>Como os dados são representados</h2><div class="rule"></div></div>
-      <div class="content two">
-        <div class="stack">
-          <div class="panel blue"><h3>Peso ternário em 2 bits</h3><table><thead><tr><th>Valor</th><th>Código</th><th>Uso no acumulador</th></tr></thead><tbody><tr><td>+1</td><td><code>01</code></td><td>soma a ativação</td></tr><tr><td>0</td><td><code>00</code></td><td>não acumula</td></tr><tr><td>-1</td><td><code>11</code></td><td>subtrai a ativação</td></tr></tbody></table><p class="table-note">Um <code>uint32_t</code> carrega 16 pesos de 2 bits.</p></div>
-        </div>
-        <div class="stack">
-          <div class="panel"><h3>Dimensões do workload</h3><div class="metric-row"><div class="metric"><div class="value">784→1024</div><div class="label">camada 0</div></div><div class="metric"><div class="value">1024→512</div><div class="label">camada 1</div></div><div class="metric"><div class="value">512→256</div><div class="label">camada 2</div></div></div></div>
-           <div class="panel flat"><p class="table-note">Ativações: bytes. Pesos: words empacotados. As contagens detalhadas ficam no apêndice; não são ciclos, latência ou throughput.</p></div>
+       <div class="content equal">
+         <div class="stack">
+           <div class="panel blue"><h3>Peso ternário em 2 bits</h3><div class="table-scroll"><table><thead><tr><th>Valor</th><th>Bits</th><th>Efeito</th></tr></thead><tbody><tr><td>+1</td><td><code>01</code></td><td>+ ativação</td></tr><tr><td>0</td><td><code>00</code></td><td>não altera</td></tr><tr><td>-1</td><td><code>11</code></td><td>- ativação</td></tr></tbody></table></div><p class="table-note">Cada <code>uint32_t</code> carrega 16 pesos de 2 bits; o primeiro peso ocupa os bits menos significativos.</p></div>
+         </div>
+         <div class="stack">
+           <div class="panel"><h3>Dimensões do workload</h3><div class="metric-row"><div class="metric"><div class="value">784 → 1024</div><div class="label">camada 0 · 49 words/neurônio</div></div><div class="metric"><div class="value">1024 → 512</div><div class="label">camada 1 · 64 words/neurônio</div></div><div class="metric"><div class="value">512 → 256</div><div class="label">camada 2 · 32 words/neurônio</div></div></div></div>
+            <div class="panel flat"><p class="table-note">Ativações: bytes. Pesos: words empacotados. Estas são contagens de workload, não ciclos, latência, throughput ou speedup. Origem, destino e unidade de <code>dma_size</code> ainda fazem parte do contrato HAL/RTL.</p></div>
         </div>
       </div>
        <div class="source">Fonte: RTL v2 · QAT</div>
@@ -374,7 +381,7 @@ end</code></pre>
     <section class="slide" data-title="Controle, camadas e IRQ">
       <div class="section-head"><div class="eyebrow">04 · MMIO e FSM</div><h2>Controle, camadas e IRQ</h2><div class="rule"></div></div>
       <div class="content two">
-         <div class="panel flat table-scroll"><table class="registers"><thead><tr><th>Offset</th><th>Registrador</th><th>Leitura do contrato atual</th></tr></thead><tbody><tr><td>0x00</td><td>STATUS</td><td>busy, irq e zero_counter</td></tr><tr><td>0x04</td><td>CONTROL</td><td>start e clear_irq</td></tr><tr><td>0x08</td><td>SRC_ADDR</td><td>origem DMA</td></tr><tr><td>0x2c</td><td>LAYER_CTRL</td><td>campo armazenado; não consumido</td></tr></tbody></table><p class="table-note">Mapa completo no apêndice. <span class="status proposed">PROPOSTO</span> <code>layer_override</code> ainda não existe.</p></div>
+           <div class="panel flat table-scroll"><table class="registers"><thead><tr><th>Offset</th><th>Registrador</th><th>Leitura do contrato atual</th></tr></thead><tbody><tr><td>0x00</td><td>STATUS</td><td>busy, irq e zero_counter</td></tr><tr><td>0x04</td><td>CONTROL</td><td>start e clear_irq</td></tr><tr><td>0x08</td><td>SRC_ADDR</td><td>origem DMA</td></tr><tr><td>0x2c</td><td>LAYER_CTRL</td><td>result_window_idx é usado; irq_per_layer não é consumido</td></tr></tbody></table><p class="table-note">Mapa completo no apêndice. <span class="status proposed">PROPOSTO</span> <code>layer_override</code> ainda não existe.</p></div>
         <div class="stack">
           <div class="panel red"><span class="status current">ATUAL</span><h3>Start sempre começa em zero</h3><pre>if (cmd_start) begin
   cur_layer &lt;= 32'd0;
@@ -415,11 +422,11 @@ end</pre></div>
 
     <section class="slide" data-title="O que já foi validado">
       <div class="section-head"><div class="eyebrow">06 · status de evidência</div><h2>O que já foi validado</h2><div class="rule"></div></div>
-         <div class="metric-row"><div class="metric"><div class="value">29/29</div><div class="label">C++: 8 v1 + 21 v2</div></div><div class="metric"><div class="value">GAP</div><div class="label">HAL/software</div></div><div class="metric"><div class="value">PENDENTE</div><div class="label">FPGA e benchmark</div></div></div>
-       <div class="panel green mt-5"><p><strong>Podemos afirmar:</strong> RTL concreto + simulação reportada. <strong>Não podemos afirmar:</strong> desempenho ou inferência ponta a ponta.</p></div>
-       <div class="source">Fonte: docs/relatorios/status_atual.md:126-132 · hardware/npu_rtl/ · software/npu_hal/ · software/user_app/ · gates físicos ainda não executados</div>
+         <div class="metric-row"><div class="metric"><div class="value">21/21</div><div class="label">C++ golden model · passou</div></div><div class="metric"><div class="value">NÃO RODOU</div><div class="label">runtime RTL Verilog</div></div><div class="metric"><div class="value">ABERTO</div><div class="label">contrato HAL + weights</div></div><div class="metric"><div class="value">PENDENTE</div><div class="label">FPGA + benchmark</div></div></div>
+       <div class="panel green mt-5"><p><strong>Podemos afirmar:</strong> o C++ golden model v2 passou em 21/21 casos. <strong>Ainda não podemos afirmar:</strong> execução RTL Verilog, inferência ponta a ponta, boot na FPGA ou desempenho físico. O contrato HAL/weights permanece incompleto.</p></div>
+        <div class="source">Fonte: hardware/npu_rtl/sim_cpp/demo_npu_v2.cpp · software/tests/ · hardware/npu_rtl/ · gates físicos ainda não executados</div>
       <div class="notes">
-         <p>Este quadro é o resumo de evidência, não uma tabela de marketing. No material de RTL, temos fontes concretas para ler e comparar: top-level, pacote de registradores e módulos auxiliares. Na simulação C++, o resultado agregado é **29 de 29 testes** — 8 da v1 e 21 da v2 —, uma evidência útil para o escopo coberto pela suíte.</p>
+          <p>Este quadro é o resumo de evidência, não uma tabela de marketing. No material de RTL, temos fontes concretas para ler e comparar: top-level, pacote de registradores e módulos auxiliares. No modelo C++ v2, os **21 de 21 casos** passaram, uma evidência útil para o escopo coberto pela suíte, mas não uma execução do RTL Verilog.</p>
         <p>O software também existe em termos de arquivos e APIs. Mas “código presente” não significa integração concluída. A própria auditoria encontrou uma fronteira incompleta: exportação parcial de pesos, ausência de transformações inter-camadas e riscos de offset e cast. Por isso, o status correto é **integração incompleta**, não “pronto”.</p>
          <p>Os itens físicos são deliberadamente negativos. **Ressalva:** não temos, nesta apresentação, um relatório de síntese e timing medido na FPGA. Também não temos evidência de boot Linux, carregamento do driver e execução física do fluxo completo. Sem esses passos, um benchmark ou uma comparação de desempenho seria uma hipótese, não um resultado.</p>
         <p>Essa distinção protege o trabalho: a simulação continua sendo um ativo, mas não responde sozinha às perguntas de sistema. A partir daqui, os próximos passos devem ser gates ordenados, cada um com uma saída verificável. É isso que a próxima lâmina organiza.</p>
@@ -431,8 +438,8 @@ end</pre></div>
        <div class="panel flat"><ol class="gate-list"><li><strong>Fechar o contrato de dados e testar cada camada.</strong><span>golden vectors</span><span class="status documented">GATE</span></li><li><strong>Exportar o modelo completo e fechar a HAL.</strong><span>BN + quant + FP32</span><span class="status documented">GATE</span></li><li><strong>Alinhar top-level, MMIO, síntese e boot.</strong><span>RTL + FPGA</span><span class="status proposed">DECISÃO</span></li><li><strong>Validar driver, IRQ, DMA e medir benchmark.</strong><span>placa + método</span><span class="status unverified">PENDENTE</span></li></ol></div>
        <div class="source">Fonte: apêndice técnico §9 · RTL v2</div>
       <div class="notes">
-        <p>Os próximos gates seguem a dependência real do sistema. Primeiro, precisamos de testes de camada com entradas e saídas conhecidas; isso fixa dimensão, codificação, endereço e valor esperado. Depois, o exportador deve produzir todos os parâmetros que o modelo usa, incluindo BatchNorm, quantização e a saída FP32.</p>
-         <p>Com os artefatos completos, a HAL e a aplicação podem implementar as transformações entre camadas e validar cada buffer. Em paralelo, o top-level precisa corrigir o loader/DMA e definir a escolha de camada: podemos alterar o RTL, reavaliar o modo sequencial ou ajustar o protocolo, mas essa é uma **decisão de interface**, não um detalhe a esconder no código.</p>
+          <p>Os próximos gates seguem a dependência real do sistema. Primeiro, precisamos de testes de camada com entradas e saídas conhecidas; isso fixa dimensão, codificação, endereço e valor esperado. Depois, o exportador deve produzir todos os parâmetros que o modelo usa, incluindo BatchNorm, quantização e a saída FP32.</p>
+          <p>Com os artefatos completos, a HAL e a aplicação podem implementar as transformações entre camadas e validar cada buffer. Em paralelo, o patch atual de loader/DMA precisa ser executado em uma regressão Verilog e alinhado ao contrato de memória: podemos alterar o RTL, reavaliar o modo sequencial ou ajustar o protocolo, mas essa é uma **decisão de interface**, não um detalhe a esconder no código.</p>
         <p>Só depois desses gates faz sentido integrar e sintetizar. A síntese deve gerar relatório de timing e recursos; o boot deve demonstrar Linux, driver, IRQ e mapeamento; e o benchmark físico deve registrar metodologia, condições e resultados reproduzíveis.</p>
         <p>**Ressalva:** a regra é simples: cada etapa precisa produzir um artefato e um teste que outra pessoa consiga repetir. Assim evitamos somar suposições de camadas diferentes. Com a ordem na mesa, a decisão que preciso validar com o professor é o foco imediato do trabalho.</p>
       </div>
@@ -449,14 +456,14 @@ end</pre></div>
       <div class="source">Fonte: docs/apresentacao/fluxo_npu_v2_prof_ramon.md:215-249 · síntese desta auditoria</div>
       <div class="notes">
         <p>Professor Ramon, esta é a decisão que eu gostaria de validar. Minha proposta é tratar o alinhamento entre RTL, exportação e HAL como a prioridade imediata, antes de apresentar qualquer número de desempenho ou alegação end-to-end.</p>
-        <p>O motivo é técnico e também metodológico. Hoje já conseguimos apontar para um caminho RTL, para uma codificação de pesos e para uma suíte de simulação reportada. Mas a seleção de camada no start, os parâmetros de BatchNorm, as transformações inter-camadas e os offsets ainda não formam um contrato único. Medir agora poderia produzir um número difícil de interpretar ou impossível de reproduzir.</p>
+          <p>O motivo é técnico e também metodológico. Hoje já conseguimos apontar para um caminho RTL, para uma codificação de pesos e para uma suíte C++ host-side com 21/21 casos aprovados. Mas a seleção de camada no start, os parâmetros de BatchNorm, as transformações inter-camadas e os offsets ainda não formam um contrato único. Medir agora poderia produzir um número difícil de interpretar ou impossível de reproduzir.</p>
         <p>Se o senhor concordar, o primeiro resultado será um teste de camada com vetores conhecidos e um export completo do modelo. Em seguida, fechamos a HAL, revisamos a integração do driver e só então partimos para síntese, boot e benchmark físico. **A ressalva** é que essa ordem pode ser ajustada se houver um objetivo acadêmico específico que exija outra evidência primeiro.</p>
         <p>O Markdown ao lado da apresentação guarda o detalhe que não cabe nos nove slides: mapa de RAM, registradores, estados e lista de gates. Minha pergunta final é: esse escopo está correto e qual gate deve ser o primeiro? Com essa prioridade validada, consigo transformar a auditoria em um plano de execução verificável.</p>
       </div>
     </section>
   </main>
 
-  <div class="deck-chrome" aria-hidden="true"><span>Ternary Edge-RV · Professor Ramon</span><span class="slide-number" data-current="1" data-total="9"></span></div>
+  <div class="deck-chrome" aria-hidden="true"><span></span><span class="slide-number" data-current="1" data-total="9"></span></div>
   <div class="progress" aria-hidden="true"><span></span></div>
   <div class="notes-overlay" role="dialog" aria-label="Notas do apresentador"></div>
   <div class="overview" role="dialog" aria-label="Visão geral dos slides"></div>
@@ -532,7 +539,7 @@ end</pre></div>
         if (!presenterWindow) return;
         const safe = JSON.stringify(metadata).replace(/<\/script/gi, "<\\/script");
         presenterWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Presenter · NPU Ternária v2</title><style>
-          :root{--bg:#132238;--panel:#1d314a;--line:#45627f;--text:#eff5fb;--muted:#afc0d2;--blue:#9fc9ff;--accent:#ffcf73;--green:#8fd3ad}*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif}body{display:grid;grid-template-columns:1.2fr .8fr;grid-template-rows:1fr 1fr;gap:12px;padding:12px;overflow:hidden}.card{min-width:0;min-height:0;display:flex;flex-direction:column;border:1px solid var(--line);background:var(--panel);border-radius:6px;overflow:hidden}.head{padding:8px 12px;border-bottom:1px solid var(--line);color:var(--blue);font:700 11px monospace;letter-spacing:.12em}.body{min-height:0;flex:1;overflow:auto}.preview{background:#fff}.preview iframe{width:1920px;height:1080px;border:0;transform-origin:top left;pointer-events:none}.notes{padding:16px;font-size:17px;line-height:1.6}.notes p{margin:0 0 12px}.notes strong{color:var(--accent)}.timer{display:grid;align-content:center;gap:16px;padding:20px}.time{color:var(--green);font:700 42px monospace}.timer button{padding:8px 12px;border:1px solid var(--line);border-radius:4px;background:transparent;color:var(--text);cursor:pointer}</style></head><body><section class="card preview"><div class="head" id="cur-title">ATUAL</div><div class="body"><iframe id="current"></iframe></div></section><section class="card preview"><div class="head" id="next-title">PRÓXIMO</div><div class="body"><iframe id="next"></iframe></div></section><section class="card"><div class="head">NOTAS DO APRESENTADOR</div><div class="body notes" id="script"></div></section><section class="card"><div class="head">CONTROLE</div><div class="body timer"><div class="time" id="time">00:00</div><div id="count"></div><div><button id="prev">← Anterior</button><button id="forward">Próximo →</button><button id="reset">Reiniciar</button></div><div style="color:var(--muted);font-size:12px">← → navega · Esc fecha</div></div></section><script>const data=${safe};const base=${JSON.stringify(url)};let i=${index};let start=Date.now();const cur=document.getElementById('current'),next=document.getElementById('next'),script=document.getElementById('script'),count=document.getElementById('count'),curTitle=document.getElementById('cur-title'),nextTitle=document.getElementById('next-title');function scale(frame){const body=frame.parentElement,s=Math.min(body.clientWidth/1920,body.clientHeight/1080);frame.style.transform='scale('+s+')'}function update(n,send=true){i=Math.max(0,Math.min(data.length-1,n));cur.src=base+(i+1);next.src=base+(Math.min(data.length,i+2));curTitle.textContent='ATUAL · '+data[i].title;nextTitle.textContent=i+1<data.length?'PRÓXIMO · '+data[i+1].title:'FIM';script.innerHTML=data[i].notes;count.textContent=(i+1)+' / '+data.length;cur.onload=()=>scale(cur);next.onload=()=>scale(next);if(send)bc?.postMessage({type:'go',index:i})}const bc=(()=>{try{return new BroadcastChannel(${JSON.stringify(channelName)})}catch(e){return null}})();bc&&(bc.onmessage=e=>{if(e.data?.type==='go')update(e.data.index,false)});document.getElementById('prev').onclick=()=>update(i-1);document.getElementById('forward').onclick=()=>update(i+1);document.getElementById('reset').onclick=()=>{start=Date.now()};document.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')update(i-1);if(e.key==='ArrowRight'||e.key===' ')update(i+1);if(e.key==='Escape')window.close()});setInterval(()=>{const s=Math.floor((Date.now()-start)/1000);document.getElementById('time').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')},1000);update(i,false);<\/script></body></html>`);
+          :root{--bg:#132238;--panel:#1d314a;--line:#45627f;--text:#eff5fb;--muted:#afc0d2;--blue:#9fc9ff;--accent:#ffcf73;--green:#8fd3ad}*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif}body{display:grid;grid-template-columns:1.2fr .8fr;grid-template-rows:1fr 1fr;gap:12px;padding:12px;overflow:hidden}.card{min-width:0;min-height:0;display:flex;flex-direction:column;border:1px solid var(--line);background:var(--panel);border-radius:6px;overflow:hidden}.head{padding:8px 12px;border-bottom:1px solid var(--line);color:var(--blue);font:700 11px monospace;letter-spacing:.12em}.body{min-height:0;flex:1;overflow:auto}.preview{background:#fff}.preview iframe{width:1920px;height:1080px;border:0;transform-origin:top left;pointer-events:none}.notes{padding:16px;font-size:17px;line-height:1.6}.notes p{margin:0 0 12px}.notes strong{color:var(--accent)}.timer{display:grid;align-content:center;gap:16px;padding:20px}.time{color:var(--green);font:700 42px monospace}.timer button{padding:8px 12px;border:1px solid var(--line);border-radius:4px;background:transparent;color:var(--text);cursor:pointer}</style></head><body><section class="card preview"><div class="head" id="cur-title">ATUAL</div><div class="body"><iframe id="current"></iframe></div></section><section class="card preview"><div class="head" id="next-title">PRÓXIMO</div><div class="body"><iframe id="next"></iframe></div></section><section class="card"><div class="head">NOTAS DO APRESENTADOR</div><div class="body notes" id="script"></div></section><section class="card"><div class="head">CONTROLE</div><div class="body timer"><div class="time" id="time">00:00</div><div id="count"></div><div><button id="prev">← Anterior</button><button id="forward">Próximo →</button><button id="reset">Reiniciar</button></div><div style="color:var(--muted);font-size:12px">← → navega · Esc fecha</div></div></section><script>const data=${safe};const base=${JSON.stringify(url)};let i=${index};let start=Date.now();const cur=document.getElementById('current'),next=document.getElementById('next'),script=document.getElementById('script'),count=document.getElementById('count'),curTitle=document.getElementById('cur-title'),nextTitle=document.getElementById('next-title');function scale(frame){const body=frame.parentElement,s=Math.min(body.clientWidth/1920,body.clientHeight/1080);frame.style.transform='scale('+s+')'}function update(n,send=true){i=Math.max(0,Math.min(data.length-1,n));cur.src=base+(i+1);if(i+1<data.length){next.src=base+(i+2);nextTitle.textContent='PRÓXIMO · '+data[i+1].title}else{next.src='about:blank';nextTitle.textContent='FIM'}curTitle.textContent='ATUAL · '+data[i].title;script.innerHTML=data[i].notes;count.textContent=(i+1)+' / '+data.length;cur.onload=()=>scale(cur);next.onload=()=>scale(next);if(send)bc?.postMessage({type:'go',index:i})}const bc=(()=>{try{return new BroadcastChannel(${JSON.stringify(channelName)})}catch(e){return null}})();bc&&(bc.onmessage=e=>{if(e.data?.type==='go')update(e.data.index,false)});window.addEventListener('message',e=>{if(e.source===window.opener&&e.data?.type==='go')update(e.data.index,false)});document.getElementById('prev').onclick=()=>update(i-1);document.getElementById('forward').onclick=()=>update(i+1);document.getElementById('reset').onclick=()=>{start=Date.now()};document.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')update(i-1);if(e.key==='ArrowRight'||e.key===' ')update(i+1);if(e.key==='Escape')window.close()});setInterval(()=>{const s=Math.floor((Date.now()-start)/1000);document.getElementById('time').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')},1000);update(i,false);<\/script></body></html>`);
          presenterWindow.document.close();
          presenterWindow.focus();
          if (index === total - 1) {
