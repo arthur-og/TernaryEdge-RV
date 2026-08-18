@@ -2,7 +2,7 @@
 /*
  * urrbana.dts — Device Tree para a RealDigital Urbana Board
  * FPGA: Spartan-7 XC7S50-CSGA324
- * RAM:  128 MB DDR3 (0x80000000 - 0x87FFFFFF)
+ * RAM:  128 MB DDR3 (0x40000000 - 0x47FFFFFF)
  * SoC:  LiteX VexRiscv RV32IMA + NPU Ternária v2
  *
  * Uso: Incluir como referência no build do Linux.
@@ -11,8 +11,8 @@
  *
  * Mapa de Memória (LiteX padrão):
  *   0x00000000-0x3FFFFFFF: Regiões CSR / periféricos
- *   0x40000000-0x4000FFFF: NPU Ternária v2 (MMIO + DMA)
- *   0x80000000-0x87FFFFFF: 128 MB DDR3 (main_ram)
+ *   0x40000000-0x47FFFFFF: 128 MB DDR3 (main_ram)
+ *   0x80000000-0x8000FFFF: NPU Ternária v2 (MMIO + DMA)
  *   0xF0000000-0xF7FFFFFF: SPI Flash (mapeado em memória)
  */
 
@@ -29,9 +29,9 @@
         bootargs = "console=ttyS0,115200 root=/dev/mmcblk0p2 rootwait";
     };
 
-    memory@80000000 {
+    memory@40000000 {
         device_type = "memory";
-        reg = <0x80000000 0x8000000>;  // 128 MB DDR3
+        reg = <0x40000000 0x8000000>;  // 128 MB DDR3
     };
 
     cpus {
@@ -48,7 +48,7 @@
             mmu-type = "riscv,sv32";
             clock-frequency = <100000000>;
 
-            interrupt-controller {
+            cpu_intc: interrupt-controller {
                 #interrupt-cells = <1>;
                 interrupt-controller;
                 compatible = "riscv,cpu-intc";
@@ -95,14 +95,14 @@
 
         /* ================================================================
          *  NPU Ternária v2 — 64 MACs Multiplierless
-         *  Base: 0x40000000
+         *  Base: 0x80000000
          *  IRQ:  10
          *  Wishbone Slave: registradores MMIO (4 KB)
-         *  Wishbone Master: DMA na RAM (acessa 0x80000000+)
+         *  Wishbone Master: DMA na RAM (acessa 0x40000000+)
          * ================================================================ */
-        npu: npu@40000000 {
+        npu: npu@80000000 {
             compatible = "ternaryedge,npu-ternaria";
-            reg = <0x40000000 0x10000>;     // 64 KB (CSR + DMA scratch)
+            reg = <0x80000000 0x10000>;     // 64 KB (CSR + DMA scratch)
             interrupts = <10>;
             interrupt-parent = <&plic>;
 

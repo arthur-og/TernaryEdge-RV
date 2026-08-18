@@ -6,7 +6,7 @@
 ## 1. Memória RAM Externa (Crítico)
 * **Requisito:** Mínimo de **32 MB** de memória RAM (DDR2, DDR3, DDR4 ou SDRAM).
 * **Justificativa:** O núcleo RISC-V puro roda em FPGAs minúsculas, mas **o Linux exige memória externa para fazer o boot e alocar espaço de usuário**. FPGAs que possuem apenas BRAM (SRAM Interna) na ordem de Kilobytes **NÃO SERVEM** para bootar o kernel Linux + Driver + App de IA.
-* **Urbana:** ✅ 128 MB DDR3 (`0x80000000–0x87FFFFFF`, 800 MT/s, 64Mx16).
+* **Urbana:** ✅ 128 MB DDR3 (`0x40000000–0x47FFFFFF` in the pinned LiteX VexRiscv map, 800 MT/s, 64Mx16).
 
 ## 2. Elementos Lógicos (LUTs / FFs)
 * **Requisito:** Mínimo de **15.000 a 20.000 Logic Cells (LUTs)**.
@@ -16,7 +16,7 @@
 ## 3. Armazenamento (Non-Volatile)
 * **Requisito:** Slot de **Cartão MicroSD** ou memória Flash SPI grande (mínimo 16MB, porém SD Card é altamente recomendado).
 * **Justificativa:** O *RootFS* (Sistema de Arquivos do Linux gerado pelo Gildo), o Kernel, o Driver (`.ko`) e as imagens de teste MNIST precisam ser lidas de algum lugar durante o boot.
-* **Urbana:** ✅ Slot MicroSD dedicado. `base_soc.py` habilita `with_spi_sdcard=True` (bootloader) + `with_sdcard=True` (RootFS SDIO 4-bit).
+* **Urbana:** ✅ Slot MicroSD dedicado. `base_soc.py` habilita o modo nativo SDIO 4-bit; o target também oferece SPI como alternativa exclusiva.
 
 ## 4. Interfaces de Comunicação
 * **Requisito:** 1x Porta UART (Geralmente via USB-Serial / Micro-USB).
