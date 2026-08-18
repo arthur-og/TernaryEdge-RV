@@ -4,7 +4,7 @@
  * 
  * Driver for the NPU Ternária v2 (64 MACs, Wishbone Master DMA, Layer Sequencer).
  * Communicates with the hardware via:
- *   - MMIO registers (ioread32/iowrite32) at 0x40000000 base
+ *   - MMIO registers (ioread32/iowrite32) at the Device Tree resource base
  *   - DMA coherent buffer for zero-copy weight/activation transfer
  *   - Hardware IRQ for sleep-wake synchronization
  *
