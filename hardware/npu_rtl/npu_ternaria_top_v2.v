@@ -91,6 +91,9 @@ module npu_ternaria_top_v2 (
     output reg         irq_out
 );
 
+    integer a;
+    integer w;
+
     // =========================================================================
     // 1. Registradores de Configuração (acessados via Wishbone Slave)
     // =========================================================================
@@ -157,6 +160,7 @@ module npu_ternaria_top_v2 (
     reg        dma_read;
     reg [31:0] dma_addr;
     reg [15:0] dma_bytes;
+    reg [15:0] dma_remaining;
     reg [31:0] dma_wdata;      // Write data for DMA write operations
     reg        dma_done;
     reg        dma_busy;
@@ -225,8 +229,8 @@ module npu_ternaria_top_v2 (
             compute_step <= `COMPUTE_STEP_LOAD_WEIGHTS;
             wt_buf_idx   <= 3'd0;
 
-            for (integer a = 0; a < 64; a = a + 1) acc_reg[a] <= 32'd0;
-            for (integer w = 0; w < 4; w = w + 1) wt_buf[w] <= 32'd0;
+            for (a = 0; a < 64; a = a + 1) acc_reg[a] <= 32'd0;
+            for (w = 0; w < 4; w = w + 1) wt_buf[w] <= 32'd0;
 
             act_waddr <= 11'd0;
             wt_waddr  <= 11'd0;
@@ -255,7 +259,7 @@ module npu_ternaria_top_v2 (
                         zero_counter <= 16'd0;
                         compute_step <= `COMPUTE_STEP_LOAD_WEIGHTS;
                         wt_buf_idx   <= 3'd0;
-                        for (integer a = 0; a < 64; a = a + 1) acc_reg[a] <= 32'd0;
+                        for (a = 0; a < 64; a = a + 1) acc_reg[a] <= 32'd0;
                     end
                     if (cmd_clear) irq_out <= 1'b0;
                 end
@@ -399,7 +403,7 @@ module npu_ternaria_top_v2 (
                     cur_in_batch <= 32'd0;
                     compute_step <= `COMPUTE_STEP_LOAD_WEIGHTS;
                     wt_buf_idx   <= 3'd0;
-                    for (integer a = 0; a < 64; a = a + 1) acc_reg[a] <= 32'd0;
+                    for (a = 0; a < 64; a = a + 1) acc_reg[a] <= 32'd0;
                 end
 
                 // =============================================================
@@ -478,6 +482,7 @@ module npu_ternaria_top_v2 (
             dma_state <= DMA_IDLE;
             dma_busy  <= 1'b0;
             dma_done  <= 1'b0;
+            dma_remaining <= 16'd0;
             dma_rdata <= 32'd0;
             wb_m_cyc_o <= 1'b0;
             wb_m_stb_o <= 1'b0;
@@ -494,6 +499,7 @@ module npu_ternaria_top_v2 (
                     if (dma_start) begin
                         dma_state <= DMA_ISSUE;
                         dma_busy  <= 1'b1;
+                        dma_remaining <= dma_bytes;
                         wb_m_adr_o <= dma_addr;
                         wb_m_we_o  <= ~dma_read;
                         wb_m_sel_o <= 4'b1111;
@@ -510,9 +516,9 @@ module npu_ternaria_top_v2 (
                 DMA_ISSUE: begin
                     wb_m_stb_o <= 1'b1;
                     if (wb_m_ack_i) begin
-                        dma_bytes <= dma_bytes - 4;
+                        dma_remaining <= dma_remaining - 4;
                         wb_m_adr_o <= wb_m_adr_o + 4;
-                        if (dma_bytes <= 4) begin
+                        if (dma_remaining <= 4) begin
                             wb_m_cti_o <= 3'b111;
                             dma_state <= DMA_COMPLETE;
                         end else begin
@@ -524,9 +530,9 @@ module npu_ternaria_top_v2 (
                 DMA_WAIT: begin
                     wb_m_stb_o <= 1'b1;
                     if (wb_m_ack_i) begin
-                        dma_bytes <= dma_bytes - 4;
+                        dma_remaining <= dma_remaining - 4;
                         wb_m_adr_o <= wb_m_adr_o + 4;
-                        if (dma_bytes <= 4) begin
+                        if (dma_remaining <= 4) begin
                             wb_m_cti_o <= 3'b111;
                             dma_state <= DMA_COMPLETE;
                         end

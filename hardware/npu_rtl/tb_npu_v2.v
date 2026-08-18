@@ -80,7 +80,7 @@ module tb_npu_v2;
     // The response phase is registered, and read data is combinational from
     // the latched address.  This makes the data stable before the DUT samples
     // the acknowledgement edge.
-    always @(*) begin
+    always @(wb_m_got_stb or wb_m_lat_we or wb_m_lat_addr) begin
         wb_m_ack_i = wb_m_got_stb;
         wb_m_err_i = 1'b0;
         wb_m_dat_i = 32'd0;
