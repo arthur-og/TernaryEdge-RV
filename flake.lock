@@ -1,0 +1,182 @@
+{
+  "nodes": {
+    "litedram": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786013270,
+        "narHash": "sha256-BGXVKrt+hn2NOjJsc1owTINq7BmAitAMHkAJ2+E7YzA=",
+        "owner": "enjoy-digital",
+        "repo": "litedram",
+        "rev": "3cf585a60a37113f18a9f6c6f3ee774be521623e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "enjoy-digital",
+        "repo": "litedram",
+        "type": "github"
+      }
+    },
+    "litesdcard": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783717073,
+        "narHash": "sha256-NCUowmDvEjr13yuKVnAjhLTHUXxHMefC7WZMO2mIVhQ=",
+        "owner": "enjoy-digital",
+        "repo": "litesdcard",
+        "rev": "227d61bc2b92ca56cac78a539b98e378468b1ba1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "enjoy-digital",
+        "repo": "litesdcard",
+        "type": "github"
+      }
+    },
+    "litespi": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785136845,
+        "narHash": "sha256-WmiBxZESaM+xDQDs9SFkNvsuz18F+5OLU5zmn11Jmts=",
+        "owner": "litex-hub",
+        "repo": "litespi",
+        "rev": "2e211447af44d9f015fd1c50c5b10d399b640972",
+        "type": "github"
+      },
+      "original": {
+        "owner": "litex-hub",
+        "repo": "litespi",
+        "type": "github"
+      }
+    },
+    "litex": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786011204,
+        "narHash": "sha256-Olhb8u6xgSifmpQUFTTD3YHElEJ22pTg9I7lJ50BJAo=",
+        "owner": "enjoy-digital",
+        "repo": "litex",
+        "rev": "37b75bd468e228b2c8637727c68a1320eb5531a4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "enjoy-digital",
+        "repo": "litex",
+        "type": "github"
+      }
+    },
+    "litex-boards": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786013284,
+        "narHash": "sha256-NLmH7QDvmIceclNqF8sJAdRUypMJMfMXn5SE1JqD1Yc=",
+        "owner": "litex-hub",
+        "repo": "litex-boards",
+        "rev": "e6f8477476bbc6fd340d91dd3da82f5c1adc5000",
+        "type": "github"
+      },
+      "original": {
+        "owner": "litex-hub",
+        "repo": "litex-boards",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1786599213,
+        "narHash": "sha256-yNJd40f11EzXBjSByCB7IPpeFFAdeoSKKM67dGkfFoU=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "0e251e24a4f24e036a084b6b4b2d2491af4167f4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "prjxray": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1749136554,
+        "narHash": "sha256-5fIn3Hn29uytN4Z6A90Rudq46T+OqbBBs/EZo9X5Jxs=",
+        "ref": "refs/heads/master",
+        "rev": "c9f02d8576042325425824647ab5555b1bc77833",
+        "revCount": 3949,
+        "submodules": true,
+        "type": "git",
+        "url": "https://github.com/f4pga/prjxray"
+      },
+      "original": {
+        "submodules": true,
+        "type": "git",
+        "url": "https://github.com/f4pga/prjxray"
+      }
+    },
+    "pythondata-cpu-vexriscv": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1780424737,
+        "narHash": "sha256-IizbjZki//WhHIh64SekmkrO1GiZDk4SznkidoVyYeg=",
+        "owner": "litex-hub",
+        "repo": "pythondata-cpu-vexriscv",
+        "rev": "642ecfed1c84460555d6d803d660cc60cfc1ecb6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "litex-hub",
+        "repo": "pythondata-cpu-vexriscv",
+        "type": "github"
+      }
+    },
+    "pythondata-software-compiler_rt": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1779797050,
+        "narHash": "sha256-trG1rA90eQxydA0r/uM/AWI13tzUacbIWMtpJSb3s20=",
+        "owner": "litex-hub",
+        "repo": "pythondata-software-compiler_rt",
+        "rev": "6eb76609c9627bf26635e57c63fb22cda7115887",
+        "type": "github"
+      },
+      "original": {
+        "owner": "litex-hub",
+        "repo": "pythondata-software-compiler_rt",
+        "type": "github"
+      }
+    },
+    "pythondata-software-picolibc": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1780676653,
+        "narHash": "sha256-6sGlAmgjTXAa1WV9I38al7rsSPmruT6SlDda8+5o1OU=",
+        "owner": "litex-hub",
+        "repo": "pythondata-software-picolibc",
+        "rev": "6a13ccce7c575b32c102dd9dc52178505b81fe39",
+        "type": "github"
+      },
+      "original": {
+        "owner": "litex-hub",
+        "repo": "pythondata-software-picolibc",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "litedram": "litedram",
+        "litesdcard": "litesdcard",
+        "litespi": "litespi",
+        "litex": "litex",
+        "litex-boards": "litex-boards",
+        "nixpkgs": "nixpkgs",
+        "prjxray": "prjxray",
+        "pythondata-cpu-vexriscv": "pythondata-cpu-vexriscv",
+        "pythondata-software-compiler_rt": "pythondata-software-compiler_rt",
+        "pythondata-software-picolibc": "pythondata-software-picolibc"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
