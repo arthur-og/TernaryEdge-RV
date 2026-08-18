@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "active_work_id": "plano-agosto-2026",
+  "works": {
+    "plano-agosto-2026": {
+      "work_id": "plano-agosto-2026",
+      "active_plan": ".omo/plans/plano-agosto-2026.md",
+      "plan_name": "plano-agosto-2026",
+      "session_ids": ["codex:default"],
+      "status": "active",
+      "worktree_path": null
+    }
+  }
+}
