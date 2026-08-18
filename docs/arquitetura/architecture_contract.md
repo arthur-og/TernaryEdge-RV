@@ -1,28 +1,29 @@
 # Architecture Contract: Ternary Edge-RV
-**Última atualização:** 04/08/2026
-**Versão:** 2.3 — FPGA Urrbana recebida, HAL implementada, Phase 4 in progress
+**Última atualização:** 17/08/2026
+**Versão:** 2.4 (Status 17/08/2026: Urbana detectada via micro-USB FTDI, simulação Verilog 100% PASS, flags openXC7 `-nolutram -nowidelut` aplicadas, prazo final 31/08/2026)
 
 This document formalizes the architectural decisions and "Design by Contract" parameters that all team members must follow to ensure the successful integration of the Hardware (RTL), OS (Linux), Kernel Driver (LKM), HAL (NPU Abstraction), and User Space (AI) components.
 
 ---
 
-## 1. System Architecture Standard (32-Bit)
+## 1. System Architecture Standard (32-Bit) & Team Roles
 **Decision:** The entire stack will strictly use **RV32IMA** (32-bit RISC-V).
 **Justification:** The project aims to demonstrate extreme energy efficiency and area reduction on FPGA. A 64-bit architecture consumes significantly more logic (LUTs/FFs) and memory bandwidth without offering tangible benefits for ternary quantized operations.
 
-*   **Arthur (Hardware):** The LiteX VexRiscv core must be generated as a 32-bit CPU (variant `linux`).
-*   **Gildo (OS + HAL):** The Buildroot configuration must use `BR2_RISCV_32=y`. The HAL must compile with `-march=rv32ima -mabi=ilp32`.
-*   **Gustavo (Driver):** The kernel driver must be compiled for 32-bit RISC-V.
-*   **Gilvan (AI):** The toolchain must compile specifically for 32-bit (`-march=rv32ima -mabi=ilp32`).
+### Team Roles & Operational Responsibilities (post-Gilvan transition)
+*   **Arthur Oliveira Gomes (Hardware Architecture & RTL):** Hardware RTL, LiteX SoC VexRiscv generation, Verilog regression testbench, openXC7 synthesis (with flags `-nolutram -nowidelut`), Vivado synthesis, bitstream generation and FPGA resource report.
+*   **Gildo Alves de Lima Junior (OS Infrastructure & HAL):** Buildroot OS configuration (`BR2_RISCV_32=y`), Device Tree (`urrbana.dts`), NPU HAL (`libnpu_hal.a`), Output Classifier (FP32 CPU), MicroSD card image preparation and physical Linux boot on Urbana.
+*   **Gustavo Alexandre dos Santos (Kernel Driver & Benchmarking):** Kernel driver (`npu_driver.ko`), `weights.h` contract and IA export maintenance, cross-compilation (`-march=rv32ima -mabi=ilp32`), physical benchmarks (CPU vs NPU latency), results and discussion section for Paper 1.
+*   **Gilvan Alves Pastor Junior (Historical AI & Golden Model):** Historical QAT pipeline (Larq/STE), weight packing format, and C++ Golden Model v2 retained and credited as 4th author on Paper 1.
 
 ---
 
-## 2. NPU Memory Map (Official — Version 2.0)
+## 2. NPU Memory Map (Official: Version 2.0)
 
-**Base Address:** `0x40000000`
+**Base Address:** `0x80000000` (LiteX CPU IO window)
 **IRQ Number:** `10` (Connected to VexRiscv PLIC)
 **Endianness:** Little-Endian (native RISC-V)
-**Bus Interface:** Wishbone B4 (32-bit data, 32-bit address) — Slave for CPU access + Master for DMA
+**Bus Interface:** Wishbone B4 (32-bit data, 32-bit address): Slave for CPU access + Master for DMA
 
 ### Register Layout
 
@@ -53,11 +54,11 @@ This document formalizes the architectural decisions and "Design by Contract" pa
 ## 3. Parallelism: 64 MAC Array
 
 **Decision:** The NPU instantiates **64 ternary_mac units** operating in parallel.
-**Justification:** A single MAC sequentially processing 802,816 operations (first layer) would take ~2.4M cycles = 48ms at 50 MHz. With 64 MACs, this drops to ~37.5K cycles = 0.75ms — a 64× speedup.
+**Justification:** A single MAC sequentially processing 802,816 operations (first layer) would take ~2.4M cycles = 48ms at 50 MHz. With 64 MACs, this drops to ~37.5K cycles = 0.75ms (64x speedup).
 
 *   **Arthur:** Each `ternary_mac.v` receives one 2-bit weight. The 64 partial sums are combined via an adder tree.
-*   **Memory:** 4 weight words are fetched per cycle (4 × 32-bit = 128 bits → 64 × 2-bit weights).
-*   **Weight storage:** `WEIGHT_MEM_SIZE = 16384` words (512 Kb) — fits largest layer (50,176 words). Larger layers handled by tiling.
+*   **Memory:** 4 weight words are fetched per cycle (4 x 32-bit = 128 bits -> 64 x 2-bit weights).
+*   **Weight storage:** `WEIGHT_MEM_SIZE = 16384` words (512 Kb): fits largest layer (50,176 words). Larger layers handled by tiling.
 
 ---
 
@@ -88,11 +89,11 @@ This document formalizes the architectural decisions and "Design by Contract" pa
 **Justification:** 2-bit ternary weights ($\in \{-1, 0, 1\}$) are packed into 32-bit integers.
 
 *   **Gilvan & Arthur:** `weights[0]` (first weight) occupies LSBs of the 32-bit word. Encoding: `+1 = 0b01`, `0 = 0b00`, `-1 = 0b11`.
-*   **Gildo (HAL):** The HAL reads weights from `weights.h` (pipeline output) and copies them verbatim to the DMA buffer — no byte-swapping needed.
+*   **Gildo (HAL):** The HAL reads weights from `weights.h` (pipeline output) and copies them verbatim to the DMA buffer: no byte-swapping needed.
 
 ---
 
-## 7. Architecture Overview (v2 — Full Stack)
+## 7. Architecture Overview (v2: Full Stack)
 
 ```text
 User Space
@@ -133,7 +134,7 @@ Hardware
   │    │   IRQ → PLIC               │
   │    │                            │
   │    ├── DDR3 (128 MB)            │
-  │    │   @ 0x80000000             │
+   │    │   @ 0x40000000             │
   │    │                            │
   │    └── Peripherals (UART, SD,   │
   │        SPI flash, LEDs, etc.)   │
@@ -158,28 +159,28 @@ Each compute cycle:
 
 ---
 
-## 9. NPU HAL (Hardware Abstraction Layer) — New
+## 9. NPU HAL (Hardware Abstraction Layer)
 
-**Rationale:** The NPU v2 is purely ternary (only {+1,0,-1} multiplications). It cannot compute the final classification layer (256→10) which requires FP32 weights and softmax. The HAL encapsulates:
+**Rationale:** The NPU v2 is purely ternary (only {+1,0,-1} multiplications). It cannot compute the final classification layer (256->10) which requires FP32 weights and softmax. The HAL encapsulates:
 
 1. **Device initialization** (`npu_init`): opens `/dev/npu_ternaria`, mmaps DMA buffer
 2. **Weight loading** (`npu_load_weights`): copies ternary weights from `weights.h` to DMA
 3. **Inference** (`npu_predict`): copies input image, triggers ioctl, reads NPU output
-4. **Output layer** (internal): runs 256→10 FP32 classification on CPU via `classifier_run()`
+4. **Output layer** (internal): runs 256->10 FP32 classification on CPU via `classifier_run()`
 5. **Batch inference** (`npu_predict_batch`): repeats predict for N images
 
 ### DMA Buffer Layout
 
 | Offset | Size | Content |
 |--------|------|---------|
-| `0x000000` | 4 KB | Result area (NPU writes 256 × int32 here) |
+| `0x000000` | 4 KB | Result area (NPU writes 256 x int32 here) |
 | `0x001000` | 364 KB | Ternary weights (3 layers: 50,176 + 32,768 + 8,192 words) |
 | `0x05C000` | 1 KB | Input activations (784 bytes + padding) |
 | `0x05C400` | 10 KB | Output layer FP32 weights (2,560 floats) |
 | `0x05F000` | ~3.8 MB | Free / expansion |
 
 * **Gildo (HAL):** Owns the HAL design, implementation, and test.
-* **Gustavo (Driver):** The HAL depends on the driver's ioctl interface — must remain stable.
+* **Gustavo (Driver):** The HAL depends on the driver's ioctl interface: must remain stable.
 * **Gilvan (AI):** The `weights.h` format must match what the HAL expects (per-layer arrays + output weights).
 
 ---
@@ -206,18 +207,14 @@ Classifier (CPU):
 
 ---
 
-## 11. Current Known Gaps
+## 11. Current Status & Known Gaps (17/08/2026)
 
-**Status (Aug 2026):** Phase 3 fully complete (software code-complete, validated by 29/29 golden model tests). RealDigital Urbana board received. The project is now in Phase 4 (physical deployment + Paper 1).
+**Status (17/08/2026):** Verilog RTL simulation (`make verilog_v2`) 100% PASS (4/4 regression tests pass). RealDigital Urbana board connected via micro-USB, FTDI FT2232H chip detected, JTAG IDCODE 0x362f093 (Spartan-7 XC7S50), `/dev/ttyUSB0` and `/dev/ttyUSB1` created. OpenXC7 synthesis flags in platform configuration updated to `-nolutram -nowidelut` to eliminate RAM256X1S and MUXF7/MUXF8 chains. Target deadline for SBCCI/LASCAS submission is 31/08/2026.
 
-| Gap | Impact | Owner | Priority | Resolution Path |
-|:----|:-------|:------|:---------|:----------------|
-| **FPGA synthesis & bitstream** | Cannot run on real hardware | Arthur | **Critical** | `python3 base_soc.py --build` (Opção A: Vivado / Opção B: openXC7) |
-| **Linux boot on FPGA** | Cannot test driver / HAL | Gildo | **High** | Buildroot image → SD card (FAT32+ext4) → boot via OpenSBI → U-Boot → kernel |
-| **Driver `insmod` on physical hardware** | No `/dev/npu_ternaria` | Gustavo | **High** | Cross-compile `.ko` for RV32IMA, `insmod`, validate IRQ/DMA via `dmesg` |
-| **Real benchmark (CPU × NPU latency)** | No data for Paper 1 §IV | Gilvan | **High** | `user_app --cpu` vs default; save CSV from FPGA |
-| **Paper 1 sections** | No submission | Team | **High** | Each member writes their section after real metrics; skeleton in `paper/paper1_template.tex` |
-| Possible HAL bug at `npu_hal.c:76` | Inference returns garbage | Gildo | Medium | Review 8-bit vs 32-bit cast of `npu_output[i]` against RTL `npu_ternaria_top_v2.v` |
-| Possible HAL/RTL mismatch at `npu_hal.c:51` | Activations written to wrong DMA offset | Gildo + Arthur | Medium | Verify offset `0x5C000` matches `WEIGHT_CFG`/`ACT_CFG` semantics in `wishbone_master.v` |
-| Toolchain not built by all members | Each member cannot build `.ko` locally | All | Low | Each member runs `make sdk` in `software/os_buildroot/` (documented in their README) |
-| Notebook do Arthur (i5-5200U, 8 GB RAM) | Vivado swap-heavy, slow synthesis | Arthur | Low | Use openXC7 (Opção B) — ~600 MB total, RAM-friendly |
+| Task / Gap | Impact | Active Owner | Priority | Status / Resolution Path |
+|:-----------|:-------|:-------------|:---------|:-------------------------|
+| **FPGA Synthesis & Bitstream** | Physical bitstream loading | Arthur | **Critical** | Urbana board detected via micro-USB (FTDI FT2232H). OpenXC7 synthesis flags updated to `-nolutram -nowidelut`. `python3 base_soc.py --build --toolchain openxc7` |
+| **Linux Boot on FPGA** | Physical OS execution | Gildo | **High** | Buildroot image -> SD card (FAT32+ext4) -> boot via OpenSBI -> U-Boot -> kernel on Urbana |
+| **Driver `insmod` on Physical Hardware** | `/dev/npu_ternaria` device node | Gustavo | **High** | Cross-compile `.ko` for RV32IMA, `insmod`, validate IRQ/DMA via `dmesg` |
+| **Real Benchmark (CPU vs NPU latency)** | Paper 1 Section IV metrics | Gustavo | **High** | `user_app --cpu` vs default; save CSV from FPGA benchmark run |
+| **Paper 1 Sections & Submission** | SBCCI/LASCAS paper draft | Team (4 Authors) | **High** | Target completion date: 31/08/2026; template at `paper/paper1_template.tex` |
