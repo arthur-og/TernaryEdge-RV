@@ -2,6 +2,8 @@
 **Papel no Projeto:** Hardware Architecture & RTL Design (LiteX, Verilog, SoC Generation)
 **Última atualização:** 04/08/2026
 
+> **Snapshot histórico:** este plano registra o escopo de Arthur em 04/08/2026. A organização operacional atual está em `docs/planejamento/direcionamento_pos_gilvan.md`. O alvo de 64 MACs, 0 DSPs, throughput e speedup depende de integração e síntese, e não deve ser tratado como resultado físico.
+
 ---
 
 ## Marcos do Projeto
@@ -10,11 +12,11 @@
 |:------|:---------|:-------|
 | M1 — SoC Base (VexRiscv + LiteX) gerado e sintetizado | Concluído | ✅ |
 | M2 — NPU v1 (PIO, 1 MAC, Wishbone Slave) funcional em simulação Verilator | Concluído | ✅ |
-| M3 — NPU v2 (64 MACs, Wishbone Master DMA, Layer Sequencer) implementada e simulada | Concluído | ✅ |
+| M3 — NPU v2 (alvo de 64 MACs, Wishbone Master DMA, Layer Sequencer) documentada | Concluído no snapshot | ✅ |
 | M3b — Golden Model C++ v2 validado (21/21 testes passando) | Concluído | ✅ |
 | M3c — `base_soc.py` preparado para RealDigital Urrbana | Concluído | ✅ |
 | M4 — SoC final + NPU v2 sintetizados na FPGA Urrbana, bitstream rodando | Ago/2026 — em andamento | ⏳ |
-| M5 — Relatório de síntese extraído e documentado (0 DSPs, LUTs, FFs) | Após M4 | ⏳ |
+| M5 — Relatório de síntese extraído e documentado, incluindo a verificação do alvo de 0 DSPs | Após M4 | ⏳ |
 | M6 — Seção "Hardware" do Paper 1 escrita | Antes da submissão | ⏳ |
 
 ---
@@ -37,9 +39,9 @@
 
 ## Fase 3 (Concluída): NPU v2 — Arquitetura de Produção
 
-### ✅ 3.1 — Array de 64 MACs Paralelos
+### ✅ 3.1 — Alvo de Array de 64 MACs Paralelos
 
-Implementado em `ternary_mac_array.v` (64 instâncias de `ternary_mac`) + `adder_tree_64.v` (6 estágios pipeline, 63 adders).
+O design de referência é descrito em `ternary_mac_array.v` (64 instâncias de `ternary_mac`) + `adder_tree_64.v` (6 estágios pipeline, 63 adders). A integração e os recursos físicos dependem de execução e síntese.
 
 - **Desempacotamento:** 4 words de 32 bits lidas simultaneamente → 64 pesos de 2 bits desempacotados
 - **Adder Tree:** 64 entradas de 9 bits → 15 bits de saída, 6 ciclos de latência pipeline
@@ -65,17 +67,20 @@ IDLE → CFG_ACT → DMA_ACT → CFG_WEIGHT → DMA_WEIGHT →
 ```
 
 - 3 layers hard-coded: 784→1024 (50.176 words), 1024→512 (32.768 words), 512→256 (8.192 words)
-- ~92K ciclos para inferência completa com pesos zero
+- ~92K ciclos no modelo de referência para inferência completa com pesos zero; não é uma medida FPGA
 
-### ✅ 3.4 — Testbench Verilog
+### ✅ 3.4 — Testbench Verilog, especificação histórica
 
-Implementado em `tb_npu_v2.v` (372 linhas):
+Documentado em `tb_npu_v2.v` (372 linhas):
 
 1. Teste de escrita/leitura de registradores via Wishbone Slave
 2. Teste do STATUS register (idle, busy, irq bits)
 3. Teste de IRQ com timeout
 4. Teste de inferência com dados + verificação de resultado
 5. RAM externa simulada (262.144 words) respondendo ao Wishbone Master
+
+A execução do testbench está indisponível no shell atual. O registro histórico
+de 4/4 não é evidência corrente.
 
 ### ✅ 3.5 — Alinhamento do STATUS Register
 
@@ -85,12 +90,12 @@ Implementado em `tb_npu_v2.v` (372 linhas):
 | C++ (`npu_sim_v2.cpp`) | bits `[15:8]` | ✅ Corrigido |
 | Driver (`npu_driver.c`) | bits `[15:8]` | ✅ Alinhado |
 
-### ✅ 3.6 — Golden Model C++ v2
+### ✅ 3.6 — Golden Model C++ v2, registro histórico
 
 Implementado em `npu_sim_v2.cpp` (477 linhas) + `demo_npu_v2.cpp` (257 linhas):
 
 - 6 testes de verificação, 21 checks individuais
-- Cobre: registradores, STATUS layout, 64 MACs, zero-skipping, IRQ sync, layer sequencer
+- Cobre no modelo host: registradores, STATUS layout, alvo de 64 MACs, zero-skipping, IRQ sync, layer sequencer
 - Todos passando
 
 ### ✅ 3.7 — Pacote de Definições Compartilhadas
@@ -110,10 +115,10 @@ A RealDigital Urbana chegou em agosto/2026. O caminho crítico do projeto depend
 
 O notebook do Arthur (i5-5200U, 8 GB RAM) comporta ambas as opções, mas com ressalvas.
 
-**Opção A — Vivado WebPACK (Spartan-7 suportado)**
+**Opção A — Vivado Design Suite 2026.1 + Vivado Basic (Spartan-7 suportado)**
 - Prós: Integração LiteX perfeita, wizard completo
-- Contras: Instalação 30-70 GB, sintese usa 6-9 GB RAM (swap no note)
-- Comando: `python3 base_soc.py --build`
+- Contras: Instalação 30-70 GB, síntese usa 6-9 GB RAM (swap no note), requer licença Basic gratuita
+- Comando: `nix develop .#vivado` e depois `python3 base_soc.py --build --toolchain vivado`
 
 **Opção B — openXC7 (recomendada para o note)**
 - Prós: ~600 MB total, usa 1-2 GB RAM, código open-source (ótimo para o paper)
@@ -129,7 +134,7 @@ O notebook do Arthur (i5-5200U, 8 GB RAM) comporta ambas as opções, mas com re
 
 ### 4.3 — Relatório de síntese (comprovação da tese)
 
-- 【 】 Extrair: **0 DSPs** (comprovação central!), LUTs, FFs, BRAM utilizados
+- 【 】 Extrair o relatório de recursos e verificar se o alvo de **0 DSPs** se confirma, junto com LUTs, FFs e BRAM utilizados
 - 【 】 Comparar com SoC base sem NPU (delta LUTs/FFs/BRAM)
 - 【 】 Frequência máxima (Fmax) reportada
 - 【 】 Documentar em `docs/arquitetura/sintese_urbbana.md` (a criar)
@@ -141,4 +146,4 @@ O notebook do Arthur (i5-5200U, 8 GB RAM) comporta ambas as opções, mas com re
 - 【 ] **Figura 3** (FSM do Layer Sequencer — 10 estados)
 - 【 ] Escrever §III-A "Hardware: Multiplierless NPU" (esqueleto existe no `paper1_template.tex`)
 - 【 ] Revisar §III-B "Memory-Mapped Register Map" (tabela já está pronta, validar contra RTL)
-- 【 ] §II-A "Ternary Neural Networks" (compartilhado com Gilvan)
+- 【 ] §II-A "Ternary Neural Networks" (registro de contribuição histórica de Gilvan; ownership atual conforme o direcionamento operacional)
