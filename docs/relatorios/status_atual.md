@@ -163,3 +163,14 @@ O projeto completou **toda a Fase 3** e está em **Fase 4 — Deploy Físico e P
 | Paper 1 ainda em 30% | Submissão atrasada | Alta | Toda seção de HW/OS/Driver/AI está esqueletada; depende só de métricas reais da FPGA. Caminho crítico: síntese → boot → insmod → benchmark → tabelas |
 | Toolchain não compilada por todos | Membros não testam .ko/.HAL localmente | Média | Cada um roda `make sdk` em `software/os_buildroot/`. Documentado no README do OS |
 | Notebook do Arthur (i5-5200U, 8 GB RAM) | Síntese Vivado lenta/Swap | Média | Opção B: openXC7 (Yosys + nextpnr + openFPGALoader) — ~600 MB total vs 70 GB Vivado. Mais leve, adequado para 8GB RAM |
+
+---
+
+## Adendo operacional de transição (20/08/2026)
+
+**Nota arquivística:** o corpo original deste registro é um **snapshot histórico** e permanece preservado. Este adendo aponta a fonte de verdade operacional vigente, sem reescrever as afirmações datadas acima.
+
+- **Gilvan:** permanecem preservadas sua contribuição histórica no QAT, no empacotamento ternário e no Golden Model C++ v2, bem como sua condição de quarto autor do Paper 1.
+- **Gustavo:** assume a manutenção ativa do pipeline de IA, da exportação e de `weights.h`, da regressão do Golden Model, do driver, da cross-compilação, da coordenação da validação física, dos benchmarks CPU versus NPU e dos resultados e discussão do Paper 1.
+- **Evidência atual, registrada conservadoramente:** C++ v1: 8/8; C++ v2: 21/21; Python: 5/5. A execução Verilog está indisponível no shell atual, e não há benchmark FPGA end-to-end comprovado. As pendências de integração física e de medição real, portanto, não devem ser tratadas como concluídas.
+- A menção histórica a `output_biases[]` no corpo deste snapshot usa nomenclatura antiga; o símbolo atual verificado no header é `output_bias[]`.

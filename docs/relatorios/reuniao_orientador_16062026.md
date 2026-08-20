@@ -151,3 +151,10 @@ Esta ata reflete o estado na data da reunião (16/06/2026). Atualizações poste
 
 ---
 
+## Adendo operacional de transição (20/08/2026)
+
+**Nota arquivística:** o corpo original desta ata é um **snapshot histórico** e permanece preservado. Este adendo aponta a fonte de verdade operacional vigente, sem reescrever as afirmações datadas acima.
+
+- **Gilvan:** permanecem preservadas sua contribuição histórica no QAT, no empacotamento ternário e no Golden Model C++ v2, bem como sua condição de quarto autor do Paper 1.
+- **Gustavo:** assume a manutenção ativa do pipeline de IA, da exportação e de `weights.h`, da regressão do Golden Model, do driver, da cross-compilação, da coordenação da validação física, dos benchmarks CPU versus NPU e dos resultados e discussão do Paper 1.
+- **Evidência atual, registrada conservadoramente:** C++ v1: 8/8; C++ v2: 21/21; Python: 5/5. A execução Verilog está indisponível no shell atual, e não há benchmark FPGA end-to-end comprovado. As pendências de integração física e de medição real, portanto, não devem ser tratadas como concluídas.
