@@ -3,6 +3,13 @@
 The user-space and kernel-space software for Ternary Edge-RV, organized by
 domain.
 
+## Current Operational Ownership
+
+- **Gildo:** OS and Buildroot, NPU HAL, CPU classifier, MicroSD image and Linux boot.
+- **Gustavo:** AI pipeline maintenance, weight export and `weights.h` contract, Golden Model regression and maintenance, kernel driver, RV32 cross-compilation, physical validation coordination, CPU-versus-NPU benchmarks, and Paper 1 results and discussion.
+- **Arthur:** RTL, LiteX SoC, synthesis and bitstream.
+- **Gilvan:** Historical QAT, ternary packing, C++ Golden Model v2 contribution, and fourth Paper 1 authorship only.
+
 ## Directories
 
 | Directory | Description |
@@ -27,8 +34,12 @@ NPU HAL (npu_init -> npu_predict -> npu_deinit)
 npu_driver (/dev/npu_ternaria, IRQ, DMA)
     |
     v  (Wishbone bus)
-NPU v2 hardware (64 MACs, Layer Sequencer)
+NPU v2 hardware (64-MAC design target, Layer Sequencer)
 ```
+
+The 64-MAC array, zero-DSP goal, throughput and speedup are design intent or
+pending synthesis and measurement. There is no proven FPGA end-to-end
+inference or CPU-versus-NPU benchmark at present.
 
 ## Build Overview
 
