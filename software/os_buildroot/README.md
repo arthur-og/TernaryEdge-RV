@@ -5,6 +5,15 @@ Linux system for the Ternary Edge-RV RISC-V SoC. It contains the kernel
 configuration, root filesystem skeleton, and all patches needed to boot Linux
 on the VexRiscv RV32IMA platform.
 
+## Current Operational Ownership
+
+Gildo owns the OS and Buildroot configuration, HAL and CPU classifier
+integration, MicroSD image preparation and Linux boot. Gustavo owns the RV32
+cross-compilation workflow, kernel driver build and physical validation
+coordination, as well as the AI export and `weights.h` contract. Arthur owns
+RTL, LiteX, synthesis and bitstream work. Gilvan's QAT, ternary-packing and
+C++ Golden Model v2 work is historical credit only.
+
 ## Prerequisites
 
 - Git, `make`, `gcc`, `g++`, and standard build tools.
@@ -59,7 +68,7 @@ There are two levels of build, depending on what you need:
 
 ### Option A: Toolchain only (user-space apps — ~30 min)
 
-If you only need to compile C applications (e.g., Gilvan's `user_app.c`):
+If you only need to compile C applications such as `user_app.c`:
 
 ```bash
 cd buildroot
@@ -103,10 +112,10 @@ or let the Makefiles in `software/npu_driver/` auto-detect it.
 
 | Person | Needs | Build command |
 |--------|-------|---------------|
-| **Gildo** | Full system (kernel + driver infra) | `make` |
-| **Gustavo** | Compiler + kernel build tree (to build `.ko`) | `make` |
-| **Gilvan** | Compiler only (to build `user_app.c`) | `make sdk` |
-| **Arthur** | Compiler only (for QEMU firmware tests) | `make sdk` |
+| **Gildo** | OS, Buildroot, HAL, classifier, MicroSD and boot | `make` |
+| **Gustavo** | Driver, AI export, Golden Model regression and RV32 cross-compilation | `make` |
+| **Arthur** | Hardware and QEMU firmware support | `make sdk` |
+| **Gilvan** | No current build ownership; historical contributor and fourth Paper 1 author | N/A |
 
 ## Recommended Directory Layout
 
