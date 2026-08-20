@@ -1,7 +1,7 @@
 # Apêndice técnico para a conversa com o Professor Ramon
 
 **Projeto:** Ternary Edge-RV
-**Base:** estado atual do repositório consultado em 09/08/2026
+**Base:** estado atual do repositório consultado em 20/08/2026
 **Uso:** handout de consulta durante a apresentação
 
 > **Mensagem central:** o objetivo da reunião é alinhar a arquitetura esperada com a implementação atual antes de declarar desempenho, aceleração ou inferência ponta a ponta.
@@ -29,6 +29,19 @@ O escopo deste apêndice é descritivo. Ele não apresenta uma correção de RTL
 
 Uma mesma peça pode ter mais de uma leitura. Por exemplo, o driver está implementado como código, mas o probe em Linux na FPGA permanece não verificado.
 
+## 2.1 Ownership operacional após Gilvan
+
+A transição operacional preserva a autoria e separa continuidade histórica de responsabilidade ativa:
+
+| Pessoa | Responsabilidade atual |
+|---|---|
+| **Gustavo Alexandre dos Santos** | Sucessor operacional de Gilvan: manutenção ativa do pipeline de IA, exportação de pesos e contrato `weights.h`, regressão do Golden Model, driver, cross-compilação, coordenação da validação física, benchmarks e resultados do Paper 1. |
+| **Gildo Alves de Lima Junior** | Responsável por OS, HAL, classifier e boot Linux. |
+| **Arthur Oliveira Gomes** | Responsável pelo hardware, RTL, SoC e fluxo de síntese/bitstream. |
+| **Gilvan Alves Pastor Junior** | Contribuinte histórico da IA e do empacotamento; permanece como quarto autor do Paper 1. |
+
+Essa divisão não transforma intenção em evidência: os contratos de BN/ReLU/fake quant, unidades e offsets de DMA, mapa MMIO e datapath ativo continuam sujeitos aos gates abaixo.
+
 ## 3. Arquitetura atual: LiteX, VexRiscv, Wishbone, DMA, IRQ e RAM
 
 ### Visão de componentes
@@ -43,7 +56,7 @@ Uma mesma peça pode ter mais de uma leitura. Por exemplo, o driver está implem
 | RAM compartilhada | Buffer coerente de DMA é mapeado para usuário e usado pelo driver. | **Implementado como código**, DDR real não verificada |
 | IRQ | `irq_out` da NPU é ligado à linha 10 do PLIC no gerador LiteX. | **Documentado no SoC**, sinal físico não verificado |
 
-No `base_soc.py`, o CPU é configurado como `vexriscv` com variante `linux` e barramento Wishbone. O wrapper cria uma interface slave para configuração e uma interface master para DMA. A NPU é adicionada como escrava em `0x40000000`, o master entra no crossbar e `irq_out` é conectado à linha 10.
+No `base_soc.py`, o CPU é configurado como `vexriscv` com variante `linux` e barramento Wishbone. O wrapper cria uma interface slave para configuração e uma interface master para DMA. A documentação atual do LiteX usa `0x80000000` como candidato para a região da NPU; registros antigos usam `0x40000000`. O master entra no crossbar e `irq_out` é conectado à linha 10, mas o endereço final ainda precisa ser validado entre LiteX, RTL, Device Tree, driver e HAL.
 
 O driver aloca um buffer DMA coerente de 4 MiB, mapeia esse buffer para user space e programa `SRC_ADDR` e `DST_ADDR` com o mesmo endereço físico base. A memória DDR3 e o boot Linux são parte do alvo de integração, não uma execução comprovada neste documento.
 
@@ -89,7 +102,7 @@ LAYER_DONE -> DONE -> IRQ
 - **Próximo neurônio:** `ST_NEXT_OUTPUT` zera `acc_reg[0]`, incrementa `cur_output` e reinicia o lote de entrada.
 - **Próxima camada:** `ST_LAYER_DONE` compara `cur_layer + 1` com `cfg_layer_cfg`; `ST_NEXT_LAYER` incrementa `cur_layer`.
 
- A versão atual do RTL já contém correções mecânicas para os três pontos anteriormente descritos como blockers de fonte: `wt_buf_idx` foi ampliado para alcançar `3'd4`; os consumidores de dados usam diretamente `wb_m_dat_i` no pulso válido de DMA; e a acumulação do lote usa uma variável temporária `batch_acc` antes de atualizar `acc_reg[0]`. Essas mudanças são evidência de inspeção do código-fonte. O runtime/testbench Verilog ainda não foi executado neste ambiente por indisponibilidade das ferramentas, portanto não se deve chamar o caminho de RTL de validado em execução.
+ A versão atual do RTL já contém correções mecânicas para os três pontos anteriormente descritos como blockers de fonte: `wt_buf_idx` foi ampliado para alcançar `3'd4`; os consumidores de dados usam diretamente `wb_m_dat_i` no pulso válido de DMA; e a acumulação do lote usa uma variável temporária `batch_acc` antes de atualizar `acc_reg[0]`. Essas mudanças são evidência de inspeção do código-fonte. O runtime/testbench Verilog ainda não foi executado: as ferramentas estão indisponíveis no shell atual, portanto não se deve chamar o caminho de RTL de validado em execução.
 
 Mesmo com essas correções mecânicas no código-fonte, o caminho não deve ser descrito como uma matriz integrada de 64 MACs. `ternary_mac_array.v` e `adder_tree_64.v` existem como módulos separados e são incluídos na lista de fontes do LiteX, mas não há instanciação desses módulos no corpo de `npu_ternaria_top_v2.v`. O top-level usa um loop procedural sobre 64 posições e uma variável temporária `batch_acc`; isso ainda não comprova uma redução de 64 termos em hardware paralelo. Não há base no RTL atual para afirmar 64 MACs integrados por ciclo, lote de um ciclo ou throughput específico.
 
@@ -160,15 +173,17 @@ Esse é o modelo de treinamento. Não significa que as mesmas operações esteja
 
 ### 7.2 O que o gerador exporta
 
-`generate_weights_h.py` filtra somente objetos `QuantDense`. O `weights.h` gerado consultado contém três arrays empacotados:
+`generate_weights_h.py` empacota objetos `QuantDense` e trata a saída `Dense` separadamente, mas não exporta os parâmetros de BatchNorm. O `weights.h` gerado consultado contém três arrays empacotados e símbolos de saída FP32:
 
 | Array | Dimensão | Faixa inicial no header |
 |---|---:|---:|
 | `quant_dense_weights` | 50176 words | `weights.h:9-50193` |
 | `quant_dense_1_weights` | 32768 words | `weights.h:50194-82968` |
 | `quant_dense_2_weights` | 8192 words | `weights.h:82969-91169` |
+| `output_weights` | 2560 FP32 symbols | presentes no header com valor fallback `0.01`; parâmetros treinados não validados |
+| `output_bias` | 10 FP32 symbols | presentes no header com valor fallback `0.1`; parâmetros treinados não validados |
 
-Não há arrays de parâmetros de BatchNorm nem arrays de saída FP32 no header consultado. Ao mesmo tempo, `npu_weights.c` tenta copiar `output_weights` e `output_bias` para a DMA. Essa diferença precisa ser resolvida antes de uma compilação e de uma inferência ponta a ponta confiáveis.
+Não há arrays de parâmetros de BatchNorm no header consultado. Os símbolos de saída FP32 existem, mas os valores `0.01`/`0.1` são fallback e não parâmetros treinados validados. Ao mesmo tempo, `npu_weights.c` tenta copiar `output_weights` e `output_bias` para a DMA. Essa diferença precisa ser resolvida antes de uma compilação e de uma inferência ponta a ponta confiáveis.
 
 ### 7.3 O que HAL e user app fazem hoje
 
@@ -184,12 +199,14 @@ Por isso, não é correto chamar o HAL ou o user app de implementação de Batch
 
 | Evidência | Leitura correta |
 |---|---|
+| C++ golden model v1 | **PASS:** 8/8 casos executados |
 | C++ golden model v2 | **PASS:** 21/21 casos executados |
-| Runtime/testbench RTL Verilog | **NÃO EXECUTADO:** ferramentas indisponíveis no ambiente consultado |
+| Python regression | **PASS:** 5/5 casos executados |
+| Runtime/testbench RTL Verilog | **NÃO EXECUTADO:** Verilog indisponível no shell atual |
 | Contrato HAL/weights | **ABERTO:** exportação, símbolos, transforms, offsets e unidades ainda não fecham |
 | FPGA e benchmark | **PENDENTES:** síntese, timing, boot, IRQ/DMA físicos, inferência e métricas ainda não executados |
 
-O resultado C++ v2 de 21/21 casos é evidência de simulação host-side. Ele não comprova execução do RTL Verilog, síntese, fechamento de timing, recursos reais, boot Linux, probe do driver, transferência DMA no hardware, inferência física ou benchmark real.
+Os resultados host-side de C++ v1 (8/8), C++ v2 (21/21) e Python (5/5) são evidência de simulação/regressão no escopo coberto. Eles não comprovam execução do RTL Verilog, síntese, fechamento de timing, recursos reais, boot Linux, probe do driver, transferência DMA no hardware, inferência física ou benchmark real.
 
 No estado consultado, permanecem **não verificados**:
 
@@ -202,7 +219,7 @@ No estado consultado, permanecem **não verificados**:
 - inferência MNIST ponta a ponta com pesos gerados;
 - benchmark CPU versus NPU e qualquer ganho numérico.
 
-Não há base atual para afirmar 9,3x de speedup, 64 MACs por ciclo, uma carga de um ciclo, recursos medidos ou inferência completa.
+Não há base atual para afirmar speedup, 64 MACs por ciclo, uma carga de um ciclo, recursos medidos ou inferência completa.
 
 ## 9. Próximos gates mínimos e perguntas para Ramon
 
@@ -248,6 +265,6 @@ As faixas abaixo apontam para o código consultado, não para a apresentação h
 | `hardware/npu_rtl/sim_cpp/demo_npu_v2.cpp` | `8-16`, `34-41`, `236-256` |
 | `hardware/npu_rtl/python/golden_model.py` | `232-267` |
 | `hardware/npu_rtl/tb_npu_v2.v` | `341-380` |
-| `docs/relatorios/status_atual.md` | registro histórico de simulação; não substitui a evidência atual de 21/21 no C++ v2 nem prova física |
+ | `docs/relatorios/status_atual.md` | registro histórico de simulação; não substitui a evidência atual de 8/8 no C++ v1, 21/21 no C++ v2 e 5/5 em Python nem prova física |
 
-**Conclusão para a apresentação:** a contribuição atual pode ser apresentada como uma base RTL com correções de fonte, evidência C++ v2 de 21/21 casos e software parcialmente integrado, com lacunas explícitas no contrato de camadas, pós-processamento e memória. O runtime Verilog ainda não foi executado, e qualquer afirmação de desempenho deve esperar a arquitetura ser alinhada e o fluxo ser validado na implementação física.
+**Conclusão para a apresentação:** a contribuição atual pode ser apresentada como uma base RTL com correções de fonte, evidência host-side de C++ v1 (8/8), C++ v2 (21/21) e Python (5/5), e software parcialmente integrado, com lacunas explícitas no contrato de camadas, pós-processamento e memória. O runtime Verilog está indisponível no shell atual, e qualquer afirmação de desempenho deve esperar a arquitetura ser alinhada e o fluxo ser validado na implementação física.
