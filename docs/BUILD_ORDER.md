@@ -5,6 +5,13 @@ is intentionally not part of the hardware workflow: the FTDI programmer is
 easier to access from the host through udev than through a USB-passthrough
 container.
 
+## Current Operational Ownership
+
+- **Arthur:** RTL, LiteX SoC generation, synthesis, bitstream and hardware design.
+- **Gildo:** OS, Buildroot, HAL, CPU classifier, MicroSD image and Linux boot.
+- **Gustavo:** AI pipeline maintenance, weight export and `weights.h` contract, C++ Golden Model regression and maintenance, kernel driver, RV32 cross-compilation, physical validation coordination, CPU-versus-NPU benchmarks, and Paper 1 results and discussion.
+- **Gilvan:** Historical QAT, ternary packing, C++ Golden Model v2 contribution, and fourth Paper 1 authorship only.
+
 ## 1. NixOS Host Requirements
 
 Recommended host capacity:
@@ -78,15 +85,18 @@ Do not flash hardware before the lower-level checks pass.
 
 ### 3.1 RTL and golden models
 
+The current host evidence is C++ Golden Model v1 with 8/8 checks, C++ Golden
+Model v2 with 21/21 checks, and the Python pipeline with 5/5 checks. The
+Verilog testbench is unavailable in the current shell, so the historical 4/4
+record must not be presented as a current execution result.
+
 ```bash
 make -C hardware/npu_rtl/sim_cpp all
-make -C hardware/npu_rtl/sim_cpp verilog_v2
 python3 hardware/npu_rtl/python/golden_model.py
 ```
 
-The C++ v2 model currently provides the host-side reference checks. The
-Verilog testbench must still be run in the selected simulator before treating
-the RTL as physically validated.
+Run `make -C hardware/npu_rtl/sim_cpp verilog_v2` only when the selected
+simulator is available, and record its result separately.
 
 ### 3.2 AI weights
 
@@ -96,10 +106,10 @@ python3 ai_training/scripts/run_pipeline.py --epochs 20
 ```
 
 Check that the generated header exists at
-`software/user_app/weights.h`. The repository currently documents a known
-contract gap: the HAL expects the CPU output-layer arrays while the checked-in
-pipeline/header path may only contain the packed ternary layers. Stop and
-resolve that mismatch before claiming end-to-end inference.
+`software/user_app/weights.h`. The current header has the FP32 symbols expected
+by the HAL, but its fallback values, including `0.01` and `0.1`, are not
+validated trained parameters. Gustavo owns this export and contract check.
+Resolve the parameter validation gap before claiming end-to-end inference.
 
 ### 3.3 Buildroot Linux image
 
@@ -139,6 +149,9 @@ The driver requires the Buildroot kernel build tree. The HAL and application
 require the Buildroot RV32 cross-compiler. Native compilation is useful only
 for syntax checks and does not prove target compatibility.
 
+Gustavo owns the RV32 cross-compilation and driver validation workflow. Gildo
+owns the OS, Buildroot, HAL, classifier, MicroSD image and Linux boot path.
+
 ### 3.5 QEMU smoke test
 
 ```bash
@@ -152,6 +165,10 @@ FPGA timing, NPU IRQ, DMA or physical FTDI connection.
 ## 4. SoC Build and FPGA Programming
 
 Enter the hardware shell and generate the LiteX SoC/bitstream with openXC7:
+
+Current LiteX documentation uses `0x80000000` as the candidate NPU MMIO base,
+while older map snapshots use `0x40000000`. Validate the generated LiteX map,
+RTL, Device Tree, driver and HAL before treating either address as final.
 
 ```bash
 cd /home/arthur/Documents/Projects/TernaryEdge-RV
@@ -224,6 +241,10 @@ Expected driver evidence includes a successful probe, IRQ registration and a
 created `/dev/npu_ternaria`. A QEMU boot or a successful FPGA configuration is
 not evidence that DMA and IRQ behavior work on the physical NPU.
 
+Gustavo coordinates this physical validation with Arthur and Gildo. No FPGA
+end-to-end inference or CPU-versus-NPU benchmark is current evidence until the
+target procedure produces an observed result.
+
 ## 6. MicroSD Is a Separate Flash Operation
 
 Programming the FPGA SPI flash and writing the Linux MicroSD card are separate
@@ -257,9 +278,11 @@ Use the repository flake and its shells:
   nix develop .#ai
 
 Required phases, in this order:
-1. Run the C++ and Verilog NPU v2 simulations and the Python golden model.
-2. Run the QAT pipeline and verify that software/user_app/weights.h satisfies
-   every symbol expected by the HAL, including the CPU output layer.
+1. Run the C++ NPU v2 simulations and the Python golden model. Run the Verilog
+   testbench only when its simulator is available in the shell.
+2. Gustavo runs the AI pipeline and verifies that software/user_app/weights.h
+   satisfies every symbol expected by the HAL, including the CPU output layer.
+   The current FP32 values are fallbacks, not validated trained parameters.
 3. Clone Buildroot beside the repository at commit
    2026.02-882-g98a3912165. Configure it with
    software/os_buildroot as BR2_EXTERNAL and build the complete image.
@@ -277,8 +300,9 @@ Required phases, in this order:
 7. Treat MicroSD preparation as a separate acceptance gate. Do not use dd
    until the Urbana boot partition layout, DTB, kernel and rootfs have been
    validated.
-8. On the target, validate dmesg, insmod, /dev/npu_ternaria, CPU inference,
-   NPU inference and benchmark CSV output.
+8. On the target, Gustavo coordinates validation of dmesg, insmod,
+   /dev/npu_ternaria, CPU inference, NPU inference and benchmark CSV output
+   with Arthur and Gildo. Do not claim these results before they are observed.
 
 Constraints:
 - Never invent a successful synthesis, boot, IRQ, DMA or power result.

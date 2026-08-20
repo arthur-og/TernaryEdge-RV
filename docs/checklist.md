@@ -1,13 +1,18 @@
 # 📌 CHECKLIST OFICIAL DO PROJETO: TERNARY EDGE-RV
-**Última atualização:** 17/08/2026: Placa Urbana conectada via micro-USB (FTDI FT2232H detectado, JTAG IDCODE 0x362f093, `/dev/ttyUSB0` e `/dev/ttyUSB1` criados), simulação RTL 100% PASS (4/4 testes), flags openXC7 `-nolutram -nowidelut` aplicadas
+**Última atualização operacional:** 20/08/2026. O registro histórico de 17/08/2026 informa placa Urbana conectada via micro-USB (FTDI FT2232H detectado, JTAG IDCODE 0x362f093, `/dev/ttyUSB0` e `/dev/ttyUSB1` criados), simulação RTL 4/4 e flags openXC7 `-nolutram -nowidelut`. O registro 4/4 não representa uma execução disponível no shell atual.
 **Prazo final de submissão (SBCCI/LASCAS):** 31/08/2026
 
 ---
 
 ## Regras de Ouro
 - **⚠️ [BLOQUEIO]:** Se você precisa de algo de outro membro para continuar.
-- **🛠️ [MOCK]:** Se alguém te bloqueou, invente um dado falso, avise no grupo e **continue programando**. Não espere!
+- **🛠️ [BLOQUEIO]:** Se uma ferramenta ou validação estiver indisponível, registre o bloqueio e continue apenas com tarefas que não dependam dela. Nunca fabrique resultados.
 - **📄 Paper 1:** Todos os 4 autores mantidos (Arthur Oliveira Gomes, Gildo Alves de Lima Junior, Gustavo Alexandre dos Santos, Gilvan Alves Pastor Junior). O template está em `paper/paper1_template.tex`.
+
+As listas das Fases 1 a 3 abaixo são registros históricos do desenvolvimento.
+A evidência corrente é: C++ v1 8/8, C++ v2 21/21, Python 5/5 e ABI IOCTL
+aprovada. O testbench Verilog está indisponível no shell atual. Não há
+inferência FPGA end-to-end nem benchmark CPU versus NPU comprovado.
 
 ---
 
@@ -33,7 +38,7 @@
 - [X] Driver "Hello World" testado no QEMU (insmod/lsmod/rmmod)
 - [X] Platform Driver com DT match, DMA Coherent, IRQ, mmap, wait_queue
 
-### Gilvan (IA Historica)
+### Gilvan (IA Histórica, registro histórico)
 - [X] Ambiente Python + Larq configurado
 - [X] TNN treinada (>95% accuracy, pesos ternários)
 - [X] Sparsity L1 implementada
@@ -48,7 +53,7 @@
 - [X] `ternary_mac.v`: MAC multiplierless (apenas somadores/subtratores)
 - [X] `npu_ternaria_top.v`: Wishbone Slave + FSM + IRQ
 - [X] Pino `irq_out` implementado
-- [X] **NPU v2: 64 MACs + Wishbone Master + Layer Sequencer**
+- [X] **NPU v2: alvo de 64 MACs + Wishbone Master + Layer Sequencer**; síntese e desempenho pendentes
 
 ### Gildo (OS + HAL)
 - [X] Toolchain 32 bits configurada
@@ -61,9 +66,9 @@
 - [X] `ioremap()` via `devm_ioremap_resource()`
 - [X] `devm_request_irq()` + `wait_event_interruptible()`
 
-### Gilvan (IA Historica)
+### Gilvan (IA Histórica, registro histórico)
 - [X] `pack_weights.py`: empacota 16 pesos/word Little-Endian
-- [X] `generate_weights_h.py` -> `weights.h` (3 layers, 91.136 words)
+- [X] `generate_weights_h.py` -> registro histórico de `weights.h` (3 layers, 91.136 words)
 - [X] Encoding: +1=0b01, 0=0b00, -1=0b11
 
 ---
@@ -72,13 +77,13 @@
 **Objetivo:** Os mundos conversarem via DMA.
 
 ## Arthur (Hardware RTL, LiteX SoC, Verilog Regression, Synthesis & Bitstream)
-- [X] Implementar **64 MACs** em paralelo + adder tree (`ternary_mac_array.v`, `adder_tree_64.v`)
+- [X] Definir o alvo de **64 MACs** em paralelo + adder tree (`ternary_mac_array.v`, `adder_tree_64.v`); integração e síntese continuam pendentes
 - [X] Implementar **Wishbone Master (DMA)**: ler RAM em burst (`wishbone_master.v`)
 - [X] BRAM interna de **12K words** (384 Kb) para pesos (`npu_v2_pkg.v: WEIGHT_BRAM_DEPTH=12288`)
 - [X] **Layer Sequencer**: FSM de 10 estados que itera 3 layers automaticamente
-- [X] Testbench Verilator/Verilog (`tb_npu_v2.v`): simulação RTL 100% PASS (4/4 testes de regressão passados em 17/08/2026)
+- [ ] Executar o testbench Verilator/Verilog (`tb_npu_v2.v`): indisponível no shell atual; o registro histórico de 4/4 permanece datado e não é evidência corrente
 - [X] Corrigir STATUS register: `zero_counter` em `[15:8]` (alinhar com C++)
-- [X] Atualizar `npu_ternaria_top_v2.v`: top-level integrado
+- [X] Atualizar `npu_ternaria_top_v2.v`: top-level documentado; a integração física ainda depende de validação
 - [X] Atualizar flags openXC7 para `-nolutram -nowidelut` na plataforma para eliminar RAM256X1S e MUXF7/MUXF8
 
 ## Gildo (OS Infrastructure, Buildroot, Device Tree, NPU HAL, Classifier, MicroSD, Physical Boot)
@@ -101,7 +106,7 @@
 ### NPU Weights (CONCLUÍDO ✅)
 - [X] `software/npu_hal/npu_weights.h`: API para carregar pesos no DMA
 - [X] `software/npu_hal/npu_weights.c`: Loader de pesos do QAT pipeline
-- [X] `software/npu_hal/weights.h`: Stub (pesos zerados) para compilação
+- [X] `software/npu_hal/weights.h`: símbolos FP32 presentes; valores de fallback `0.01`/`0.1`, não validados como parâmetros treinados
 
 ### Buildroot Packages (CONCLUÍDO ✅)
 - [X] `package/npu-ternaria/`: Kernel module package
@@ -114,14 +119,16 @@
 - [X] Manter flag `--cpu` para baseline CPU
 - [X] Adicionar `--file` para imagens reais, `--batch` para benchmark
 
-## Gustavo (Kernel Driver, weights.h Contract, Cross-Compilation, Physical Benchmarks)
+## Gustavo (AI Pipeline, weights.h, Golden Model, Driver, Cross-Compilation, Validation & Benchmarks)
 - [X] **Adaptar driver para mapa v2:** offsets atualizados no `npu_driver.c` v3.0
 - [X] Adicionar `iowrite32()` para `WEIGHT_CFG` e `ACT_CFG` no ioctl
 - [X] Pipeline `START_INFERENCE` completo: SRC + DST + SIZE + WEIGHT + ACT + MAC + LAYER -> CONTROL
 - [X] **IOCTL Header:** `software/include/npu_ioctl.h` com struct npu_ioctl_args
-- [X] Manutenção do contrato `weights.h` e exportação do pipeline de IA
+- [X] Manutenção corrente do pipeline de IA, contrato `weights.h` e exportação de pesos
+- [X] Manutenção e regressão dos Golden Models: C++ v1 8/8 e C++ v2 21/21 checks
+- [X] Diagnóstico Python do pipeline: 5/5 checks; diagnóstico da ABI IOCTL aprovado
 
-## Gilvan (IA Historica + Golden Model)
+## Gilvan (IA Histórica + Golden Model, registro histórico)
 - [X] **Corrigir `npu_sim_v2.cpp`:** STATUS `zero_counter` -> bits `[15:8]`
 - [X] **Expandir `npu_sim_v2.cpp`:** modelar 64 MACs + DMA simulation (21/21 testes)
 - [X] **Validar output layer:** Opção A (ternária na última camada) testada
@@ -130,18 +137,18 @@
 
 ---
 
-# 🔴 FASE 4: DEPLOY FÍSICO E PAPER 1 (Prazo: 31/08/2026)
+# 🔴 FASE 4: DEPLOY FÍSICO E PAPER 1 (Prazo histórico: 31/08/2026)
 **Objetivo:** Rodar no silício real, extrair métricas, submeter paper para SBCCI/LASCAS.
-**Status em 17/08/2026:** FPGA RealDigital Urbana conectada via micro-USB, FTDI FT2232H detectado (JTAG IDCODE 0x362f093, `/dev/ttyUSB0` e `/dev/ttyUSB1` ativos). Regressão RTL Verilog 100% PASS (4/4). Flags openXC7 atualizadas para `-nolutram -nowidelut`.
+**Registro histórico em 17/08/2026:** FPGA RealDigital Urbana conectada via micro-USB, FTDI FT2232H detectado (JTAG IDCODE 0x362f093, `/dev/ttyUSB0` e `/dev/ttyUSB1` ativos). O registro RTL Verilog 4/4 e as flags openXC7 `-nolutram -nowidelut` ficam preservados como histórico. No shell atual, o testbench Verilog está indisponível.
 
 ### Arthur (Hardware RTL, LiteX SoC, Verilog Regression, Synthesis & Bitstream)
 - [X] Detectar placa Urbana via micro-USB (FTDI FT2232H, JTAG IDCODE 0x362f093)
-- [X] Executar regressão Verilog `make verilog_v2` (100% PASS: 4/4 testes)
+- [ ] Executar regressão Verilog `make verilog_v2` quando o simulador estiver disponível; registro histórico 4/4 mantido, sem nova evidência corrente
 - [X] Atualizar flags openXC7 com `-nolutram -nowidelut`
 - [ ] Sintetizar SoC final e NPU v2 para a FPGA Urbana via `base_soc.py --build`
 - [ ] Gerar bitstream e carregar na FPGA Urbana
-- [ ] Extrair relatório de recursos (0 DSPs, LUTs, FFs, BRAM)
-- [ ] **Escrever seção do Paper 1:** Arquitetura Multiplierless, 64 MACs e DMA
+- [ ] Extrair relatório de recursos, incluindo a verificação do objetivo de 0 DSPs, LUTs, FFs e BRAM
+- [ ] **Escrever seção do Paper 1:** Arquitetura Multiplierless, alvo de 64 MACs e DMA, sem apresentar intenção como resultado
 
 ### Gildo (OS Infrastructure, Buildroot, Device Tree, NPU HAL, MicroSD & Physical Boot)
 - [ ] Gerar imagem final Buildroot (kernel 6.18.7 + OpenSBI 1.6 + RootFS com `npu-ternaria`, `npu-hal`, `user-app`)
@@ -149,13 +156,16 @@
 - [ ] Bootar Linux físico na Urbana via SD e validar `dmesg`
 - [ ] **Escrever seção do Paper 1:** OS Infrastructure e NPU HAL (`libnpu_hal.a`)
 
-### Gustavo (Kernel Driver, Cross-Compilation, Physical Benchmarks & Results)
+### Gustavo (AI Pipeline, Weights, Golden Model, Driver, Cross-Compilation, Physical Validation & Results)
+- [ ] Manter o pipeline de IA e validar a exportação de `weights.h`; os símbolos FP32 atuais usam valores de fallback `0.01`/`0.1`, não parâmetros treinados validados
+- [ ] Manter regressão dos Golden Models C++ v1 (8/8) e v2 (21/21), além do diagnóstico Python (5/5)
 - [ ] Cross-compilar driver (`npu_driver.ko`) para RV32IMA
 - [ ] `insmod` do driver na FPGA Urbana física e verificar `/dev/npu_ternaria`
+- [ ] Coordenar a validação física com Arthur e Gildo; não há inferência FPGA end-to-end comprovada
 - [ ] Executar benchmark físico (CPU vs NPU) com dataset MNIST
 - [ ] **Escrever seção do Paper 1:** Kernel Driver e Resultados & Discussão (tabela comparativa CPU x NPU)
 
-### Gilvan (Contribuição Histórica de IA)
+### Gilvan (Contribuição Histórica de IA, sem tarefas operacionais atuais)
 - [X] Pipeline QAT, empacotamento de pesos e Golden Model v2 integrados e documentados
 - [X] Autoria preservada no Paper 1
 
