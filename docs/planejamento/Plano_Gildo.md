@@ -2,13 +2,17 @@
 **Papel no Projeto:** OS Infrastructure + NPU Complement Software (HAL, Classifier, Buildroot Packages)
 **Última atualização:** 04/08/2026
 
+> **Snapshot histórico:** este plano registra o escopo de Gildo em 04/08/2026. Gildo continua responsável por OS, Buildroot, HAL, classifier, MicroSD e boot Linux. Gustavo é o responsável atual pelo pipeline de IA, exportação e contrato `weights.h`, Golden Model, compilação cruzada RV32, coordenação de validação física, benchmarks CPU versus NPU e resultados e discussão do Paper 1.
+
+> **Mapa de memória:** o snapshot registra o node NPU em `0x40000000`, enquanto a documentação atual do LiteX usa `0x80000000` como candidato. A divergência deve ser validada entre mapa LiteX, RTL, Device Tree, driver e HAL antes da integração.
+
 ---
 
 ## Filosofia Central
 
 **Quanto menos complexa a NPU (puramente ternária, sem FP32), mais complexo o software que a completa.**
 
-A NPU v2 executa apenas 3 camadas de MACs ternários {+1,0,-1} em hardware. Toda a lógica de **classificação final** (256→10 com pesos FP32, softmax, argmax), **gerenciamento de pesos** e **abstração da HAL** é responsabilidade do software — e este é o seu domínio.
+A NPU v2 tem como alvo executar 3 camadas de MACs ternários {+1,0,-1} em hardware, ainda sem validação FPGA end-to-end. Toda a lógica de **classificação final** (256→10 com pesos FP32, softmax, argmax), **gerenciamento de pesos** e **abstração da HAL** é responsabilidade do software, e este é o seu domínio.
 
 Você constrói a ponte entre o hardware especializado e o usuário final.
 
@@ -23,7 +27,7 @@ Você constrói a ponte entre o hardware especializado e o usuário final.
 | M3 — Device Tree (.dts) com node da NPU v2 finalizada | 28/06 | ✅ |
 | M4 — HAL + Classifier implementados e integrados | Ago/2026 | ✅ |
 | M5 — Buildroot packages (npu-ternaria, npu-hal, user-app) configurados | Ago/2026 | ✅ |
-| M6 — user_app refatorado para usar HAL + teste CPU vs NPU | Ago/2026 | ✅ (libnpu_hal.a validada nativa) |
+| M6 — user_app refatorado para usar HAL + preparação do teste CPU vs NPU | Ago/2026 | ✅ (libnpu_hal.a validada nativa; não é validação física) |
 | M7 — Suporte a FAT32/ext4 + deploy físico no SD card | Em andamento | ⏳ |
 | M8 — Seção "OS Infrastructure + NPU HAL" do Paper 1 escrita | Antes do prazo final | ⏳ |
 
@@ -44,7 +48,7 @@ Você constrói a ponte entre o hardware especializado e o usuário final.
 
 ## Fase 3 (Concluída): Device Tree, HAL + Classifier, Buildroot Packages
 
-### 3.1 — Device Tree (.dts) para NPU v2 ✅
+### 3.1 — Device Tree (.dts) para NPU v2, registro histórico ✅
 
 Entregue em `setup_qemu/ternaryedge.dts` e `hardware/litex_soc/urrbana.dts`:
 - Node NPU em `0x40000000` com IRQ=10
@@ -104,7 +108,8 @@ Entregue em `software/user_app/user_app.c` (133 linhas):
 
 ### 3.7 — Pesos (weights.h) ✅
 
-- `weights.h` real já disponível com 91.169 linhas (gerado pelo pipeline do Gilvan)
+- Registro histórico de `weights.h` com 91.169 linhas, gerado pelo pipeline histórico de Gilvan
+- O header atual contém os símbolos FP32, mas os valores de fallback `0.01`/`0.1` não são parâmetros treinados validados; Gustavo mantém a exportação e o contrato
 - `weights.h` configunrado no `.gitignore` em produces do pipeline
 
 ## Fase 4 (Em Andamento): Deploy Físico e Paper
@@ -114,8 +119,8 @@ Entregue em `software/user_app/user_app.c` (133 linhas):
 - 【 】 Gravar `boot.scr`, `Image`, `rv32.dtb` (gerado pelo LiteX/light) na partição de boot
 - 【 】 Gravar RootFS Buildroot na partição ext4
 - 【 】 Bootar na FPGA Urrbana e validar `dmesg` (sem kernel panic, LiteX peripherals OK, SD detectado)
-- 【 】 Validar toolchain cross-compile: driver `.ko`, libnpu_hal.a, user_app binary
-- 【 ] **Revisão recomendada** antes da integração FPGA: `npu_hal.c:76` lê `ctx->dma_buffer[i]` como uint8_t — se RTL escreve 32 bits/neurônio, deveria ser `((int32_t*)ctx->dma_buffer)[i]`. Confirmar com Arthur.
+- 【 】 Apoiar Gustavo na validação da toolchain cross-compile: driver `.ko`, libnpu_hal.a, user_app binary
+- 【 ] **Revisão recomendada** antes da integração FPGA: `npu_hal.c:76` lê `ctx->dma_buffer[i]` como uint8_t — se RTL escreve 32 bits/neurônio, deveria ser `((int32_t*)ctx->dma_buffer)[i]`. Confirmar com Arthur e Gustavo durante a validação do contrato.
 - 【 】 Escrever seção **"OS Infrastructure + NPU HAL"** do Paper 1:
   - Configuração de boot (Buildroot, kernel, OpenSBI)
   - Device Tree e mapeamento físico
