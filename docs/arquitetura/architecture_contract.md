@@ -1,6 +1,6 @@
 # Architecture Contract: Ternary Edge-RV
-**Última atualização:** 17/08/2026
-**Versão:** 2.4 (Status 17/08/2026: Urbana detectada via micro-USB FTDI, simulação Verilog 100% PASS, flags openXC7 `-nolutram -nowidelut` aplicadas, prazo final 31/08/2026)
+**Última atualização:** 20/08/2026
+**Versão:** 2.5 (Current operational transition; 17/08/2026 hardware and Verilog records remain historical snapshots)
 
 This document formalizes the architectural decisions and "Design by Contract" parameters that all team members must follow to ensure the successful integration of the Hardware (RTL), OS (Linux), Kernel Driver (LKM), HAL (NPU Abstraction), and User Space (AI) components.
 
@@ -13,17 +13,19 @@ This document formalizes the architectural decisions and "Design by Contract" pa
 ### Team Roles & Operational Responsibilities (post-Gilvan transition)
 *   **Arthur Oliveira Gomes (Hardware Architecture & RTL):** Hardware RTL, LiteX SoC VexRiscv generation, Verilog regression testbench, openXC7 synthesis (with flags `-nolutram -nowidelut`), Vivado synthesis, bitstream generation and FPGA resource report.
 *   **Gildo Alves de Lima Junior (OS Infrastructure & HAL):** Buildroot OS configuration (`BR2_RISCV_32=y`), Device Tree (`urrbana.dts`), NPU HAL (`libnpu_hal.a`), Output Classifier (FP32 CPU), MicroSD card image preparation and physical Linux boot on Urbana.
-*   **Gustavo Alexandre dos Santos (Kernel Driver & Benchmarking):** Kernel driver (`npu_driver.ko`), `weights.h` contract and IA export maintenance, cross-compilation (`-march=rv32ima -mabi=ilp32`), physical benchmarks (CPU vs NPU latency), results and discussion section for Paper 1.
-*   **Gilvan Alves Pastor Junior (Historical AI & Golden Model):** Historical QAT pipeline (Larq/STE), weight packing format, and C++ Golden Model v2 retained and credited as 4th author on Paper 1.
+*   **Gustavo Alexandre dos Santos (AI Pipeline, Weights, Golden Model, Kernel Driver & Validation):** Current AI pipeline maintenance, weight export and `weights.h` contract, C++ Golden Model regression and maintenance, kernel driver (`npu_driver.ko`), RV32 cross-compilation (`-march=rv32ima -mabi=ilp32`), physical validation coordination, CPU-versus-NPU benchmarks, and results and discussion for Paper 1.
+*   **Gilvan Alves Pastor Junior (Historical AI & Golden Model):** Historical QAT pipeline (Larq/STE), ternary packing, and C++ Golden Model v2 retained and credited as the 4th author on Paper 1. Gilvan has no current operational ownership.
 
 ---
 
-## 2. NPU Memory Map (Official: Version 2.0)
+## 2. NPU Memory Map (Current Candidate, Validation Required)
 
-**Base Address:** `0x80000000` (LiteX CPU IO window)
+**Base Address:** `0x80000000` (current LiteX NPU MMIO candidate, pending cross-layer validation)
 **IRQ Number:** `10` (Connected to VexRiscv PLIC)
 **Endianness:** Little-Endian (native RISC-V)
 **Bus Interface:** Wishbone B4 (32-bit data, 32-bit address): Slave for CPU access + Master for DMA
+
+> **Address conflict:** Older map snapshots list `0x40000000` as the NPU base. Current LiteX documentation uses `0x80000000`. Validate the generated LiteX map, RTL, Device Tree, driver, and HAL before treating either address as final. Do not silently use both values.
 
 ### Register Layout
 
@@ -44,19 +46,19 @@ This document formalizes the architectural decisions and "Design by Contract" pa
 1. Driver writes `DMA_SRC_ADDR`, `DMA_DST_ADDR`, `DMA_SIZE`, `WEIGHT_CFG`, `ACT_CFG`
 2. Driver writes `NPU_CONTROL.start = 1`
 3. NPU activates **Wishbone Master**: reads weight data from RAM via burst reads
-4. NPU distributes weights across **64 parallel ternary_mac units**
-5. Each MAC processes 1 weight from the unpacked 32-bit word (16 weights × 4 words = 64 MACs/cycle)
+4. NPU is intended to distribute weights across **64 parallel ternary_mac units**
+5. The design target gives each MAC 1 weight from the unpacked 32-bit word (16 weights × 4 words = 64 intended MACs/cycle), subject to RTL and synthesis validation
 6. Upon finishing all MACs, NPU writes result to `DMA_DST_ADDR` and sets `irq_out = 1`
 7. CPU wakes, reads result, and clears IRQ
 
 ---
 
-## 3. Parallelism: 64 MAC Array
+## 3. Parallelism: 64 MAC Design Target
 
-**Decision:** The NPU instantiates **64 ternary_mac units** operating in parallel.
-**Justification:** A single MAC sequentially processing 802,816 operations (first layer) would take ~2.4M cycles = 48ms at 50 MHz. With 64 MACs, this drops to ~37.5K cycles = 0.75ms (64x speedup).
+**Design intent:** The NPU targets **64 ternary_mac units** operating in parallel. The array and its integration remain subject to RTL execution and synthesis validation.
+**Justification:** A single MAC sequentially processing 802,816 operations would require more cycles than the intended parallel design. The 64-MAC cycle reduction and any resulting latency or speedup are design estimates, not measured results.
 
-*   **Arthur:** Each `ternary_mac.v` receives one 2-bit weight. The 64 partial sums are combined via an adder tree.
+*   **Arthur:** The design target gives each `ternary_mac.v` one 2-bit weight and combines 64 partial sums through an adder tree. Physical resource use is pending synthesis.
 *   **Memory:** 4 weight words are fetched per cycle (4 x 32-bit = 128 bits -> 64 x 2-bit weights).
 *   **Weight storage:** `WEIGHT_MEM_SIZE = 16384` words (512 Kb): fits largest layer (50,176 words). Larger layers handled by tiling.
 
@@ -66,9 +68,9 @@ This document formalizes the architectural decisions and "Design by Contract" pa
 **Decision:** The NPU will notify the CPU of completion via **Hardware Interrupts (IRQ)**.
 **Justification:** Polling wastes CPU cycles and significantly increases power consumption, defeating the purpose of an energy-efficient edge accelerator.
 
-*   **Arthur:** The RTL NPU exposes an `irq_out` pin that goes high when inference finishes.
+*   **Arthur:** The RTL design exposes an `irq_out` pin intended to go high when inference finishes; this behavior remains subject to RTL and physical validation.
 *   **Gildo:** The Device Tree (`.dts`) must map IRQ line `10` to the NPU node. The HAL must wait for the driver's IRQ-based ioctl.
-*   **Gustavo:** The kernel driver uses `devm_request_irq()` + `wait_event_interruptible()`, keeping CPU usage near zero during inference.
+*   **Gustavo:** The kernel driver is intended to use `devm_request_irq()` + `wait_event_interruptible()`, with CPU usage and interrupt behavior pending physical validation.
 
 ---
 
@@ -88,8 +90,9 @@ This document formalizes the architectural decisions and "Design by Contract" pa
 **Decision:** Little-Endian ordering, matching standard VexRiscv behavior.
 **Justification:** 2-bit ternary weights ($\in \{-1, 0, 1\}$) are packed into 32-bit integers.
 
-*   **Gilvan & Arthur:** `weights[0]` (first weight) occupies LSBs of the 32-bit word. Encoding: `+1 = 0b01`, `0 = 0b00`, `-1 = 0b11`.
+*   **Historical contribution by Gilvan, retained in the hardware record:** `weights[0]` occupies the LSBs of the 32-bit word. Encoding: `+1 = 0b01`, `0 = 0b00`, `-1 = 0b11`.
 *   **Gildo (HAL):** The HAL reads weights from `weights.h` (pipeline output) and copies them verbatim to the DMA buffer: no byte-swapping needed.
+*   **Gustavo:** Maintains the current export and `weights.h` contract against the HAL and driver.
 
 ---
 
@@ -128,13 +131,13 @@ Hardware
   │  VexRiscv RV32IMA               │
   │    │                            │
   │    ├── NPU v2 (Arthur)          │
-  │    │   64 MACs multiplierless   │
+  │    │   64 MAC design target     │
   │    │   Wishbone Master DMA      │
   │    │   Layer Sequencer (3 lyrs) │
   │    │   IRQ → PLIC               │
   │    │                            │
-  │    ├── DDR3 (128 MB)            │
-   │    │   @ 0x40000000             │
+  │    ├── DDR3 (128 MB)           │
+  │    │   @ address pending map validation │
   │    │                            │
   │    └── Peripherals (UART, SD,   │
   │        SPI flash, LEDs, etc.)   │
@@ -152,7 +155,7 @@ Activations in RAM: [act0][act1]...[actM]     ← INT8 values
 Each compute cycle:
   1. DMA reads 4 consecutive weight words (64 × 2-bit weights)
   2. DMA reads 64 consecutive activation bytes
-  3. 64 MACs compute in parallel: pseudo_prod[i] = act[i] × weight[i]
+  3. The intended 64-MAC design computes in parallel: pseudo_prod[i] = act[i] × weight[i]
   4. Adder tree sums all 64 pseudo_prods into accumulator
   5. Controller iterates until DMA_SIZE MACs are complete
 ```
@@ -181,7 +184,7 @@ Each compute cycle:
 
 * **Gildo (HAL):** Owns the HAL design, implementation, and test.
 * **Gustavo (Driver):** The HAL depends on the driver's ioctl interface: must remain stable.
-* **Gilvan (AI):** The `weights.h` format must match what the HAL expects (per-layer arrays + output weights).
+* **Gustavo (AI and weights):** Maintains the `weights.h` format expected by the HAL, including per-layer arrays and output weights.
 
 ---
 
@@ -189,7 +192,7 @@ Each compute cycle:
 
 **Decision:** The output layer (256→10) runs on the CPU, not the NPU.
 
-**Justification:** The NPU v2 has no FP32 multiplier. Attempting a ternary output layer (Opção A) caused accuracy to drop below 90%. The adopted solution (Opção B) uses the NPU for 3 ternary layers and the CPU for the final FP32 classification.
+**Justification:** The NPU v2 has no FP32 multiplier. A historical host-side comparison of a ternary output layer (Opção A) reported accuracy below 90%. The adopted design (Opção B) targets 3 ternary layers in the NPU and CPU execution for the final FP32 classification.
 
 ```
 NPU output: 256 × int32 (accumulated ternary products)
@@ -203,18 +206,18 @@ Classifier (CPU):
 ```
 
 * **Gildo (HAL):** Implements `classifier_run()` inside the HAL.
-* **Gilvan (AI):** Provides `output_weights[2560]` and `output_biases[10]` via the QAT pipeline.
+* **Gustavo:** Maintains the output-weight export and regression contract. Gilvan's historical QAT and packing contribution remains credited. Current FP32 symbols use fallback values and are not validated trained parameters.
 
 ---
 
 ## 11. Current Status & Known Gaps (17/08/2026)
 
-**Status (17/08/2026):** Verilog RTL simulation (`make verilog_v2`) 100% PASS (4/4 regression tests pass). RealDigital Urbana board connected via micro-USB, FTDI FT2232H chip detected, JTAG IDCODE 0x362f093 (Spartan-7 XC7S50), `/dev/ttyUSB0` and `/dev/ttyUSB1` created. OpenXC7 synthesis flags in platform configuration updated to `-nolutram -nowidelut` to eliminate RAM256X1S and MUXF7/MUXF8 chains. Target deadline for SBCCI/LASCAS submission is 31/08/2026.
+**Historical snapshot (17/08/2026):** Earlier notes recorded the Urbana connection, FTDI detection, JTAG IDCODE 0x362f093, and a 4/4 Verilog result. The current shell cannot run the Verilog testbench, so that result is not current evidence. Current host evidence is C++ v1 8/8, C++ v2 21/21, Python 5/5, and IOCTL ABI pass. No FPGA end-to-end inference or CPU-versus-NPU benchmark is proven.
 
 | Task / Gap | Impact | Active Owner | Priority | Status / Resolution Path |
 |:-----------|:-------|:-------------|:---------|:-------------------------|
 | **FPGA Synthesis & Bitstream** | Physical bitstream loading | Arthur | **Critical** | Urbana board detected via micro-USB (FTDI FT2232H). OpenXC7 synthesis flags updated to `-nolutram -nowidelut`. `python3 base_soc.py --build --toolchain openxc7` |
 | **Linux Boot on FPGA** | Physical OS execution | Gildo | **High** | Buildroot image -> SD card (FAT32+ext4) -> boot via OpenSBI -> U-Boot -> kernel on Urbana |
 | **Driver `insmod` on Physical Hardware** | `/dev/npu_ternaria` device node | Gustavo | **High** | Cross-compile `.ko` for RV32IMA, `insmod`, validate IRQ/DMA via `dmesg` |
-| **Real Benchmark (CPU vs NPU latency)** | Paper 1 Section IV metrics | Gustavo | **High** | `user_app --cpu` vs default; save CSV from FPGA benchmark run |
+| **Real Benchmark (CPU vs NPU latency)** | Paper 1 Section IV metrics | Gustavo | **High** | Gustavo coordinates physical validation with Arthur and Gildo; `user_app --cpu` versus default remains pending |
 | **Paper 1 Sections & Submission** | SBCCI/LASCAS paper draft | Team (4 Authors) | **High** | Target completion date: 31/08/2026; template at `paper/paper1_template.tex` |
