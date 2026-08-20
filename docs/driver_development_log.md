@@ -1,5 +1,12 @@
 # Driver Development Log - TernaryEdge-RV
 
+> **Historical implementation log:** the QEMU Device Tree fixture below uses
+> `0x40000000` as a simulation address. It is not the final LiteX/FPGA map.
+> Current LiteX documentation uses `0x80000000` as the candidate NPU MMIO
+> base; the generated map, RTL, Device Tree, driver, and HAL must be aligned
+> before physical deployment. The operational owner of the current driver and
+> RV32 validation workflow is Gustavo.
+
 ## Phase 1: Environment and Setup Validation (Completed)
 - **Goal**: Establish a functional cross-compilation pipeline and validate kernel module loading in a RISC-V QEMU environment.
 - **Actions Taken**:
@@ -42,7 +49,7 @@ To finalize the driver integration with the LiteX SoC, we need:
 - **Goal**: Enable the AI team and Kernel developers to test the new Platform Driver (`npu_driver.c`) within the QEMU environment without requiring the physical FPGA.
 - **Actions Taken**:
   - Dumped the baseline RISC-V Virt machine device tree from QEMU (`qemu_base.dtb`).
-  - Decompiled and injected a mocked NPU device node:
+  - Decompiled and injected a mocked NPU device node for QEMU-only testing:
     ```dts
     npu@40000000 {
         compatible = "ternary,npu-dma";
