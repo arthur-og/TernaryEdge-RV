@@ -13,7 +13,7 @@ TernaryEdge-RV/
 ├── software/
 │   ├── os_buildroot/
 │   ├── npu_driver/
-│   ├── npu_hal/            <-- (NOVO - Gildo: HAL, Classifier, Weights)
+│   ├── npu_hal/            <-- (Gildo: HAL and classifier; Gustavo: weights contract)
 │   └── user_app/
 ├── ai_training/
 │   ├── notebooks/
@@ -46,26 +46,28 @@ Contém todo o código-fonte de descrição de hardware e geração do System-on
 
     npu_rtl/: Códigos em Verilog/VHDL contendo o projeto lógico da NPU Ternária (Multiplierless). Inclui a implementação matemática dos somadores/multiplexadores, lógica de desempacotamento de dados (unpacking) de 32 bits e os testbenches para simulação (via Verilator/ModelSim).
 
-3. software/ (Escopo: Gildo, Gustavo e Gilvan - Stack de Software)
+3. software/ (Escopo atual: Gildo e Gustavo - Stack de Software)
 
 Diretório unificado contendo as camadas de software que executarão no processador RISC-V físico ou emulado.
 
     os_buildroot/ (Gildo): Arquivos de configuração da distribuição Linux embarcada gerada via Buildroot. Contém os patches do kernel, configurações do bootloader (OpenSBI e U-Boot) e a Device Tree Source (.dts) que mapeia os endereços físicos da NPU.
 
-    npu_driver/ (Gustavo): Código-fonte em linguagem C do Loadable Kernel Module (LKM). Contém as File Operations, as funções de conversão de memória física para virtual (ioremap), além da lógica de comunicação ponta a ponta (códigos usando copy_from_user, write, read) e rotinas de sincronização (Polling/IRQ) para o controle do hardware.
+    npu_driver/ (Gustavo): Código-fonte em linguagem C do Loadable Kernel Module (LKM). Contém as File Operations, as funções de conversão de memória física para virtual (ioremap), além da lógica de comunicação ponta a ponta (códigos usando copy_from_user, write, read) e rotinas de sincronização (Polling/IRQ) para o controle do hardware. Gustavo também coordena a compilação cruzada RV32 e a validação física.
 
-    npu_hal/ (Gildo): Biblioteca de abstração de hardware (HAL) que encapsula a complexidade do driver para a aplicação de usuário. Contém o Classifier (output layer 256→10 na CPU), o Weights Loader (carregamento de pesos do pipeline QAT para o buffer DMA), e a interface pública npu_init/npu_predict/npu_deinit. Esta camada existe porque a NPU é puramente ternária — toda a lógica de classificação final e gerenciamento de pesos é feita em software.
+    npu_hal/ (Gildo): Biblioteca de abstração de hardware (HAL) que encapsula a complexidade do driver para a aplicação de usuário. Contém o Classifier (output layer 256→10 na CPU), o Weights Loader (carregamento de pesos do pipeline QAT para o buffer DMA), e a interface pública npu_init/npu_predict/npu_deinit. Gildo mantém a HAL e o classifier; Gustavo mantém o contrato de exportação e os pesos. Esta camada existe porque a NPU é puramente ternária, e toda a lógica de classificação final e gerenciamento de pesos é feita em software.
 
-    user_app/ (Gildo): Aplicação executável (espaço de usuário) refatorada para usar a HAL. Responsável por realizar a leitura do dataset de imagens, acionar a HAL e mensurar o tempo de execução para compor os dados de benchmarking.
+    user_app/ (Gildo, com coordenação de benchmarks por Gustavo): Aplicação executável (espaço de usuário) refatorada para usar a HAL. Responsável por realizar a leitura do dataset de imagens e acionar a HAL; Gustavo coordena a validação de tempos e a comparação CPU versus NPU.
 
-4. ai_training/ (Escopo: Gilvan - Inteligência Artificial)
+4. ai_training/ (Escopo atual: Gustavo; contribuição histórica de Gilvan)
 
 Ambiente voltado ao desenvolvimento, treinamento e quantização da Rede Neural Ternária executado diretamente no PC (host).
 
     notebooks/: Ambientes interativos (Jupyter) para experimentação e validação de técnicas de Quantization-Aware Training (QAT) com frameworks como Larq ou Brevitas.
 
-    scripts/: Código Python automatizado (pipeline) focado em duas frentes: (1) treinar e validar o modelo atingindo as métricas requeridas de acurácia; (2) extrair os tensores, aplicar a codificação binária e empacotar 16 pesos de 2 bits em inteiros de 32 bits. O resultado final gerado aqui é o arquivo header weights.h utilizado na HAL.
+    scripts/: Código Python automatizado (pipeline) focado em duas frentes: (1) manter e validar o pipeline atual; (2) extrair os tensores, aplicar a codificação binária e empacotar 16 pesos de 2 bits em inteiros de 32 bits. Gustavo mantém o pipeline e o contrato de exportação `weights.h`. A contribuição histórica de Gilvan inclui QAT, empacotamento ternário e o C++ Golden Model v2.
 
 5. paper/ (Artigo Científico)
 
 Diretório exclusivo para a estruturação do trabalho acadêmico. Contém os arquivos LaTeX, bibliografias e os gráficos exportados do benchmarking comparando os resultados do tempo de inferência entre a NPU acelerada por hardware e a execução puramente por software.
+
+Os resultados e a discussão do Paper 1 são responsabilidade operacional atual de Gustavo. Gilvan permanece como o quarto autor, com crédito histórico preservado.
