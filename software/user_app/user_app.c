@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include "../npu_hal/npu_hal.h"
-#include "../npu_hal/npu_classifier.h"
-#include "../npu_hal/npu_weights.h"
+#include "npu_hal.h"
+#include "npu_classifier.h"
+#include "npu_weights.h"
 #include "weights.h"
 
 static int8_t quantize_activation(int32_t value, int relu)

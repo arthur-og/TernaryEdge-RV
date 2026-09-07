@@ -14,6 +14,9 @@ CPPFLAGS            += -I$(CURDIR)/../user_app
 ifneq (,$(findstring riscv,$(CC)))
 CFLAGS              += -march=rv32ima -mabi=ilp32
 endif
+# Headers de apoio fora de npu_hal/: npu_ioctl.h (../include) e weights.h (../user_app).
+# Também funcionam no sandbox do Buildroot, onde o .mk copia ambos para o build dir.
+CFLAGS              += -I$(abspath ../include) -I$(abspath ../user_app)
 LIBNAME             := libnpu_hal.a
 
 SRCS                := npu_hal.c npu_classifier.c npu_weights.c

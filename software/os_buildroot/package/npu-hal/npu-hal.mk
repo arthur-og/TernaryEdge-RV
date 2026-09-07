@@ -3,6 +3,8 @@ NPU_HAL_SITE = $(BR2_EXTERNAL_TERNARYEDGE_RV_PATH)/../npu_hal
 NPU_HAL_SITE_METHOD = local
 
 define NPU_HAL_BUILD_CMDS
+    cp $(BR2_EXTERNAL_TERNARYEDGE_RV_PATH)/../include/npu_ioctl.h $(@D)/npu_ioctl.h
+    cp $(BR2_EXTERNAL_TERNARYEDGE_RV_PATH)/../user_app/weights.h $(@D)/weights.h
     $(MAKE) -C $(@D) CC=$(TARGET_CC) AR=$(TARGET_AR)
 endef
 
@@ -12,6 +14,7 @@ define NPU_HAL_INSTALL_STAGING_CMDS
     $(INSTALL) -D -m 0644 $(@D)/npu_hal_internal.h $(STAGING_DIR)/usr/include/npu_hal_internal.h
     $(INSTALL) -D -m 0644 $(@D)/npu_classifier.h $(STAGING_DIR)/usr/include/npu_classifier.h
     $(INSTALL) -D -m 0644 $(@D)/npu_weights.h $(STAGING_DIR)/usr/include/npu_weights.h
+    $(INSTALL) -D -m 0644 $(@D)/npu_ioctl.h $(STAGING_DIR)/usr/include/npu_ioctl.h
 endef
 
 define NPU_HAL_INSTALL_TARGET_CMDS

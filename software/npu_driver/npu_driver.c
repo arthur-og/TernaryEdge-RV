@@ -11,7 +11,7 @@
 #include <linux/uaccess.h>
 #include <linux/wait.h>
 
-#include "../include/npu_ioctl.h"
+#include "npu_ioctl.h"
 
 #define DEVICE_NAME "npu_ternaria"
 #define CLASS_NAME "npu"
@@ -214,7 +214,7 @@ static int npu_probe(struct platform_device *pdev)
     major_number = register_chrdev(0, DEVICE_NAME, &npu_fops);
     if (major_number < 0)
         return major_number;
-    npu_class = class_create(THIS_MODULE, CLASS_NAME);
+    npu_class = class_create(CLASS_NAME);
     if (IS_ERR(npu_class)) {
         unregister_chrdev(major_number, DEVICE_NAME);
         return PTR_ERR(npu_class);

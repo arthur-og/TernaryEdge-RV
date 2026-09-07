@@ -1,5 +1,5 @@
 #include "npu_hal.h"
-#include "../include/npu_ioctl.h"
+#include "npu_ioctl.h"
 #include "npu_classifier.h"
 #include "npu_weights.h"
 #include "weights.h"
