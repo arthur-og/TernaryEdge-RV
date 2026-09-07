@@ -4,16 +4,17 @@
 **Base:** estado atual do repositório consultado em 20/08/2026
 **Uso:** handout de consulta durante a apresentação
 
-> **Mensagem central:** o objetivo da reunião é alinhar a arquitetura esperada com a implementação atual antes de declarar desempenho, aceleração ou inferência ponta a ponta.
+> **Mensagem central:** o objetivo é apresentar uma NPU ternária integrada a um RISC-V, usando MNIST como caso de teste, e alinhar a arquitetura esperada com a implementação atual antes de declarar desempenho, aceleração ou inferência ponta a ponta.
 
-Este texto separa o que está implementado no código, o que foi observado em simulação, o que aparece apenas como documentação e o que ainda é proposta. Comentários antigos que descrevem uma arquitetura futura não substituem o caminho efetivamente instanciado pelo RTL.
+Este texto separa o que está implementado no código, o que foi exercitado pelos testes canônicos, o que aparece apenas como procedimento de handoff e o que ainda depende de execução física. O caminho atual é o RTL v2 integrado ao SoC, não a arquitetura histórica de dez registradores.
 
 ## 1. Objetivo e escopo da conversa
 
-1. Confirmar com Ramon qual deve ser a unidade de trabalho da NPU: uma camada por invocação, várias camadas sequenciais ou uma arquitetura com pós-processamento no hardware.
-2. Conferir se o contrato de memória, os registradores, os pesos e os resultados são compatíveis entre RTL, driver, HAL e aplicação.
-3. Separar a demonstração matemática da operação ternária da integração real no SoC LiteX, no Linux e na FPGA.
-4. Definir os próximos gates de validação antes de medir latência, throughput, recursos ou ganho sobre a CPU.
+1. Apresentar a operação ternária: `w ∈ {-1, 0, +1}` transforma `wx` em `+x`, `0` ou `-x`, sem multiplicador convencional.
+2. Explicar a NPU com 64 PEs, adder tree e acumulador INT32, distinguindo o alvo arquitetural do RTL ativo.
+3. Conferir se o contrato de memória, os registradores, os pesos e os resultados são compatíveis entre RTL, driver, HAL e aplicação.
+4. Separar a demonstração matemática da operação ternária da integração real no SoC LiteX, no Linux e na FPGA.
+5. Definir os próximos gates para comparar acurácia, latência, área, DSPs, memória e desempenho CPU versus NPU, sem antecipar resultados não medidos.
 
 O escopo deste apêndice é descritivo. Ele não apresenta uma correção de RTL, não apresenta benchmark e não trata uma proposta de integração como fato atual.
 
@@ -31,16 +32,18 @@ Uma mesma peça pode ter mais de uma leitura. Por exemplo, o driver está implem
 
 ## 2.1 Ownership operacional após Gilvan
 
-A transição operacional preserva a autoria e separa continuidade histórica de responsabilidade ativa:
+Gilvan saiu da operação diária do projeto. A transição operacional preserva a autoria e separa continuidade histórica de responsabilidade ativa:
 
 | Pessoa | Responsabilidade atual |
 |---|---|
-| **Gustavo Alexandre dos Santos** | Sucessor operacional de Gilvan: manutenção ativa do pipeline de IA, exportação de pesos e contrato `weights.h`, regressão do Golden Model, driver, cross-compilação, coordenação da validação física, benchmarks e resultados do Paper 1. |
-| **Gildo Alves de Lima Junior** | Responsável por OS, HAL, classifier e boot Linux. |
+| **Gustavo Alexandre dos Santos** | Assumiu a continuidade da frente de Gilvan: manutenção ativa do pipeline de IA, exportação de pesos e contrato `weights.h`, regressão do Golden Model, driver, cross-compilação, coordenação da validação física, benchmarks e resultados do Paper 1. |
+| **Gildo Alves de Lima Junior** | Assumiu a frente operacional de OS, HAL, classifier, MicroSD e boot Linux. |
 | **Arthur Oliveira Gomes** | Responsável pelo hardware, RTL, SoC e fluxo de síntese/bitstream. |
 | **Gilvan Alves Pastor Junior** | Contribuinte histórico da IA e do empacotamento; permanece como quarto autor do Paper 1. |
 
 Essa divisão não transforma intenção em evidência: os contratos de BN/ReLU/fake quant, unidades e offsets de DMA, mapa MMIO e datapath ativo continuam sujeitos aos gates abaixo.
+
+**Critério de fechamento:** resultados não medidos devem permanecer explicitamente marcados como pendentes; a consolidação do Paper 1 depende dos gates técnicos e experimentais.
 
 ## 3. Arquitetura atual: LiteX, VexRiscv, Wishbone, DMA, IRQ e RAM
 
@@ -56,55 +59,43 @@ Essa divisão não transforma intenção em evidência: os contratos de BN/ReLU/
 | RAM compartilhada | Buffer coerente de DMA é mapeado para usuário e usado pelo driver. | **Implementado como código**, DDR real não verificada |
 | IRQ | `irq_out` da NPU é ligado à linha 10 do PLIC no gerador LiteX. | **Documentado no SoC**, sinal físico não verificado |
 
-No `base_soc.py`, o CPU é configurado como `vexriscv` com variante `linux` e barramento Wishbone. O wrapper cria uma interface slave para configuração e uma interface master para DMA. A documentação atual do LiteX usa `0x80000000` como candidato para a região da NPU; registros antigos usam `0x40000000`. O master entra no crossbar e `irq_out` é conectado à linha 10, mas o endereço final ainda precisa ser validado entre LiteX, RTL, Device Tree, driver e HAL.
+No `base_soc.py`, o CPU é configurado como `vexriscv` com variante `linux` e barramento Wishbone. O wrapper cria uma interface slave para configuração e uma interface master para DMA. O contrato atual fixa a NPU em `0x80000000`, a DDR em `0x40000000` e `irq_out` na IRQ 10. A ligação física ainda aguarda o handoff Vivado e a validação na placa.
 
-O driver aloca um buffer DMA coerente de 4 MiB, mapeia esse buffer para user space e programa `SRC_ADDR` e `DST_ADDR` com o mesmo endereço físico base. A memória DDR3 e o boot Linux são parte do alvo de integração, não uma execução comprovada neste documento.
+O driver aloca um buffer DMA coerente e o ioctl leva offsets em bytes para oito descritores completos. O CPU programa `INPUT_ADDR`, `OUTPUT_ADDR` e os campos de cada descritor; a memória DDR3 e o boot Linux são parte do alvo de integração, não uma execução física comprovada neste documento.
 
 ## 4. O que o top-level RTL atual realmente faz
 
-### 4.1 Estados da FSM
+### 4.1 Estados internos da FSM
 
-O pacote `npu_v2_pkg.v` define **11 estados nomeados**:
+O pacote `npu_v2_pkg.v` define **20 estados internos**, numerados de `0` a `19`, cobrindo comandos, espera de DMA, configuração de camada, compute, bias, scale, pós-processamento, saída, conclusão e erro. Essa enumeração é detalhe de implementação; não é ABI externo e não deve ser apresentada como mapa de registradores.
 
-| Código | Estado |
-|---:|---|
-| 0 | `ST_IDLE` |
-| 1 | `ST_CFG_WEIGHT` |
-| 2 | `ST_DMA_WEIGHT` |
-| 3 | `ST_CFG_ACT` |
-| 4 | `ST_DMA_ACT` |
-| 5 | `ST_COMPUTE_BATCH` |
-| 6 | `ST_NEXT_OUTPUT` |
-| 7 | `ST_WRITE_RESULT` |
-| 8 | `ST_LAYER_DONE` |
-| 9 | `ST_NEXT_LAYER` |
-| 10 | `ST_DONE` |
+O fluxo nominal é controlado por um start único: o CPU programa a entrada, a saída e até oito descritores; o controlador carrega os dados, computa, aplica pós-processamento, grava as ativações ou a saída final, avança ao próximo descritor e termina com IRQ.
 
-No top-level atual, a lógica de próxima transição não seleciona `ST_CFG_WEIGHT` nem `ST_DMA_WEIGHT`. A leitura de pesos é disparada dentro de `ST_COMPUTE_BATCH`, pelo subestado `COMPUTE_STEP_LOAD_WEIGHTS`. Portanto, a contagem de 11 estados é a definição do pacote; o caminho ativo usa os estados selecionados pela lógica de transição e os subestados de compute.
+### 4.2 Datapath, DMA e write-back
 
-O fluxo nominal pode ser resumido assim:
+- **PEs:** o top-level instancia 64 PEs ternários para ativações INT8 e pesos codificados em dois bits.
+- **Árvore:** a redução 64→1 tem seis estágios registrados e entrega a soma parcial ao acumulador.
+- **Acumulador:** um registrador escalar assinado INT32 reúne os lotes de cada neurônio.
+- **Pós-processamento:** o pipeline registrado soma bias, aplica signed-scale, arredonda, desloca, limita e satura a saída.
+- **Ativações:** dois buffers bancados armazenam valores INT8 e alternam entre camadas.
+- **DMA:** não é burst; cada transação é um único beat Wishbone Classic, com `CTI=000`, `BTE=00`, propagação de `ERR` downstream e timeout de 256 ciclos.
+- **Resultado:** a saída final é escrita por DMA; camadas ocultas retornam ao buffer de ativação oposto.
+
+### 4.3 Organização da NPU ternária
+
+A organização integrada é:
 
 ```text
-IDLE -> CFG_ACT -> DMA_ACT -> COMPUTE_BATCH
-COMPUTE_BATCH -> WRITE_RESULT
-WRITE_RESULT -> NEXT_OUTPUT -> COMPUTE_BATCH   (mais neurônios)
-WRITE_RESULT -> LAYER_DONE
-LAYER_DONE -> NEXT_LAYER -> CFG_ACT             (mais camadas)
-LAYER_DONE -> DONE -> IRQ
+64 ativações + 64 pesos
+          ↓
+       64 PEs
+          ↓
+      adder tree
+          ↓
+   acumulador INT32
 ```
 
-### 4.2 Leituras, compute e write-back
-
-- **Ativações:** `ST_CFG_ACT` dispara uma leitura DMA em `cfg_src_addr + cur_layer * 1024`, com tamanho `layer_in[cur_layer]`. `ST_DMA_ACT` distribui cada palavra recebida em quatro bytes de `act_mem`.
-- **Pesos:** no subestado `COMPUTE_STEP_LOAD_WEIGHTS`, o RTL lê 16 bytes, ou quatro words, por lote. O endereço usa `wt_ram_base`, o neurônio atual e `cur_in_batch`.
-- **Compute no código atual:** o bloco `COMPUTE_STEP_ACCUMULATE` percorre `m = 0..63`, decodifica o peso, acumula em `batch_acc` e atualiza `acc_reg[0]` uma vez por lote.
-- **Resultado:** `ST_WRITE_RESULT` faz uma escrita DMA de 32 bits em `cfg_dst_addr + cur_output * 4`, com `dma_wdata <= acc_reg[0]`; esse write-back ainda depende da regressão Verilog não executada.
-- **Próximo neurônio:** `ST_NEXT_OUTPUT` zera `acc_reg[0]`, incrementa `cur_output` e reinicia o lote de entrada.
-- **Próxima camada:** `ST_LAYER_DONE` compara `cur_layer + 1` com `cfg_layer_cfg`; `ST_NEXT_LAYER` incrementa `cur_layer`.
-
- A versão atual do RTL já contém correções mecânicas para os três pontos anteriormente descritos como blockers de fonte: `wt_buf_idx` foi ampliado para alcançar `3'd4`; os consumidores de dados usam diretamente `wb_m_dat_i` no pulso válido de DMA; e a acumulação do lote usa uma variável temporária `batch_acc` antes de atualizar `acc_reg[0]`. Essas mudanças são evidência de inspeção do código-fonte. O runtime/testbench Verilog ainda não foi executado: as ferramentas estão indisponíveis no shell atual, portanto não se deve chamar o caminho de RTL de validado em execução.
-
-Mesmo com essas correções mecânicas no código-fonte, o caminho não deve ser descrito como uma matriz integrada de 64 MACs. `ternary_mac_array.v` e `adder_tree_64.v` existem como módulos separados e são incluídos na lista de fontes do LiteX, mas não há instanciação desses módulos no corpo de `npu_ternaria_top_v2.v`. O top-level usa um loop procedural sobre 64 posições e uma variável temporária `batch_acc`; isso ainda não comprova uma redução de 64 termos em hardware paralelo. Não há base no RTL atual para afirmar 64 MACs integrados por ciclo, lote de um ciclo ou throughput específico.
+Para cada peso `w ∈ {-1, 0, +1}`, o PE produz `-x`, `0` ou `+x`. A árvore registrada reduz os 64 resultados parciais, enquanto o acumulador escalar INT32 soma os lotes necessários para formar a saída do neurônio. Esta organização está integrada ao RTL e coberta pelos testes host-side; a implementação Vivado atual também passou o report gate em 100 MHz.
 
 ## 5. Representação dos dados e dimensões do workload
 
@@ -128,40 +119,45 @@ Cada `uint32_t` carrega 16 pesos. O peso de índice zero ocupa os bits menos sig
 
 Esses números descrevem dimensões e quantidade de dados a mover. São **contagens de workload**, não uma promessa de ciclos, frequência efetiva, throughput ou latência.
 
-O buffer de ativação do RTL tem 1024 posições de 8 bits. Durante a acumulação, cada ativação é estendida com sinal. O código do user app lê 784 bytes e a HAL copia a imagem para o offset `0x5C000`; isso não coincide automaticamente com a origem que o driver programa para o RTL. O contrato final de ativação precisa ser decidido e testado.
+O datapath atual pode ser resumido como `ativações INT8 → pesos ternários empacotados → 64 PEs → árvore registrada → acumulador escalar INT32 → bias + signed-scale + round/shift + saturate → próxima ativação`. O pós-processamento e os buffers ping-pong estão implementados no RTL; o modelo treinado/exportado e a execução física são gates separados.
+
+Os buffers de ativação do RTL têm 1024 posições INT8 assinadas por banco, indexadas por `NUM_PES`, e alternam entre camadas. Durante a acumulação, cada ativação é estendida com sinal. O contrato de exportação e os offsets do software ainda precisam ser validados end-to-end.
 
 ## 6. Controle e IRQ: realidade atual
 
 ### 6.1 Registradores expostos
 
-O mapa atual cobre `0x00` até `0x2c`:
+O ABI atual cobre **17 registradores**, de `0x00` até `0x40`:
 
 | Offset | Nome | Função no código atual |
 |---:|---|---|
-| `0x00` | `STATUS` | Busy, IRQ e contador de zeros; bits 7:2 permanecem zero no caminho atual |
-| `0x04` | `CONTROL` | Start no bit 0, clear no bit 1 |
-| `0x08` | `SRC_ADDR` | Base de leitura DMA |
-| `0x0c` | `DST_ADDR` | Base de escrita DMA |
-| `0x10` | `DMA_SIZE` | Configuração armazenada |
-| `0x14` | `WEIGHT_CFG` | Configuração armazenada |
-| `0x18` | `ACT_CFG` | Configuração armazenada |
-| `0x1c` | `RESULT` | Último `acc_reg[0]` capturado em `ST_DONE` |
-| `0x20` | `MAC_CFG` | Configuração armazenada |
-| `0x24` | `LAYER_CFG` | Número de camadas usado pela progressão |
-| `0x28` | `RESULT_WINDOW` | Leitura de `acc_reg` indexado |
-| `0x2c` | `LAYER_CTRL` | Bit 0 de `irq_per_layer` e bits 5:0 de `result_window_idx` |
+| `0x00` | `STATUS` | Busy, IRQ, done, error e camada em bits `[15:8]` |
+| `0x04` | `CONTROL` | START no bit 0, CLEAR_IRQ no bit 1 |
+| `0x08` | `INPUT_ADDR` | Endereço externo da primeira entrada |
+| `0x0c` | `OUTPUT_ADDR` | Endereço externo do resultado INT32 final |
+| `0x10` | `WEIGHT_ADDR` | Endereço de pesos do descritor selecionado |
+| `0x14` | `BIAS_ADDR` | Endereço de bias INT32 do descritor |
+| `0x18` | `SCALE_ADDR` | Endereço de multiplicador INT32 do descritor |
+| `0x1c` | `LAYER_COUNT` | Quantidade de descritores, de 1 a 8 |
+| `0x20` | `LAYER_INDEX` | Descritor selecionado pelos campos seguintes |
+| `0x24` | `LAYER_INPUTS` | Quantidade de entradas do descritor |
+| `0x28` | `LAYER_OUTPUTS` | Quantidade de saídas do descritor |
+| `0x2c` | `LAYER_QUANT` | Shift nos bits 5:0 e ReLU no bit 8 |
+| `0x30` | `RESULT` | Primeira saída final para inspeção |
+| `0x34` | `RESULT_WINDOW` | Janela de acumulador do descritor selecionado |
+| `0x38` | `ERROR_INFO` | Código de erro sticky |
+| `0x3c` | `CAPABILITIES` | Capacidades: 8 camadas, 1024 ativações, 64 PEs |
+| `0x40` | `MAC_CFG` | Configuração de 64 PEs |
 
-Embora vários registradores sejam escritos pelo driver, as dimensões efetivas vêm dos arrays fixos `layer_in`, `layer_out` e `layer_wcnt`. O caminho atual não usa `LAYER_CTRL` para escolher uma camada. O IOCTL documenta `dma_size` como bytes, enquanto a HAL passa a soma das quantidades de words empacotados; essa unidade precisa ser fechada.
+Não há mapa alternativo de dez registradores. `STATUS` expõe busy/IRQ/done/error e a camada corrente em `[15:8]`; não há `zero_counter` no contrato atual. `LAYER_COUNT` seleciona de 1 a 8 descritores, e `LAYER_INDEX` escolhe qual descritor os campos de peso, bias, scale, dimensões e quantização configuram.
 
-### 6.2 `cur_layer` e progresso
+### 6.2 Descritores e progresso
 
-Em toda escrita de start reconhecida no estado `ST_IDLE`, o RTL executa `cur_layer <= 32'd0`. Em um único start, `LAYER_CFG` pode permitir a progressão 0, 1, 2 dentro da FSM. Em starts separados, não existe hoje um campo implementado que selecione diretamente a camada 1 ou 2.
-
-`layer_override` é uma **proposta**, não um recurso atual. Para existir, seria necessário definir os bits no contrato de `LAYER_CTRL`, alterar o RTL para usar esse valor no start e atualizar o driver/HAL. O documento não trata essa alteração como implementada.
+O CPU escreve `INPUT_ADDR`, `OUTPUT_ADDR`, `LAYER_COUNT` e os campos de até oito descritores, depois escreve `CONTROL.START` uma vez. O controlador percorre os descritores configurados, alterna os buffers bancados e só devolve o resultado final à RAM externa. A enumeração interna de estados 0..19 não faz parte deste ABI.
 
 ### 6.3 IRQ
 
-O top-level possui uma única saída `irq_out`. Ela é acionada em `ST_DONE` e o driver acorda a chamada bloqueada após a interrupção. `irq_per_layer` aparece no registrador, mas não é consultado pela lógica atual para gerar interrupções intermediárias. Assim, não é correto apresentar três IRQs por inferência como fato atual.
+O top-level possui uma única saída `irq_out`, ligada à IRQ 10 no contrato LiteX. Ela é acionada quando a execução termina e o driver pode acordar a chamada bloqueada. A ligação física do PLIC, do driver e da DMA ainda não foi comprovada na placa.
 
 ## 7. Integração entre modelo de AI e software
 
@@ -169,7 +165,7 @@ O top-level possui uma única saída `irq_out`. Ela é acionada em `ST_DONE` e o
 
 `train_qat_mnist.py` define três blocos `QuantDense` com dimensões 784->1024, 1024->512 e 512->256. Entre eles há `BatchNormalization`, `ReLU` e `fake_quant` em 8 bits no intervalo 0..127. A rede termina com `Dense(10, activation="softmax")`.
 
-Esse é o modelo de treinamento. Não significa que as mesmas operações estejam presentes no top-level RTL, no HAL ou no user app.
+Esse é o modelo de treinamento. O RTL atual implementa o pós-processamento fixed-point necessário ao caminho de camadas; a correspondência completa com parâmetros exportados, HAL e aplicação ainda depende de validação end-to-end.
 
 ### 7.2 O que o gerador exporta
 
@@ -187,57 +183,73 @@ Não há arrays de parâmetros de BatchNorm no header consultado. Os símbolos d
 
 ### 7.3 O que HAL e user app fazem hoje
 
-- `npu_hal.c` abre `/dev/npu_ternaria`, faz `mmap`, carrega pesos e chama um único `ioctl` com `layer_cfg = 3`.
-- A HAL não aplica BatchNorm, ReLU ou fake quant entre camadas. Ela também lê os 256 resultados a partir de `ctx->dma_buffer[i]`, enquanto o próprio código de cópia de entrada usa `0x5C000`.
-- `npu_weights.c` usa pesos ternários em `0x1000`, saída FP32 em `0x5C400` e bias em `0x5E800`. O driver, porém, configura `SRC_ADDR` e `DST_ADDR` como o mesmo endereço físico base.
-- `user_app.c` tem um modo CPU que executa os três produtos ternários diretamente, mas passa `layer0_out` e `layer1_out`, que são `int32_t`, como `uint8_t *`. Também não há BN, ReLU ou fake quant nesse caminho.
-- A chamada a `classifier_run` existe, mas a cadeia completa de dados que deveria produzir uma entrada correta de 256 valores ainda não está validada.
+- O ioctl carrega offsets em bytes e oito descritores completos; o driver valida dimensões, alinhamento, footprints de pesos e compatibilidade entre camadas antes de programar o ABI MMIO.
+- O RTL aplica bias, signed-scale, round/shift, clamp e saturação em seis estágios registrados e alterna os buffers bancados de ativações entre descritores. A ReLU é aplicada nas camadas ocultas; a normalização explícita da entrada e a classificação final permanecem no software.
+- O exportador atual deve fornecer bias INT32 e multiplicadores por camada para que o pós-processamento use parâmetros treinados; a fixture versionada sem esses arrays usa bias zero e escala identidade.
+- A camada final `256→10` e softmax continuam no classificador CPU documentado; seus parâmetros treinados e o caminho físico ainda não foram validados.
 
-Por isso, não é correto chamar o HAL ou o user app de implementação de BatchNorm, ReLU e quantização inter-layer. Essas operações estão no modelo treinado, não no fluxo atual de software de inferência.
+Portanto, é preciso separar o pós-processamento implementado no RTL do contrato completo de modelo e software: a presença do pipeline hardware não comprova que os pesos exportados e o fluxo físico reproduzem o modelo treinado.
+
+### 7.4 Execução autônoma entre camadas
+
+O top-level atual faz a saída de uma camada alimentar diretamente a próxima, sem devolver cada resultado ao fluxo de controle da CPU. O controlador usa dois buffers internos bancados em **ping-pong**:
+
+```text
+Input
+  ↓
+Layer 0 → Bias + signed-scale + round/shift + saturate → Buffer B
+  ↓
+Layer 1 → Bias + signed-scale + round/shift + saturate → Buffer A
+  ↓
+Layer final → Resultado
+```
+
+Enquanto um banco é escrito, o outro fornece as ativações da próxima camada. O pós-processador registrado soma bias, aplica multiplicação signed-scale, arredonda ties-away-from-zero, desloca, limita a INT32 e satura ativações ocultas para INT8. O fluxo autônomo e os buffers ping-pong são implementação atual do RTL; modelo exportado e física permanecem gates.
 
 ## 8. Status de validação
 
 | Evidência | Leitura correta |
 |---|---|
-| C++ golden model v1 | **PASS:** 8/8 casos executados |
-| C++ golden model v2 | **PASS:** 21/21 casos executados |
-| Python regression | **PASS:** 5/5 casos executados |
-| Runtime/testbench RTL Verilog | **NÃO EXECUTADO:** Verilog indisponível no shell atual |
-| Contrato HAL/weights | **ABERTO:** exportação, símbolos, transforms, offsets e unidades ainda não fecham |
-| FPGA e benchmark | **PENDENTES:** síntese, timing, boot, IRQ/DMA físicos, inferência e métricas ainda não executados |
+| Icarus RTL focado | **PASS:** primitivas, pós-processamento, Wishbone e top-level atual |
+| Matriz top-level | **PASS:** configurações de 16, 32 e 64 PEs |
+| Verilator lint matrix | **PASS:** lint nas configurações de 16, 32 e 64 PEs |
+| Report gate unit tests | **PASS:** 14/14 testes unitários |
+| C++ golden model v2 | **HISTÓRICO/SECUNDÁRIO:** 21/21; não é prova canônica do RTL atual |
+| FPGA e benchmark | **PARCIAL:** Vivado, timing, recursos e bitstream passaram o gate; programação, boot, IRQ/DMA físicos, inferência e métricas permanecem pendentes |
 
-Os resultados host-side de C++ v1 (8/8), C++ v2 (21/21) e Python (5/5) são evidência de simulação/regressão no escopo coberto. Eles não comprovam execução do RTL Verilog, síntese, fechamento de timing, recursos reais, boot Linux, probe do driver, transferência DMA no hardware, inferência física ou benchmark real.
+Os testes Icarus focados, a matriz 16/32/64, o lint Verilator e a síntese genérica são evidência host-side do RTL. Os 14/14 testes unitários do report gate validam o checker; o Vivado atual passou o gate físico com WNS +0.065 ns, TNS 0 e 0 endpoints de setup violados. Isso ainda não comprova boot Linux, probe do driver, transferência DMA/IRQ na placa, inferência física ou benchmark real. O C++ v2 21/21 é histórico/secundário.
+
+Artefatos históricos do Vivado são rejeitados pelo report gate: omitiram `postprocess_unit.v` e registraram WNS `-7.392 ns` e TNS `-35888.277 ns`. Esses valores são falhas históricas, não métricas atuais de produção.
 
 No estado consultado, permanecem **não verificados**:
 
-- execução do runtime/testbench Verilog do patch atual;
-- síntese e relatório de recursos da FPGA;
-- bitstream carregado na placa;
+- programação efetiva e operação do bitstream na placa;
 - boot Linux no SoC LiteX/VexRiscv alvo;
 - `insmod` e probe efetivo do driver;
 - IRQ e DMA funcionando na placa;
 - inferência MNIST ponta a ponta com pesos gerados;
-- benchmark CPU versus NPU e qualquer ganho numérico.
+- benchmark CPU versus NPU, desempenho, potência, energia e qualquer ganho numérico.
 
-Não há base atual para afirmar speedup, 64 MACs por ciclo, uma carga de um ciclo, recursos medidos ou inferência completa.
+Não há base atual para afirmar speedup, ciclos, frequência, recursos medidos, timing fechado, bitstream, inferência completa, potência ou energia.
 
 ## 9. Próximos gates mínimos e perguntas para Ramon
 
 ### Gates mínimos
 
-1. **Contrato do datapath:** decidir se o caminho ativo continuará no loop procedural que atualiza `acc_reg[0]` ou se `ternary_mac_array.v` e `adder_tree_64.v` serão realmente integrados e conectados.
-2. **Contrato de camada:** decidir entre um start por camada e um sequenciador autônomo. Se a primeira opção for escolhida, especificar e implementar `layer_override`.
-3. **Contrato de memória:** fixar offsets para ativações, pesos e resultados e alinhar RTL, driver, HAL e aplicação em um único mapa testável.
-4. **Contrato de pós-processamento:** exportar BN e saída FP32, implementar BN/ReLU/fake quant no software, ou alterar o modelo para uma forma compatível com o hardware escolhido.
-5. **Executar e testar a FSM/DMA:** executar a regressão Verilog do patch atual, cobrindo o loader de pesos, os dados DMA, a acumulação com `batch_acc` e o write-back por neurônio.
-6. **Regressão do caminho real:** exercitar o top-level RTL corrigido com vetores não nulos, sem depender apenas do simulador C++.
-7. **Validação física:** sintetizar, gerar bitstream, inicializar Linux, fazer probe do driver, testar IRQ/DMA e só então medir a inferência.
+1. **G1 · Report gate Vivado:** Vivado é user-run/heavy; depois executar `python3 hardware/litex_soc/check_vivado_reports.py`.
+2. **G2 · Síntese e bitstream:** gerar relatório de LUTs, FFs, BRAM, DSPs e timing para a FPGA Urbana.
+3. **G3 · Imagem de OS:** fechar Buildroot, MicroSD e boot Linux no SoC LiteX/VexRiscv.
+4. **G4 · Contrato de camada e validação física:** validar driver, IRQ, DMA, offsets e o caminho de até oito descritores na placa.
+5. **G5 · Benchmark:** medir acurácia, latência, memória e desempenho CPU versus NPU, com metodologia reproduzível.
+6. **G6 · Paper 1:** consolidar resultados medidos e declarar explicitamente as pendências restantes.
+7. **Contrato de pós-processamento:** alinhar bias, signed-scale, round/shift, saturação e parâmetros exportados ao modelo treinado.
+8. **Regressão do caminho real:** manter a regressão Icarus, a matriz 16/32/64 e o lint Verilator como evidência canônica antes da validação física.
 
 ### Perguntas para a decisão arquitetural
 
 - O resultado de cada camada deve voltar ao CPU para BN, ReLU e quantização, ou essas operações devem migrar para hardware?
 - Uma IRQ por inferência é suficiente, ou a arquitetura precisa de interrupção por camada? Se for por camada, qual será o contrato de clear e re-start?
-- `SRC_ADDR` aponta para o início das ativações, para o início do bloco de pesos ou para um descritor? O mapa deve ser único para RTL e software.
+- `INPUT_ADDR` e `OUTPUT_ADDR` apontam para as regiões DDR definidas pelo SoC, e os oito descritores devem permanecer alinhados entre RTL, driver, HAL e aplicação?
 - A saída FP32 e seus biases serão exportados pelo pipeline atual, ou a rede será alterada para eliminar essa dependência?
 - O que Ramon aceitará como evidência de desempenho: simulação, síntese, medição na placa ou comparação com um baseline definido?
 
@@ -262,9 +274,9 @@ As faixas abaixo apontam para o código consultado, não para a apresentação h
 | `software/npu_hal/npu_weights.c` | `6-32` |
 | `software/user_app/user_app.c` | `10-70`, `98-133` |
 | `hardware/npu_rtl/run_demo.sh` | `58-94` |
-| `hardware/npu_rtl/sim_cpp/demo_npu_v2.cpp` | `8-16`, `34-41`, `236-256` |
+| `hardware/npu_rtl/sim_cpp/demo_npu_v2.cpp` | evidência histórica/secundária; não substitui a regressão Icarus canônica |
 | `hardware/npu_rtl/python/golden_model.py` | `232-267` |
 | `hardware/npu_rtl/tb_npu_v2.v` | `341-380` |
- | `docs/relatorios/status_atual.md` | registro histórico de simulação; não substitui a evidência atual de 8/8 no C++ v1, 21/21 no C++ v2 e 5/5 em Python nem prova física |
+ | `docs/relatorios/status_atual.md` | registro histórico; não substitui a evidência canônica Icarus 16/32/64, Verilator lint, síntese genérica e 14/14 do report gate nem prova de operação na placa |
 
-**Conclusão para a apresentação:** a contribuição atual pode ser apresentada como uma base RTL com correções de fonte, evidência host-side de C++ v1 (8/8), C++ v2 (21/21) e Python (5/5), e software parcialmente integrado, com lacunas explícitas no contrato de camadas, pós-processamento e memória. O runtime Verilog está indisponível no shell atual, e qualquer afirmação de desempenho deve esperar a arquitetura ser alinhada e o fluxo ser validado na implementação física.
+**Conclusão para a apresentação:** a contribuição atual pode ser apresentada como uma NPU ternária RTL integrada com 64 PEs, árvore registrada, acumulador escalar INT32, buffers ping-pong, pós-processamento em seis estágios registrados e controlador de até oito descritores. A evidência host-side inclui Icarus, matriz 16/32/64, lint Verilator e síntese genérica; o report gate tem 14/14 testes unitários, enquanto o Vivado atual passou em 100 MHz com WNS +0.065 ns, TNS 0 e 0 endpoints de setup violados. Programação da placa, boot, IRQ/DMA físicos, inferência, desempenho, potência e energia continuam pendentes. Gilvan saiu da operação diária, Gildo assumiu a frente de OS/HAL/boot, Gustavo assumiu a continuidade da frente de IA/driver/validação, e os créditos históricos de Gilvan permanecem preservados.

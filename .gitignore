@@ -25,6 +25,7 @@ software/os_buildroot/images/
 
 # Compiled artifacts (C++ / Verilog / Kernel modules)
 *.o
+*.a
 *.ko
 *.mod.c
 *.mod
@@ -42,4 +43,9 @@ software/tests/weights_header_contract_check
 
 # FPGA synthesis & gateware build artifacts
 build/
+result
+
+# OpenCode session state (keep project plans, drop session JSON)
+.omo/run-continuation/
+.omo/ulw-research/
 

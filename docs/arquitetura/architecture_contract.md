@@ -1,6 +1,6 @@
 # Architecture Contract: Ternary Edge-RV
-**Última atualização:** 20/08/2026
-**Versão:** 2.5 (Current operational transition; 17/08/2026 hardware and Verilog records remain historical snapshots)
+**Última atualização:** 24/08/2026
+**Versão:** 2.6 (Current integration contract)
 
 This document formalizes the architectural decisions and "Design by Contract" parameters that all team members must follow to ensure the successful integration of the Hardware (RTL), OS (Linux), Kernel Driver (LKM), HAL (NPU Abstraction), and User Space (AI) components.
 
@@ -18,49 +18,67 @@ This document formalizes the architectural decisions and "Design by Contract" pa
 
 ---
 
-## 2. NPU Memory Map (Current Candidate, Validation Required)
+## 2. NPU Memory Map and Integration Contract
 
-**Base Address:** `0x80000000` (current LiteX NPU MMIO candidate, pending cross-layer validation)
-**IRQ Number:** `10` (Connected to VexRiscv PLIC)
-**Endianness:** Little-Endian (native RISC-V)
-**Bus Interface:** Wishbone B4 (32-bit data, 32-bit address): Slave for CPU access + Master for DMA
+**NPU MMIO base:** `0x80000000`
+**DDR base:** `0x40000000`
+**IRQ Number:** `10` (connected to the VexRiscv PLIC)
+**Endianness:** Little endian (native RISC-V)
+**Bus Interface:** Wishbone B4, 32-bit data and 32-bit address, with a CPU
+slave for MMIO and a master for DMA
 
-> **Address conflict:** Older map snapshots list `0x40000000` as the NPU base. Current LiteX documentation uses `0x80000000`. Validate the generated LiteX map, RTL, Device Tree, driver, and HAL before treating either address as final. Do not silently use both values.
+The NPU MMIO and DDR regions are distinct.
 
 ### Register Layout
 
-| Offset | Register        | Width | R/W   | Description |
-|:-------|:----------------|:------|:------|:------------|
-| `0x00` | `NPU_STATUS`    | 32    | RO    | `[0]=busy`, `[1]=irq_pending`, `[15:8]=zero_count` |
-| `0x04` | `NPU_CONTROL`   | 32    | WO    | `bit0=start`, `bit1=clear_irq` |
-| `0x08` | `DMA_SRC_ADDR`  | 32    | R/W   | Physical address in RAM where NPU reads weights/activations |
-| `0x0C` | `DMA_DST_ADDR`  | 32    | R/W   | Physical address where NPU writes final result |
-| `0x10` | `DMA_SIZE`      | 32    | R/W   | Number of MAC operations to execute |
-| `0x14` | `WEIGHT_CFG`    | 32    | R/W   | `[15:0]=bytes_per_weight_row`, `[31:16]=num_weight_rows` |
-| `0x18` | `ACT_CFG`       | 32    | R/W   | `[15:0]=num_activations` |
-| `0x1C` | `RESULT`        | 32    | RO    | Final accumulated result of the inference |
-| `0x20` | `MAC_CFG`       | 32    | R/W   | `[5:0]=num_macs_per_cycle` (1-64, default: 64) |
-| `0x24` | `LAYER_CFG`     | 32    | R/W   | `[3:0]=num_layers` (1-8, default: 3) |
+| Offset | Register | Width | R/W | Description |
+|:-------|:--------|:------|:----|:------------|
+| `0x00` | `STATUS` | 32 | RO | bit 0 busy, bit 1 IRQ, bit 2 done, bit 3 error, layer in bits 15:8 |
+| `0x04` | `CONTROL` | 32 | WO | bit 0 START, bit 1 CLEAR_IRQ |
+| `0x08` | `INPUT_ADDR` | 32 | RW | External RAM address for the first input |
+| `0x0C` | `OUTPUT_ADDR` | 32 | RW | External RAM address for final INT32 output |
+| `0x10` | `WEIGHT_ADDR` | 32 | RW | Selected descriptor packed weight address |
+| `0x14` | `BIAS_ADDR` | 32 | RW | Selected descriptor INT32 bias address, zero means bias 0 |
+| `0x18` | `SCALE_ADDR` | 32 | RW | Selected descriptor INT32 multiplier address, zero means 1 |
+| `0x1C` | `LAYER_COUNT` | 32 | RW | Number of descriptors, 1 through 8 |
+| `0x20` | `LAYER_INDEX` | 32 | RW | Descriptor selected by the following layer registers |
+| `0x24` | `LAYER_INPUTS` | 32 | RW | Selected layer input count |
+| `0x28` | `LAYER_OUTPUTS` | 32 | RW | Selected layer output count |
+| `0x2C` | `LAYER_QUANT` | 32 | RW | Shift in bits 5:0, ReLU in bit 8 |
+| `0x30` | `RESULT` | 32 | RO | First final output for quick status inspection |
+| `0x34` | `RESULT_WINDOW` | 32 | RO | Selected descriptor-index accumulator window |
+| `0x38` | `ERROR_INFO` | 32 | RO | Sticky error code |
+| `0x3C` | `CAPABILITIES` | 32 | RO | `0x00080440`: 8 layers, 1024 activations, 64 PEs |
+| `0x40` | `MAC_CFG` | 32 | RW | Must be 64, reserved for future narrower modes |
 
 ### DMA Transaction Flow
-1. Driver writes `DMA_SRC_ADDR`, `DMA_DST_ADDR`, `DMA_SIZE`, `WEIGHT_CFG`, `ACT_CFG`
-2. Driver writes `NPU_CONTROL.start = 1`
-3. NPU activates **Wishbone Master**: reads weight data from RAM via burst reads
-4. NPU is intended to distribute weights across **64 parallel ternary_mac units**
-5. The design target gives each MAC 1 weight from the unpacked 32-bit word (16 weights × 4 words = 64 intended MACs/cycle), subject to RTL and synthesis validation
-6. Upon finishing all MACs, NPU writes result to `DMA_DST_ADDR` and sets `irq_out = 1`
-7. CPU wakes, reads result, and clears IRQ
+1. Driver writes the input and output addresses and the descriptor table through the MMIO ABI.
+2. Driver writes `NPU_CONTROL.START = 1`.
+3. The NPU issues bounded, single-beat Wishbone Classic DMA requests. Each request uses `CTI=000` and `BTE=00`, and remains stable until `ACK` or downstream `ERR`.
+4. A downstream `ERR` reaches the NPU error path. No response within 256 cycles becomes a DMA timeout error.
+5. The NPU computes with its 64 integrated ternary PEs, registered 64-to-1 tree, scalar accumulator, banked activation storage, and postprocessor.
+6. The NPU writes final INT32 results to `OUTPUT_ADDR` and asserts `irq_out`.
+7. The CPU wakes, reads status or results, and clears IRQ.
 
 ---
 
-## 3. Parallelism: 64 MAC Design Target
+## 3. Parallelism and Datapath
 
-**Design intent:** The NPU targets **64 ternary_mac units** operating in parallel. The array and its integration remain subject to RTL execution and synthesis validation.
-**Justification:** A single MAC sequentially processing 802,816 operations would require more cycles than the intended parallel design. The 64-MAC cycle reduction and any resulting latency or speedup are design estimates, not measured results.
+The integrated NPU has **64 physical ternary PEs** operating in parallel and a
+registered 64-to-1 adder tree. The host test matrix also checks parameterized
+16, 32 and 64 PE variants, but the SoC integration contract is 64 PEs.
 
-*   **Arthur:** The design target gives each `ternary_mac.v` one 2-bit weight and combines 64 partial sums through an adder tree. Physical resource use is pending synthesis.
-*   **Memory:** 4 weight words are fetched per cycle (4 x 32-bit = 128 bits -> 64 x 2-bit weights).
-*   **Weight storage:** `WEIGHT_MEM_SIZE = 16384` words (512 Kb): fits largest layer (50,176 words). Larger layers handled by tiling.
+Activation storage consists of two ping-pong buffers banked by `NUM_PES`. Each
+neuron uses one scalar signed INT32 accumulator. The three-stage registered
+postprocessor adds signed INT32 bias, forms a signed 65-bit product with the
+intentional signed integer scale multiplier, then rounds ties away from zero,
+shifts, clamps to INT32 and saturates hidden activations to INT8. The PE
+datapath is multiplierless; this does not imply zero total DSP use in a
+physical implementation.
+
+*   **Arthur:** Owns the RTL array, registered tree, accumulator, banked activation storage, postprocessor, and integration. Physical resource use is pending synthesis.
+*   **Memory:** Packed weights and activation data are transferred as bounded single-beat DMA requests; there is no burst contract.
+*   **Descriptor capacity:** The controller accepts up to eight layer descriptors. It does not hard-code a three-layer network.
 
 ---
 
@@ -131,13 +149,14 @@ Hardware
   │  VexRiscv RV32IMA               │
   │    │                            │
   │    ├── NPU v2 (Arthur)          │
-  │    │   64 MAC design target     │
-  │    │   Wishbone Master DMA      │
-  │    │   Layer Sequencer (3 lyrs) │
+  │    │   64 integrated ternary PEs│
+  │    │   registered 64-to-1 tree  │
+  │    │   banked INT8 activation   │
+  │    │   bounded Classic DMA      │
   │    │   IRQ → PLIC               │
   │    │                            │
   │    ├── DDR3 (128 MB)           │
-  │    │   @ address pending map validation │
+  │    │   @ 0x40000000             │
   │    │                            │
   │    └── Peripherals (UART, SD,   │
   │        SPI flash, LEDs, etc.)   │
@@ -152,19 +171,23 @@ Hardware
 Weights in RAM:     [word0][word1]...[wordN]  ← packed 16 weights/word
 Activations in RAM: [act0][act1]...[actM]     ← INT8 values
 
-Each compute cycle:
-  1. DMA reads 4 consecutive weight words (64 × 2-bit weights)
-  2. DMA reads 64 consecutive activation bytes
-  3. The intended 64-MAC design computes in parallel: pseudo_prod[i] = act[i] × weight[i]
-  4. Adder tree sums all 64 pseudo_prods into accumulator
-  5. Controller iterates until DMA_SIZE MACs are complete
+Layer and tile flow:
+  1. The NPU uses bounded single-beat DMA to load external data and write final results.
+  2. Packed ternary weights and INT8 activations are placed in the local banked buffers.
+  3. The 64 integrated PEs compute multiplierless signed products in parallel.
+  4. The registered 64-to-1 tree combines the partial sums into the scalar INT32 accumulator.
+  5. The three-stage postprocessor applies bias, signed integer scale, rounding, shift and saturation.
+  6. The descriptor controller advances through up to eight configured layers without CPU intervention.
 ```
 
 ---
 
 ## 9. NPU HAL (Hardware Abstraction Layer)
 
-**Rationale:** The NPU v2 is purely ternary (only {+1,0,-1} multiplications). It cannot compute the final classification layer (256->10) which requires FP32 weights and softmax. The HAL encapsulates:
+**Rationale:** The NPU v2 PE path is purely ternary and multiplierless. Its
+fixed-point postprocessor intentionally includes a signed integer multiplier,
+but the documented software flow keeps the final `256->10` FP32 layer and
+softmax on the CPU. The HAL encapsulates:
 
 1. **Device initialization** (`npu_init`): opens `/dev/npu_ternaria`, mmaps DMA buffer
 2. **Weight loading** (`npu_load_weights`): copies ternary weights from `weights.h` to DMA
@@ -176,11 +199,11 @@ Each compute cycle:
 
 | Offset | Size | Content |
 |--------|------|---------|
-| `0x000000` | 4 KB | Result area (NPU writes 256 x int32 here) |
-| `0x001000` | 364 KB | Ternary weights (3 layers: 50,176 + 32,768 + 8,192 words) |
-| `0x05C000` | 1 KB | Input activations (784 bytes + padding) |
-| `0x05C400` | 10 KB | Output layer FP32 weights (2,560 floats) |
-| `0x05F000` | ~3.8 MB | Free / expansion |
+| `0x000000` | Current software result area | Final INT32 features |
+| `0x001000` | Current software reservation | Packed ternary weights |
+| `0x05C000` | Current software reservation | Input activation bytes |
+| `0x05F000` | Current software reservation | Quantized INT32 biases |
+| `0x061000` | Current software reservation | Quantized INT32 scale multipliers |
 
 * **Gildo (HAL):** Owns the HAL design, implementation, and test.
 * **Gustavo (Driver):** The HAL depends on the driver's ioctl interface: must remain stable.
@@ -210,13 +233,42 @@ Classifier (CPU):
 
 ---
 
-## 11. Current Status & Known Gaps (17/08/2026)
+## 11. Verification and Handoff
 
-**Historical snapshot (17/08/2026):** Earlier notes recorded the Urbana connection, FTDI detection, JTAG IDCODE 0x362f093, and a 4/4 Verilog result. The current shell cannot run the Verilog testbench, so that result is not current evidence. Current host evidence is C++ v1 8/8, C++ v2 21/21, Python 5/5, and IOCTL ABI pass. No FPGA end-to-end inference or CPU-versus-NPU benchmark is proven.
+The canonical host-side RTL commands are:
+
+```sh
+make -C hardware/npu_rtl test
+make -C hardware/npu_rtl test_matrix
+make -C hardware/npu_rtl lint_matrix
+python3 -m unittest hardware.litex_soc.test_check_vivado_reports
+```
+
+The Python golden model and `sim_cpp` are auxiliary or legacy checks. They are
+not canonical proof of the current RTL. The Vivado report gate is run from the
+repository root after Vivado completes:
+
+```sh
+python3 hardware/litex_soc/check_vivado_reports.py
+```
+
+Vivado is the final production flow. openXC7 is optional host-side
+corroboration. The synthesis, place and route, bitstream, physical resource,
+timing, IRQ/DMA, and performance procedures remain pending handoff work. The
+heavy commands above are documented procedures, not claimed executions.
+
+Historical Vivado artifacts are explicitly stale and rejected by the report
+gate. They omitted `postprocess_unit.v` and recorded WNS `-7.392 ns` and TNS
+`-35888.277 ns`. Those values are rejected historical evidence, not current
+results.
+
+**Current host contract:** The canonical RTL regression and lint matrix are
+the current passing host evidence. No FPGA end-to-end inference or
+CPU-versus-NPU benchmark is proven.
 
 | Task / Gap | Impact | Active Owner | Priority | Status / Resolution Path |
 |:-----------|:-------|:-------------|:---------|:-------------------------|
-| **FPGA Synthesis & Bitstream** | Physical bitstream loading | Arthur | **Critical** | Urbana board detected via micro-USB (FTDI FT2232H). OpenXC7 synthesis flags updated to `-nolutram -nowidelut`. `python3 base_soc.py --build --toolchain openxc7` |
+| **FPGA Synthesis & Bitstream** | Physical bitstream loading | Arthur | **Critical** | Vivado is the final production flow. Handoff: `nix develop .#vivado`, then `cd hardware/litex_soc` and `python3 base_soc.py --build --toolchain vivado`; physical resources, timing and bitstream remain pending |
 | **Linux Boot on FPGA** | Physical OS execution | Gildo | **High** | Buildroot image -> SD card (FAT32+ext4) -> boot via OpenSBI -> U-Boot -> kernel on Urbana |
 | **Driver `insmod` on Physical Hardware** | `/dev/npu_ternaria` device node | Gustavo | **High** | Cross-compile `.ko` for RV32IMA, `insmod`, validate IRQ/DMA via `dmesg` |
 | **Real Benchmark (CPU vs NPU latency)** | Paper 1 Section IV metrics | Gustavo | **High** | Gustavo coordinates physical validation with Arthur and Gildo; `user_app --cpu` versus default remains pending |

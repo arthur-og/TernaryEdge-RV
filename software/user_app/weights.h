@@ -6,6 +6,28 @@
 
 #include <stdint.h>
 
+#ifndef NPU_MODEL_FORMAT_VERSION
+#define NPU_MODEL_FORMAT_VERSION 2
+#endif
+#ifndef NPU_MODEL_LAYER_COUNT
+#define NPU_MODEL_LAYER_COUNT 3
+#endif
+#ifndef NPU_MODEL_WEIGHTS_OFFSET
+#define NPU_MODEL_WEIGHTS_OFFSET 0x00001000u
+#endif
+#ifndef NPU_MODEL_INPUT_OFFSET
+#define NPU_MODEL_INPUT_OFFSET 0x0005C000u
+#endif
+#ifndef NPU_MODEL_OUTPUT_OFFSET
+#define NPU_MODEL_OUTPUT_OFFSET 0x00000000u
+#endif
+#ifndef NPU_MODEL_BIAS_OFFSET
+#define NPU_MODEL_BIAS_OFFSET 0x0005f000u
+#endif
+#ifndef NPU_MODEL_SCALE_OFFSET
+#define NPU_MODEL_SCALE_OFFSET 0x00061000u
+#endif
+
 /* Layer: quant_dense � Input: 784, Output: 1024 */
 #define QUANT_DENSE_IN  784
 #define QUANT_DENSE_OUT 1024

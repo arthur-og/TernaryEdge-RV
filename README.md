@@ -7,25 +7,25 @@
 [![Paper 1](https://img.shields.io/badge/Paper-SBCCI%2FLASCAS%20Template-blueviolet.svg)](paper/paper1_template.tex)
 [![FPGA: RealDigital Urbana](https://img.shields.io/badge/FPGA-RealDigital%20Urbana%20(Spartan--7%20XC7S50)-blue.svg)](http://www.realdigital.org/)
 
-**Ternary Edge-RV** is a hardware-software co-design project aimed at studying energy-efficient Edge Artificial Intelligence. This repository contains the proposed full stack, from custom RTL and SoC architecture to the AI application, for a multiplierless Ternary Neural Network (TNN) accelerator targeted for integration into a Linux-capable RISC-V System-on-Chip (SoC).
+**Ternary Edge-RV** is a hardware-software co-design project aimed at studying energy-efficient Edge Artificial Intelligence. This repository contains the full source-level stack, from custom RTL and SoC architecture to the AI application, for a ternary Neural Processing Unit (NPU) targeted for integration into a Linux-capable RISC-V System-on-Chip (SoC).
 
 This project is working toward **Phase 4: Physical Deployment and Paper 1** (target: SBCCI/LASCAS). The paper template is available at [`paper/paper1_template.tex`](paper/paper1_template.tex). The research question is whether heavily quantized models ($\in \{-1, 0, 1\}$) on custom hardware can improve latency and energy use relative to CPU execution; that comparison remains subject to physical measurement.
 
-> **Historical snapshot (17/08/2026):** Earlier project notes recorded the RealDigital Urbana board (AMD Spartan-7 XC7S50-CSGA324, 128 MB DDR3, MicroSD) connected via micro-USB with FTDI FT2232H detected, JTAG IDCODE 0x362f093 verified, and `/dev/ttyUSB0` / `/dev/ttyUSB1` created. Those notes also recorded a 4/4 Verilog regression result and updated OpenXC7 flags (`-nolutram -nowidelut`). The 4/4 result is retained as dated history, not as current evidence from the present shell. The target completion date for SBCCI/LASCAS submission was 31/08/2026. The operational transition plan is defined in [`docs/planejamento/direcionamento_pos_gilvan.md`](docs/planejamento/direcionamento_pos_gilvan.md).
+> **Historical snapshot (17/08/2026):** Earlier project notes contain unverified observations about the RealDigital Urbana board (AMD Spartan-7 XC7S50-CSGA324, 128 MB DDR3, MicroSD), micro-USB connectivity, and host device names. Those notes also recorded a 4/4 Verilog regression result and updated OpenXC7 flags (`-nolutram -nowidelut`). The 4/4 result and hardware observations are retained as dated history, not as current evidence from the present shell. The target completion date for SBCCI/LASCAS submission was 31/08/2026. The operational transition plan is defined in [`docs/planejamento/direcionamento_pos_gilvan.md`](docs/planejamento/direcionamento_pos_gilvan.md).
 
 ---
 
 ## 🎯 Project Overview & Academic Contribution
 
-Traditional AI inference relies heavily on power-hungry floating-point Multiply-Accumulate (MAC) operations. **Ternary Edge-RV** is designed to avoid hardware multipliers for ternary operations; synthesis and runtime evidence are still pending.
+Traditional AI inference relies heavily on power-hungry floating-point Multiply-Accumulate (MAC) operations. **Ternary Edge-RV** avoids multipliers in the ternary PE path. The canonical RTL integrates 64 ternary PEs, a registered 64-to-1 reduction tree, a scalar INT32 accumulator, banked activations, and a three-stage postprocessor. Host-side Icarus, Verilator and generic Yosys evidence passes, while Vivado implementation and runtime measurements remain pending.
 
 By using **Quantization-Aware Training (QAT)** and the **Straight-Through Estimator (STE)**, we constrain neural network weights to ternary values (-1, 0, 1). This mathematical simplification is intended to let the custom Neural Processing Unit (NPU) perform dense-layer operations using basic adders, subtractors, and multiplexers.
 
-However, deploying raw hardware in isolation is commercially unviable for IoT and Edge systems (e.g., nano-drones), which require networking and file system abstractions. Our research proposes a **Co-Design approach**: offloading neural computation to a Ternary NPU while retaining a lightweight **LiteX-generated VexRiscv SoC** targeted to run an **Embedded Linux OS**. The documented integration uses IRQ-driven Memory-Mapped I/O (MMIO) and is intended to avoid CPU polling, but CPU sleep, latency, power, and energy benefits await runtime, synthesis, and physical measurement.
+Raw hardware and a general-purpose OS address different requirements in IoT and Edge systems. Our research studies a **Co-Design approach**: offloading neural computation to a ternary NPU while retaining a lightweight **LiteX-generated VexRiscv SoC** targeted to run an **Embedded Linux OS**. The documented integration uses IRQ-driven Memory-Mapped I/O (MMIO), but CPU sleep, latency, power, and energy benefits await runtime, synthesis, and physical measurement.
 
 ### Key Innovations
 * **Multiplierless Hardware:** The source-level design and host-side model use addition, subtraction, multiplexing, and zero-skipping for ternary operations. Physical DSP utilization awaits synthesis and a resource report.
-* **NPU HAL Layer:** A documented but incomplete Hardware Abstraction Layer intended to bridge the kernel driver and user application. DMA buffer management, weight loading, and CPU-based output classification still require end-to-end HAL, weights, and data-contract validation.
+* **NPU HAL Layer:** A source-level Hardware Abstraction Layer bridging the kernel driver and user application. The current contract assigns three ternary layers to the NPU and a `256->10` FP32 output classifier to the CPU; trained-header and physical-path validation remain pending.
 * **Custom Linux Kernel Driver:** Source-level User-Space to Kernel-Space interfaces use custom `.ko` modules, MMIO, and an IRQ path. Physical interrupt behavior and any reduction in CPU polling remain unverified.
 * **Benchmarking Plan:** `<sys/time.h>` profiling and CPU versus NPU comparison paths are documented, but latency, throughput, power, and energy results await a validated physical run.
 * **Automated AI Pipeline:** A Python-based QAT pipeline packs 2-bit ternary weights into 32-bit headers. Gustavo owns its current maintenance and the `weights.h` contract. The current header contains the FP32 symbols, but its fallback values, including `0.01` and `0.1`, are not validated trained parameters.
@@ -34,7 +34,7 @@ However, deploying raw hardware in isolation is commercially unviable for IoT an
 
 ## 🏗️ System Architecture
 
-The proposed project stack connects the AI application to the target hardware through the documented software, hardware, and host-side pipeline components below:
+The documented project stack connects the AI application to the source-level hardware through the software, hardware, and host-side pipeline components below:
 
 ```mermaid
 graph TD
@@ -50,7 +50,7 @@ graph TD
     end
     subgraph HardwareSpace ["Hardware Space"]
         D --> E[LiteX SoC: VexRiscv RV32IMA]
-        D --> F[NPU v2: proposed multiplierless array + Wishbone DMA]
+        D --> F[NPU v2: integrated 64-PE RTL + bounded Wishbone DMA]
     end
     subgraph AIPipeline ["AI Pipeline (host)"]
         G[Python QAT Training] -->|planned weights.h contract| B
@@ -59,11 +59,11 @@ graph TD
 
 ### Why a HAL?
 
-The planned NPU v2 is **purely ternary** and is intended to compute {+1, 0, -1} × INT8 operations. The final classification layer (256→10) is documented as requiring FP32 weights and softmax on the CPU. The HAL exposes the intended `npu_init()` → `npu_predict()` → `npu_deinit()` interface, but its end-to-end contract with the exported weights and data transforms remains incomplete.
+The source-level NPU v2 computes ternary {+1, 0, -1} × INT8 operations in its PE path. The final classification layer (256→10) is documented as requiring FP32 weights and softmax on the CPU. The HAL exposes the `npu_init()` → `npu_predict()` → `npu_deinit()` interface, but its end-to-end contract with the exported weights and data transforms remains incomplete.
 
 ### Address and Evidence Boundary
 
-Current LiteX documentation uses `0x80000000` as the candidate NPU MMIO base. Older map snapshots use `0x40000000`. This conflict is unresolved and must be validated against the generated LiteX map, RTL, Device Tree, driver, and HAL before either address is treated as final. The 64-MAC array, zero-DSP goal, throughput, and speedup are design intent or pending synthesis and measurement, not physical results.
+The frozen current contract uses DDR at `0x40000000`, a 64 KiB NPU MMIO aperture at `0x80000000`, and IRQ 10. The canonical RTL exposes 17 valid offsets from `0x00` through `0x40`; unsupported offsets return Wishbone `ERR`. It supports up to eight software-programmed descriptors and uses single-beat Wishbone Classic DMA with `CTI=000`, `BTE=00`, downstream `ERR`, and a 256-cycle timeout. Physical map integration, resources, timing, bitstream, board behavior, and runtime results remain pending.
 
 ---
 
@@ -94,24 +94,21 @@ TernaryEdge-RV/
 
 The current evidence boundary and active post-Gilvan organization are documented in [`docs/planejamento/direcionamento_pos_gilvan.md`](docs/planejamento/direcionamento_pos_gilvan.md). The four-author Paper 1 list remains unchanged and in the order Arthur, Gildo, Gustavo, Gilvan.
 
-Current evidence is limited to C++ Golden Model v1 with 8/8 checks, C++ Golden Model v2 with 21/21 checks, Python pipeline with 5/5 checks, and a passing IOCTL ABI check. The Verilog testbench is unavailable in the current shell. There is no proven FPGA end-to-end inference or benchmark, and no physical CPU-versus-NPU result.
+Current canonical host evidence includes focused Icarus tests and the 16/32/64-PE matrix passing, including a production-sized `784->1024->512->256` regression with nonuniform high-row weights: outputs 0..254 equal `65024`, while output 255 equals `-65024`. The Verilator lint matrix, generic Yosys synthesis and `synth_matrix`, presentation contract tests (11/11), and report-gate unit tests (12/12) also pass. C++ v2's 21/21 result is historical and secondary, not canonical proof. Vivado resources and timing, bitstream and board behavior, Linux boot, physical IRQ/DMA, trained-model inference, accuracy, latency, throughput, benchmarks, power, and energy remain pending.
 
 | Domain | Active Operational Ownership | Current Status & Evidence |
 |:-------|:-----------------------------|:--------------------------|
-| **Hardware (RTL/SoC)** | Arthur Oliveira Gomes | Verilog testbench unavailable in the current shell; historical 4/4 record retained as dated history. Urbana board connection and OpenXC7 flag changes are recorded, but synthesis and bitstream remain pending. |
+| **Hardware (RTL/SoC)** | Arthur Oliveira Gomes | Canonical integrated 64-PE v2 RTL, Icarus regression, Verilator lint, and generic Yosys synthesis/check pass in the hardware flake. Vivado implementation, bitstream, board behavior, and physical DMA/IRQ remain pending. |
 | **Linux, OS & HAL** | Gildo Alves de Lima Junior | Buildroot infrastructure, Device Tree (`urrbana.dts`), NPU HAL (`libnpu_hal.a`), FP32 CPU Classifier, MicroSD preparation, Linux physical boot. |
 | **AI Pipeline, Weights, Golden Model, Driver & Benchmarks** | Gustavo Alexandre dos Santos | Current AI pipeline maintenance, weight export and `weights.h` contract, Golden Model regression and maintenance, kernel driver, RV32 cross-compilation, physical validation coordination, CPU-versus-NPU benchmarks, and Paper 1 results and discussion. Historical QAT, ternary packing, and C++ Golden Model v2 contributions remain under Gilvan's credit. |
 | **Paper 1 Authors** | Arthur, Gildo, Gustavo, Gilvan | All 4 original authors retained on paper submission draft for SBCCI/LASCAS (31/08/2026). |
 
 ### Arthur (Hardware): RTL, LiteX SoC, Verilog Regression, Synthesis & Bitstream
-- ✅ **Phase 1 design record:** Current LiteX documentation uses `0x80000000` as the candidate NPU MMIO base; older records use `0x40000000`. The generated map, RTL, Device Tree, driver and HAL still require cross-layer validation. IRQ 10 and Little-Endian remain design parameters.
+- ✅ **Phase 1 design record:** The frozen current contract is DDR `0x40000000`, NPU MMIO `0x80000000`, and IRQ 10. Physical cross-layer integration remains pending.
 - ✅ **Phase 2:** `ternary_mac.v` multiplierless MAC, `npu_ternaria_top.v` v1 (Wishbone slave + FSM + IRQ).
-- ✅ **Phase 3 design target:** NPU v2 64-MAC array (`ternary_mac_array.v`), 6-stage adder tree (`adder_tree_64.v`), Wishbone Master DMA (`wishbone_master.v`), 12K-word weight BRAM, FSM Layer Sequencer (784->1024->512->256). Integration and synthesis remain pending.
-- ✅ **Phase 4 (Status 17/08/2026):**
-  - ⏳ Verilog RTL testbench execution is unavailable in the current shell. The historical 4/4 report is retained above as a dated snapshot.
-  - ✅ Board connection evidence: RealDigital Urbana connected via micro-USB, FTDI FT2232H chip detected, JTAG IDCODE 0x362f093 (Spartan-7 XC7S50), `/dev/ttyUSB0` and `/dev/ttyUSB1` created.
-  - ✅ OpenXC7 synthesis flags updated to `-nolutram -nowidelut` in platform to eliminate RAM256X1S and MUXF7/MUXF8 chains.
-  - ⏳ Bitstream generation and physical hardware loading targeted for 31/08/2026 deadline.
+- ✅ **Phase 3 canonical RTL:** NPU v2 integrates 64 ternary PEs (`ternary_mac_array.v`), a registered 64-to-1 tree (`adder_tree_64.v`), a scalar INT32 accumulator, banked activation buffers, a three-stage postprocessor, bounded single-beat Wishbone Classic DMA (`wishbone_master.v`), and a sequencer for up to eight software-programmed descriptors. Host evidence passes for focused Icarus tests, the 16/32/64-PE matrix, Verilator lint, and generic Yosys synthesis/check.
+- ✅ **Current host regression:** The production-sized `784->1024->512->256` chain passes at 16, 32, and 64 PEs; outputs 0..254 equal `65024`, and the nonuniform final row produces `-65024` at output 255.
+- ⏳ **Physical validation:** Vivado resource and timing reports, bitstream generation and loading, board behavior, Linux boot, and physical IRQ/DMA remain pending.
 
 ### Gildo (OS Infrastructure & HAL): Buildroot, Device Tree, HAL, Classifier & Linux Boot
 - ✅ **Infrastructure & Buildroot:** RV32IMA defconfig, toolchain via `make sdk`, QEMU boot validation.
@@ -122,9 +119,9 @@ Current evidence is limited to C++ Golden Model v1 with 8/8 checks, C++ Golden M
 
 ### Gustavo (AI Pipeline, Weights, Golden Model, Driver & Benchmarks): Current Operational Owner
 - ✅ **AI and model maintenance:** Owns the current Python pipeline, `weights.h` export contract, and C++ Golden Model regression and maintenance.
-- ✅ **Current host evidence:** Python pipeline 5/5 checks, C++ Golden Model v1 8/8 checks, C++ Golden Model v2 21/21 checks, and IOCTL ABI check passing.
+- ✅ **Current host evidence:** The canonical RTL and report gates pass. The historical C++ Golden Model v2 result is retained as 21/21 secondary host checks, not as canonical RTL proof.
 - ✅ **Kernel Driver (`npu_driver.ko`):** Platform driver with `dma_alloc_coherent`, `mmap`, `devm_request_irq`, `wait_event_interruptible`.
-- ✅ **Driver v3.0 Register Map:** 10 MMIO registers (`0x00`-`0x24`), `iowrite32` for `WEIGHT_CFG`/`ACT_CFG`/`MAC_CFG`/`LAYER_CFG`, shared `npu_ioctl.h`.
+- ✅ **Driver v3.0 Register Map:** The current ABI defines 17 MMIO offsets (`0x00`-`0x40`), with shared `npu_ioctl.h`.
 - ✅ **Weights and export contract:** Maintains `weights.h`, the AI export format, and the RV32 cross-compilation workflow. The current FP32 symbols use fallback values and are not validated trained parameters.
 - ⏳ **Physical validation coordination:** Coordinates the driver, RV32 cross-compilation, physical validation with Arthur and Gildo, CPU-vs-NPU benchmarks, and the Paper 1 results and discussion. No FPGA end-to-end inference or benchmark is currently proven.
 
@@ -169,7 +166,7 @@ NPU HAL (npu_init → npu_predict → npu_deinit)
 npu_driver (/dev/npu_ternaria, IRQ, DMA)
     │
     ▼  (Wishbone bus)
-NPU v2 source-level design (64-MAC design target, Layer Sequencer)
+NPU v2 integrated source-level RTL (64 ternary PEs, Layer Sequencer)
 ```
 
 ### 4. AI Pipeline (ai_training/)
@@ -206,23 +203,26 @@ The project targets the **RealDigital Urbana** board, which satisfies all `requi
 
 ### Hardware Synthesis (Arthur)
 
-Two supported toolchains for the Spartan-7:
+Vivado is the final production toolchain. openXC7 remains available only as
+optional host-side corroboration.
 
-**Option A: Xilinx Vivado Design Suite 2026.1 (Spartan-7 + free Basic license):**
+**Production: Xilinx Vivado Design Suite 2026.1 (Spartan-7 + free Basic license):**
 ```bash
 cd /home/arthur/Documents/Projects/TernaryEdge-RV
-nix develop .#vivado
+nix develop path:.#vivado
 cd hardware/litex_soc
 python3 base_soc.py --build --toolchain vivado  # Synthesize -> bitstream
 python3 base_soc.py --load       # Load bitstream to SRAM (volatile)
 python3 base_soc.py --flash      # Flash bitstream to SPI flash (persistent)
 ```
 
+These Vivado build, load, and flash commands are user-run acceptance procedures, not completed evidence. No Vivado resource, timing, bitstream, board, boot, IRQ, DMA, inference, benchmark, power, or energy result is claimed here.
+
 Vivado 2026.1 requires the free annual Vivado Basic license for synthesis and
 implementation. Generate it in the AMD licensing portal and load the `.lic`
 file into `~/.Xilinx` before building.
 
-**Option B: Open-source toolchain (openXC7: yosys + nextpnr-xilinx + openFPGALoader):**
+**Optional corroboration: openXC7 (yosys + nextpnr-xilinx + openFPGALoader):**
 ```bash
 # Recommended on NixOS: use the repository-local flake
 nix develop .#hardware
@@ -235,7 +235,7 @@ python3 base_soc.py --load   # SRAM test (volatile)
 python3 base_soc.py --flash  # SPI flash (persistent)
 ```
 
-The flake provides the openXC7 database, `bbaexport`/`bbasm`, and the `xc7frames2bit` build. OpenXC7 synthesis flags in the platform configuration are updated to `-nolutram -nowidelut` to eliminate RAM256X1S and MUXF7/MUXF8 chains. Before synthesis, `ternaryedge-check-litex-board` must pass.
+The flake provides the openXC7 database, `bbaexport`/`bbasm`, and the `xc7frames2bit` build. OpenXC7 synthesis flags in the platform configuration are updated to `-nolutram -nowidelut` to eliminate RAM256X1S and MUXF7/MUXF8 chains. Before synthesis, `ternaryedge-check-litex-board` must pass. An openXC7 build or load does not replace the accepted Vivado report gate or establish production resources/timing.
 
 ### SD Card Preparation (Gildo)
 

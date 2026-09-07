@@ -10,6 +10,7 @@ AR                  := $(CROSS_COMPILE)ar
 endif
 
 CFLAGS              ?= -Wall -Wextra -O2 -static
+CPPFLAGS            += -I$(CURDIR)/../user_app
 ifneq (,$(findstring riscv,$(CC)))
 CFLAGS              += -march=rv32ima -mabi=ilp32
 endif
@@ -24,7 +25,7 @@ $(LIBNAME): $(OBJS)
 	$(AR) rcs $@ $^
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
 clean:
 	rm -f $(OBJS) $(LIBNAME)

@@ -1,16 +1,23 @@
 # Status Atual do Projeto — Ternary Edge-RV
-**Data:** 04/08/2026
+**Data:** 24/08/2026
 **Autor:** Arthur Oliveira Gomes (Hardware)
 
 ---
 
 ## Resumo Executivo
 
-O projeto completou **toda a Fase 3** e está em **Fase 4 — Deploy Físico e Paper 1**. NPU v2, HAL, Driver, Buildroot packages, golden model e pipeline QAT estão 100% code-complete e validados em simulação (29/29 testes no golden model C++).
+O projeto está em **Fase 4, deploy físico e Paper 1**. O RTL atual de Arthur integra 64 PEs ternárias, árvore registrada 64->1, acumulador escalar INT32, ativações bancadas, pós-processamento de três estágios, DMA Wishbone Classic single-beat com `CTI=000`, `BTE=00`, `ERR` downstream e timeout de 256 ciclos, ABI canônico de 17 offsets `0x00..0x40` e até 8 descritores software-programáveis.
 
-**Novidade crítica (Agosto 2026):** A **RealDigital Urbana** (AMD Spartan-7 XC7S50-CSGA324, 128 MB DDR3, MicroSD) **foi recebida**. O bloqueio histórico da Fase 4 desapareceu. Agora o caminho crítico é puramente físico — síntese, boot Linux na FPGA, `insmod` e benchmarks reais.
+**Evidência canônica atual:** os testes Icarus focados e a matriz de top com 16, 32 e 64 PEs passam, incluindo a regressão de produção `784->1024->512->256` com pesos não uniformes na última linha: outputs 0..254 iguais a `65024` e output 255 igual a `-65024`. A matriz de lint Verilator, a síntese genérica Yosys e `synth_matrix` também passam. Os testes de contrato da apresentação passam em 11/11 e os testes unitários do report-gate passam em 12/12. Os resultados físicos Vivado continuam pendentes.
 
-**Status do software:** Gildo entregou a NPU HAL completa (`npu_hal.c`/`npu_classifier.c`/`npu_weights.c`) e os Buildroot packages. Gilvan entregou `weights.h` real (91.169 linhas) e golden model v2 (21/21). Gustavo entregou driver v3.0 (offsets NPU v2 + IOCTL struct). Arthur entregou RTL v2 (64 MACs, Layer Sequencer, Wishbone Master) e `base_soc.py` pronto para Urbana.
+**Mapa congelado:** DDR em `0x40000000`, janela NPU de 64 KiB em `0x80000000`, IRQ 10. Somente os 17 offsets `0x00..0x40` são válidos; os demais retornam `ERR`. As PEs ternárias evitam multiplicadores no caminho ternário, mas a requantização inclui intencionalmente um multiplicador geral com sinal. A utilização física de DSPs aguarda os relatórios Vivado atuais.
+
+**Status de integração:** a forma de shell para uma validação Vivado executada pelo usuário é `nix develop path:.#vivado`, pois `nix/vivado.nix` está atualmente não rastreado. Isso documenta um procedimento de aceitação, não comprova síntese, recursos, timing, bitstream ou comportamento físico.
+
+Todos os recursos físicos, timing, bitstream, placa, boot Linux, IRQ, DMA, inferência, benchmark, potência e energia permanecem pendentes.
+
+O corpo histórico abaixo é preservado para crédito e contexto. Ele não deve ser
+lido como evidência corrente quando contradiz o resumo operacional acima.
 
 **Mudança organizacional importante:** O `user_app.c` foi transferido de Gilvan para Gildo. Gildo agora assume a **NPU HAL + Classifier + Buildroot Packages** — uma expansão significativa de escopo que reflete a filosofia: *quanto menos complexa a NPU (puramente ternária), mais complexo o software que a completa.*
 
@@ -22,21 +29,40 @@ O projeto completou **toda a Fase 3** e está em **Fase 4 — Deploy Físico e P
 
 | Tarefa | Status | Arquivo |
 |--------|--------|---------|
-| Mapa de Memória Oficial v2 | ✅ `docs/arquitetura/mapa_de_memoria.md` | 10 registradores, `0x40000000`, IRQ 10 |
+| Mapa de Memória Oficial v2 | ✅ `docs/arquitetura/mapa_de_memoria.md` | DDR `0x40000000`, NPU `0x80000000`, IRQ 10 |
 | Requisitos FPGA | ✅ `hardware/litex_soc/requisitos_fpga.md` | Mínimo 32MB RAM, 15k LUTs, SD Card |
 | SoC Base VexRiscv | ✅ `hardware/litex_soc/base_soc.py` | RV32IMA Linux, Wishbone, região NPU reservada |
-| MAC Multiplierless (ternário×INT8) | ✅ `hardware/npu_rtl/ternary_mac.v` | 0 DSPs — Mux + Somador |
+| PE ternária, caminho sem multiplicador | ✅ `hardware/npu_rtl/ternary_mac.v` | DSP físico pendente de relatório Vivado |
 | NPU v1 (1 MAC, PIO, Wishbone Slave) | ✅ `npu_ternaria_top.v`, `tb_npu_ternaria_top.v` | Legado funcional |
-| **64 MACs paralelos + Adder Tree** | ✅ `ternary_mac_array.v` + `adder_tree_64.v` | 63 adders, 6 estágios pipeline |
-| **Wishbone Master DMA (burst reads)** | ✅ `wishbone_master.v` | B4 Standard, burst incrementante |
-| **NPU v2 Top-Level integrado** | ✅ `npu_ternaria_top_v2.v` | FSM 10 estados, Layer Sequencer |
-| **Layer Sequencer (3 layers)** | ✅ (embutido no top v2) | 784→1024→512→256 automático, ~92K ciclos |
-| **Testbench Verilog v2** | ✅ `tb_npu_v2.v` | RAM simulada, testes registrador/IRQ/STATUS |
-| **Golden Model C++ v2** | ✅ `npu_sim_v2.cpp` + `demo_npu_v2.cpp` | 21/21 testes passando |
-| **Pacote de definições compartilhadas** | ✅ `npu_v2_pkg.v` | Register map, FSM states, constantes |
-| **SoC base atualizado (IRQ=10, NPU v2)** | ✅ `base_soc.py` | Wishbone Slave + Master, IRQ 10 no PLIC. Importa `realdigital_urbana` |
-| **Device Tree FPGA real** | ✅ `urrbana.dts` | DDR3 128MB @ `0x80000000`, NPU, LiteX peripherals |
+| **64 PEs integradas + árvore** | ✅ `ternary_mac_array.v` + `adder_tree_64.v` | Array integrado, sem afirmar recurso físico |
+| **Acumulador e ativações** | ✅ RTL atual | Acumulador escalar e bancos de ativações |
+| **Pós-processamento** | ✅ `postprocess_unit.v` | Três estágios; requantização usa multiplicador geral com sinal |
+| **Wishbone Master DMA** | ✅ `wishbone_master.v` | Transferência single-beat, `ERR` e timeout |
+| **NPU v2 Top-Level integrado** | ✅ `npu_ternaria_top_v2.v` | ABI de descritores, controlador sequencial e estados internos de pós-processamento e erro |
+| **Testes RTL atuais** | ✅ `hardware/npu_rtl/Makefile` | Icarus focado, top 16/32/64 e lint Verilator |
+| **LiteX ERR propagation** | ✅ `hardware/litex_soc/base_soc.py` | ERR propagado no caminho Wishbone |
+| **Golden Model C++ v2** | ✅ `npu_sim_v2.cpp` + `demo_npu_v2.cpp` | Registro histórico, 21/21 checks |
+| **Pacote de definições compartilhadas** | ✅ `npu_v2_pkg.v` | 17 offsets `0x00..0x40`, até 8 descritores, STATUS com camada em `[15:8]`, estados internos `0..19` incluindo `ST_POSTPROCESS_WAIT` |
+| **SoC base atualizado (IRQ 10, NPU v2)** | ✅ `base_soc.py` | Wishbone e IRQ 10 no PLIC. Importa `realdigital_urbana` |
+| **Device Tree FPGA real** | ✅ `urrbana.dts` | DDR em `0x40000000`, NPU em `0x80000000` |
+| **Wrapper Vivado e proveniência Urbana** | ✅ `nix/vivado.nix`, check local | Shell puro Nix, dispositivo `xc7s50csga324-1` |
 | **FPGA Física** | ✅ Recebida (Urbana, ago/2026) | Spartan-7 XC7S50-CSGA324. Síntese pendente. |
+
+### Gate de síntese e bloqueios atuais
+
+O build Vivado atual deve ser executado pelo usuário a partir da raiz, depois
+de `ternaryedge-check-litex-board`, e aceito somente por
+`python3 hardware/litex_soc/check_vivado_reports.py`. A forma de shell é
+`nix develop path:.#vivado`, porque `nix/vivado.nix` está não rastreado.
+
+Os relatórios Vivado históricos estão stale e rejeitados: o Tcl gerado omitia
+`postprocess_unit.v`, os artefatos precedem o RTL atual, WNS era `-7.392 ns` e
+TNS era `-35888.277 ns`. Eles não comprovam recursos, timing, bitstream ou
+funcionamento físico atuais.
+
+Bloqueios registrados: `openFPGALoader --detect` retorna `device not found`, o
+compilador RV32 do Buildroot está ausente e não há evidência física end-to-end,
+incluindo boot Linux, IRQ, DMA, benchmark ou medição de desempenho.
 
 ---
 
@@ -92,7 +118,7 @@ O projeto completou **toda a Fase 3** e está em **Fase 4 — Deploy Físico e P
 | Zero-Copy (mmap) | ✅ | `dma_mmap_coherent()` — usuário escreve direto |
 | IRQ Handler | ✅ | `devm_request_irq()` + `wait_event_interruptible()` |
 | IOCTL (start inference) | ✅ | `NPU_IOCTL_START_INFERENCE` com struct `npu_ioctl_args` |
-| Offsets v2 (10 registradores) | ✅ | `npu_driver.c` v3.0 — alinhado com RTL v2 |
+| Offsets v2 e mapa MMIO atual | ✅ | `npu_driver.c` v3.0, alinhado com RTL v2 |
 | WEIGHT_CFG + ACT_CFG no ioctl | ✅ | `iowrite32()` para todos os 5 campos |
 | IOCTL Header | ✅ | `software/include/npu_ioctl.h` |
 
@@ -157,20 +183,20 @@ O projeto completou **toda a Fase 3** e está em **Fase 4 — Deploy Físico e P
 
 | Risco | Impacto | Probabilidade | Mitigação |
 |-------|---------|---------------|-----------|
-| Timing closure na FPGA não fechar | SoC não atinge 100 MHz | Baixa | Spartan-7 é farto em LUTs (52k) e NPU é multiplierless;Critical path provavelmente no controlador DDR3 |
-| Bug de DMA crossbar (master NPU → RAM 0x80000000) | NPU lê lixo da RAM | Média | Verificar `base_soc.py` linha 173 (`self.bus.add_master`) — confirmar que crossbar LiteX mapeia master Wishbone para região DDR3 |
+| Timing e recursos da FPGA ainda desconhecidos | SoC pode não atingir 100 MHz ou usar recursos inesperados | Em avaliação | Executar o build Vivado atual e aceitar somente o relatório validado pelo gate |
+| Bug de DMA crossbar (master NPU → DDR 0x40000000) | NPU lê lixo da RAM | Média | Verificar `base_soc.py` e o crossbar LiteX contra o mapa congelado |
 | Bug de alinhamento no HAL | Inference dá resultado errado | Média | Revisar `npu_hal.c:76` (cast 8 vs 32 bits) e `npu_hal.c:51` (offset 0x5C000) contra `npu_v2_pkg.v` antes da integração final |
 | Paper 1 ainda em 30% | Submissão atrasada | Alta | Toda seção de HW/OS/Driver/AI está esqueletada; depende só de métricas reais da FPGA. Caminho crítico: síntese → boot → insmod → benchmark → tabelas |
 | Toolchain não compilada por todos | Membros não testam .ko/.HAL localmente | Média | Cada um roda `make sdk` em `software/os_buildroot/`. Documentado no README do OS |
-| Notebook do Arthur (i5-5200U, 8 GB RAM) | Síntese Vivado lenta/Swap | Média | Opção B: openXC7 (Yosys + nextpnr + openFPGALoader) — ~600 MB total vs 70 GB Vivado. Mais leve, adequado para 8GB RAM |
+| Notebook do Arthur (i5-5200U, 8 GB RAM) | Síntese Vivado lenta/Swap | Média | Usar o wrapper Vivado puro em Nix como etapa pesada do usuário, sem apresentar execução ainda pendente como resultado |
 
 ---
 
-## Adendo operacional de transição (20/08/2026)
+## Adendo operacional de transição (24/08/2026)
 
 **Nota arquivística:** o corpo original deste registro é um **snapshot histórico** e permanece preservado. Este adendo aponta a fonte de verdade operacional vigente, sem reescrever as afirmações datadas acima.
 
 - **Gilvan:** permanecem preservadas sua contribuição histórica no QAT, no empacotamento ternário e no Golden Model C++ v2, bem como sua condição de quarto autor do Paper 1.
 - **Gustavo:** assume a manutenção ativa do pipeline de IA, da exportação e de `weights.h`, da regressão do Golden Model, do driver, da cross-compilação, da coordenação da validação física, dos benchmarks CPU versus NPU e dos resultados e discussão do Paper 1.
-- **Evidência atual, registrada conservadoramente:** C++ v1: 8/8; C++ v2: 21/21; Python: 5/5. A execução Verilog está indisponível no shell atual, e não há benchmark FPGA end-to-end comprovado. As pendências de integração física e de medição real, portanto, não devem ser tratadas como concluídas.
+- **Evidência atual, registrada conservadoramente:** Icarus focado, matriz de top com 16, 32 e 64 PEs e matriz de lint Verilator passam. A regressão de produção `784->1024->512->256` passa em 16, 32 e 64 PEs, com outputs 0..254 iguais a `65024` e a última linha não uniforme produzindo `-65024` no output 255. A síntese genérica Yosys e `synth_matrix` passam, assim como os testes de contrato da apresentação (11/11) e os testes unitários do report-gate (12/12). Os resultados Vivado físicos permanecem pendentes e não há benchmark FPGA end-to-end comprovado.
 - A menção histórica a `output_biases[]` no corpo deste snapshot usa nomenclatura antiga; o símbolo atual verificado no header é `output_bias[]`.

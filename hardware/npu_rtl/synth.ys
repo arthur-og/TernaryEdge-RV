@@ -1,0 +1,7 @@
+read_verilog -sv -I. npu_v2_pkg.v wishbone_master.v ternary_mac.v ternary_mac_array.v adder_tree_64.v postprocess_unit.v npu_ternaria_top_v2.v
+hierarchy -top npu_ternaria_top_v2
+proc
+check
+synth -top npu_ternaria_top_v2
+check
+stat

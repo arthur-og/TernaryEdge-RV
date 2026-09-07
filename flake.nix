@@ -1,5 +1,5 @@
 {
-  description = "Ternary Edge-RV reproducible openXC7 development environment";
+  description = "Ternary Edge-RV reproducible FPGA development environment (openXC7 + Vivado)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -95,6 +95,19 @@
 
           prjxray-tools = self.packages.${pkgs.system}.prjxray-tools;
 
+          # ---------------------------------------------------------------------------
+          # Vivado toolchain (proprietary, FHS-wrapped).
+          #   nix develop .#vivado
+          #   python3 base_soc.py --build --toolchain vivado
+          #
+          # The wrapper sources Vivado's settings64.sh inside a buildFHSEnv
+          # bubble, so the proprietary binaries see the FHS layout they
+          # expect. The devShell keeps LITEX_ENV_VIVADO unset so LiteX calls
+          # the wrapper from PATH instead of sourcing host settings directly.
+          # ---------------------------------------------------------------------------
+          vivado-nix = import ./nix/vivado.nix { inherit pkgs; lib = pkgs.lib; };
+          vivadoToolchain = vivado-nix.mkVivadoToolchain { };
+
           setupOpenxc7 = pkgs.writeShellScriptBin "ternaryedge-setup-openxc7" ''
             set -euo pipefail
 
@@ -144,7 +157,36 @@
 
           checkLitexBoard = pkgs.writeShellScriptBin "ternaryedge-check-litex-board" ''
             set -euo pipefail
-            python3 -c 'from litex_boards.targets import realdigital_urbana; print(realdigital_urbana.__file__)'
+            root="''${TERNARYEDGE_ROOT:-$(pwd)}"
+            board_root="$root/hardware/litex_soc/litex_boards"
+            export PYTHONPATH="$root/hardware/litex_soc:''${PYTHONPATH:-}"
+            TERNARYEDGE_BOARD_ROOT="$board_root" python3 - <<'PY'
+            import importlib
+            import os
+            from pathlib import Path
+
+            board_root = Path(os.environ["TERNARYEDGE_BOARD_ROOT"]).resolve()
+            target = importlib.import_module("litex_boards.targets.realdigital_urbana")
+            platform = importlib.import_module("litex_boards.platforms.realdigital_urbana")
+            target_file = Path(target.__file__).resolve()
+            platform_file = Path(platform.__file__).resolve()
+
+            if not target_file.is_relative_to(board_root):
+                raise SystemExit(f"target import escaped project board tree: {target_file}")
+            if not platform_file.is_relative_to(board_root):
+                raise SystemExit(f"platform import escaped project board tree: {platform_file}")
+            if target.Platform is not platform.Platform:
+                raise SystemExit("target/platform Platform wiring mismatch")
+
+            urbana = platform.Platform(toolchain="vivado")
+            if urbana.device != "xc7s50csga324-1":
+                raise SystemExit(f"unexpected Urbana device: {urbana.device}")
+
+            print(
+                "LiteX Urbana provenance: "
+                f"target={target_file} platform={platform_file} device={urbana.device}"
+            )
+            PY
           '';
 
           hostBuildPackages = with pkgs; [
@@ -215,6 +257,28 @@
             rsync
             util-linux
           ];
+
+          # ---------------------------------------------------------------------------
+          # Packages shared by the Vivado devShell — all LiteX/Migen/Python
+          # deps from `commonHardwarePackages` but WITHOUT the openXC7-only
+          # tools (yosys, nextpnr-xilinx, prjxray-tools, fasm, setupOpenxc7).
+          # Vivado replaces them.
+          # ---------------------------------------------------------------------------
+          commonVivadoPackages = with pkgs; [
+            cmake
+            git
+            gnumake
+            gtkwave
+            iverilog
+            libusb1
+            openfpgaloader
+            picocom
+            pythonHardware
+            checkLitexBoard
+            usbutils
+            verilator
+            riscvBareMetal
+          ] ++ vivadoToolchain;
         in {
           hardware = pkgs.mkShell {
             packages = commonHardwarePackages;
@@ -247,6 +311,34 @@
                 echo "AI environment: ready"
               else
                 echo "Run ternaryedge-setup-ai once to install TensorFlow 2.17 and Larq 0.13."
+              fi
+            '';
+          };
+
+          vivado = pkgs.mkShell {
+            packages = commonVivadoPackages;
+            shellHook = ''
+              export TERNARYEDGE_ROOT="''${TERNARYEDGE_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+              export PYTHONPATH="${litex}:$TERNARYEDGE_ROOT/hardware/litex_soc:${litex-boards}:${litedram}:${litespi}:${litesdcard}:${pythondata-cpu-vexriscv}:${pythondata-software-picolibc}:${pythondata-software-compiler_rt}:''${PYTHONPATH:-}"
+
+              # Do NOT export LITEX_ENV_VIVADO: LiteX uses it to generate
+              # `source $LITEX_ENV_VIVADO/settings64.sh` in its build script,
+              # which pollutes PATH with un-patched binaries outside the FHS.
+              # Instead, LiteX will call `vivado` from PATH, which correctly
+              # invokes our FHS wrapper.
+              unset LITEX_ENV_VIVADO || true
+
+              echo "=== Ternary Edge-RV — Vivado toolchain ==="
+              ${vivado-nix.vivadoPathResolution}
+              echo "  Vivado path: $vivado_home"
+              echo "  Build: python3 base_soc.py --build --toolchain vivado"
+              echo "  Clock target/default: 100 MHz (implementation reports pending)"
+              echo ""
+
+              if [ ! -f "$vivado_home/settings64.sh" ]; then
+                echo "  WARNING: settings64.sh not found at $vivado_home" >&2
+                echo "  Install AMD Vivado Design Suite 2026.1, then re-enter this shell." >&2
+                echo "  If installed elsewhere: VIVADO_HOME=/your/path nix develop .#vivado" >&2
               fi
             '';
           };

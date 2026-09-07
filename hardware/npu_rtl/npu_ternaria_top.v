@@ -57,6 +57,8 @@
  *   0x1C: RESULT   (RO) — resultado acumulado final
  */
 
+`timescale 1ns / 1ps
+
 module npu_ternaria_top (
     // Clock e Reset
     input  wire        clk,
@@ -105,8 +107,8 @@ module npu_ternaria_top (
     reg [7:0]  act_mem    [0:1023];
 
     // Ponteiros de escrita (auto-incremento quando CPU escreve)
-    reg [9:0]  wptr_weight;
-    reg [10:0] wptr_act;
+    reg [8:0]  wptr_weight;
+    reg [9:0]  wptr_act;
 
     // =========================================================================
     // 4. Máquina de Estados de Processamento (FSM)
@@ -119,19 +121,16 @@ module npu_ternaria_top (
 
     reg [2:0]  state;
     reg [31:0] mac_counter;           // Quantos MACs já foram feitos
-    reg [31:0] accumulator;           // Acumulador interno (32 bits)
     reg [15:0] zero_counter;          // Contagem de pesos zero pulados
 
     // Ponteiros de leitura (para varrer as memórias durante computação)
-    reg [9:0]  rptr_weight;
-    reg [10:0] rptr_act;
+    reg [8:0]  rptr_weight;
+    reg [9:0]  rptr_act;
     reg [4:0]  weight_sub_idx;        // Índice do sub-peso (0 a 15) dentro da word
 
     // Sinais de controle
     wire       cmd_start = (wb_we_i && wb_cyc_i && wb_stb_i && (wb_adr_i[7:0] == REG_CONTROL) && wb_dat_i[0]);
     wire       cmd_clear = (wb_we_i && wb_cyc_i && wb_stb_i && (wb_adr_i[7:0] == REG_CONTROL) && wb_dat_i[1]);
-    wire       write_weight = (wb_we_i && wb_cyc_i && wb_stb_i && (wb_adr_i[7:0] == REG_WEIGHT_DATA));
-    wire       write_act    = (wb_we_i && wb_cyc_i && wb_stb_i && (wb_adr_i[7:0] == REG_ACT_DATA));
 
     // =========================================================================
     // 5. Extração do Peso Atual
@@ -139,25 +138,24 @@ module npu_ternaria_top (
     // Cada word de 32 bits contém 16 pesos de 2 bits.
     // Little-Endian: peso[0] = bits[1:0], peso[1] = bits[3:2], ...
     wire [31:0] current_weight_word = weight_mem[rptr_weight];
-    wire [1:0]  current_weight = (current_weight_word >> (weight_sub_idx * 2)) & 2'b11;
+    wire [1:0]  current_weight = current_weight_word[weight_sub_idx * 2 +: 2];
     wire [7:0]  current_act    = act_mem[rptr_act];
 
     // =========================================================================
     // 6. Instanciação do MAC Multiplierless
     // =========================================================================
-    wire [31:0] mac_out;
+    wire signed [8:0] mac_product;
+    wire legacy_invalid_weight;
+    reg signed [31:0] legacy_accumulator;
 
     ternary_mac #(
         .ACT_WIDTH(8),
-        .ACC_WIDTH(32)
+        .PROD_WIDTH(9)
     ) u_mac (
-        .clk    (clk),
-        .rst    (~rst_n),
-        .en     ( (state == ST_COMPUTE) ? 1'b1 : 1'b0 ),
-        .clear  ( (state == ST_IDLE) ? 1'b1 : 1'b0 ),
-        .act_in (current_act),
+        .act_in ($signed(current_act)),
         .weight (current_weight),
-        .acc_out(mac_out)
+        .product(mac_product),
+        .invalid_weight(legacy_invalid_weight)
     );
 
     // =========================================================================
@@ -168,10 +166,10 @@ module npu_ternaria_top (
             state          <= ST_IDLE;
             mac_counter    <= 32'd0;
             zero_counter   <= 16'd0;
-            rptr_weight    <= 10'd0;
-            rptr_act       <= 11'd0;
+            rptr_weight    <= 9'd0;
+            rptr_act       <= 10'd0;
             weight_sub_idx <= 5'd0;
-            accumulator    <= 32'd0;
+            legacy_accumulator <= 32'sd0;
             irq_out        <= 1'b0;
         end else begin
             case (state)
@@ -183,9 +181,10 @@ module npu_ternaria_top (
                         // Inicializa todos os contadores
                         mac_counter    <= 32'd0;
                         zero_counter   <= 16'd0;
-                        rptr_weight    <= 10'd0;
-                        rptr_act       <= 11'd0;
+                        rptr_weight    <= 9'd0;
+                        rptr_act       <= 10'd0;
                         weight_sub_idx <= 5'd0;
+                        legacy_accumulator <= 32'sd0;
 
                         // Se DATA_SIZE = 0, vai direto para DONE
                         if (r_data_size == 32'd0) begin
@@ -223,13 +222,18 @@ module npu_ternaria_top (
                     if (current_weight == 2'b00) begin
                         zero_counter <= zero_counter + 1;
                     end
+                    if (legacy_invalid_weight)
+                        zero_counter <= zero_counter + 1;
 
                     mac_counter <= mac_counter + 1;
 
                     // Verifica se terminou
                     if (mac_counter >= (r_data_size - 1)) begin
                         // Último MAC: guarda resultado e termina
-                        r_result <= mac_out;
+                        r_result <= legacy_accumulator +
+                                    {{23{mac_product[8]}}, mac_product};
+                        legacy_accumulator <= legacy_accumulator +
+                                              {{23{mac_product[8]}}, mac_product};
                         state    <= ST_DONE;
                         irq_out  <= 1'b1;   // DISPARA INTERRUPÇÃO!
                     end else begin
@@ -244,6 +248,8 @@ module npu_ternaria_top (
                         // Ativação avança um a um
                         rptr_act <= rptr_act + 1;
 
+                        legacy_accumulator <= legacy_accumulator +
+                                              {{23{mac_product[8]}}, mac_product};
                         state <= ST_READ_W;   // Próximo ciclo
                     end
                 end
@@ -256,6 +262,10 @@ module npu_ternaria_top (
                         state   <= ST_IDLE;
                     end
                 end
+                default: begin
+                    state <= ST_IDLE;
+                    irq_out <= 1'b0;
+                end
             endcase
         end
     end
@@ -263,7 +273,8 @@ module npu_ternaria_top (
     // =========================================================================
     // 8. Lógica Wishbone Slave
     // =========================================================================
-    wire wb_valid = wb_cyc_i && wb_stb_i;
+    wire wb_valid = wb_cyc_i && wb_stb_i && (wb_sel_i == 4'b1111) &&
+                    (wb_adr_i[31:8] == 24'd0);
 
     always @(posedge clk) begin
         if (~rst_n) begin
@@ -272,13 +283,18 @@ module npu_ternaria_top (
             r_src_addr   <= 32'd0;
             r_dst_addr   <= 32'd0;
             r_data_size  <= 32'd0;
-            wptr_weight  <= 10'd0;
-            wptr_act     <= 11'd0;
+            wptr_weight  <= 9'd0;
+            wptr_act     <= 10'd0;
         end else begin
             wb_ack_o <= 1'b0;   // Acknowledge dura 1 ciclo
 
             if (wb_valid && !wb_ack_o) begin
                 wb_ack_o <= 1'b1;
+
+                if (cmd_clear) begin
+                    wptr_weight <= 9'd0;
+                    wptr_act    <= 10'd0;
+                end
 
                 if (wb_we_i) begin
                     // ---- Escrita do processador na NPU ----
@@ -297,16 +313,18 @@ module npu_ternaria_top (
                             wptr_act <= wptr_act + 1;         // Auto-incremento
                         end
                         // REG_CONTROL não armazena valor (start/clear são wires)
+                        default: begin
+                        end
                     endcase
                 end else begin
                     // ---- Leitura do processador da NPU ----
                     case (wb_adr_i[7:0])
-                        REG_STATUS:   wb_dat_o <= {16'd0, zero_counter, 14'd0, irq_out, (state != ST_IDLE)};
+                        REG_STATUS:   wb_dat_o <= {16'd0, zero_counter[7:0], 6'd0, irq_out, (state != ST_IDLE)};
                         REG_SRC_ADDR: wb_dat_o <= r_src_addr;
                         REG_DST_ADDR: wb_dat_o <= r_dst_addr;
                         REG_DATA_SIZE: wb_dat_o <= r_data_size;
                         REG_RESULT:   wb_dat_o <= r_result;
-                        default:      wb_dat_o <= 32'hCAFEBABE;  // Debug pattern
+                        default:      wb_dat_o <= 32'hCAFEBABE;
                     endcase
                 end
             end

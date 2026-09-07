@@ -7,25 +7,38 @@
 #include "../npu_hal/npu_weights.h"
 #include "weights.h"
 
-static void forward_ternary_layer(int32_t *output,
-                                   const uint8_t *input,
+static int8_t quantize_activation(int32_t value, int relu)
+{
+    if (relu && value < 0)
+        return 0;
+    if (value > 127)
+        return 127;
+    if (value < -128)
+        return -128;
+    return (int8_t)value;
+}
+
+static void forward_ternary_layer(int8_t *output,
+                                   const int8_t *input,
                                    const uint32_t *packed_weights,
                                    const int32_t *bias,
-                                   int num_inputs, int num_outputs)
+                                   int num_inputs, int num_outputs,
+                                   int relu)
 {
+    int words_per_output = (num_inputs + 15) / 16;
     for (int j = 0; j < num_outputs; j++) {
         int32_t acc = 0;
         for (int i = 0; i < num_inputs; i++) {
-            int word_idx = j * (num_inputs / 16) + i / 16;
+            int word_idx = j * words_per_output + i / 16;
             int bit_pos = (i % 16) * 2;
             uint8_t weight = (packed_weights[word_idx] >> bit_pos) & 0x03;
-            int8_t act = (int8_t)input[i];
-            if (weight == 0b01)
+            int8_t act = input[i];
+            if (weight == 1)
                 acc += act;
-            else if (weight == 0b11)
+            else if (weight == 3)
                 acc -= act;
         }
-        output[j] = acc + (bias ? bias[j] : 0);
+        output[j] = quantize_activation(acc + (bias ? bias[j] : 0), relu);
     }
 }
 
@@ -40,29 +53,47 @@ static int load_mnist_image(const char *path, uint8_t *image)
 
 static void run_cpu_baseline(const uint8_t *image)
 {
-    int32_t layer0_out[1024];
-    int32_t layer1_out[512];
-    int32_t layer2_out[256];
+    int8_t layer0_out[1024];
+    int8_t layer1_out[512];
+    int8_t layer2_out[256];
+    int32_t classifier_input[256];
+    int8_t signed_image[784];
+    float logits[10];
     float scores[10];
     float confidence;
     int predicted;
+#ifdef NPU_MODEL_HAS_QUANT_PARAMS
+    const int32_t *layer0_bias = quant_dense_bias;
+    const int32_t *layer1_bias = quant_dense_1_bias;
+    const int32_t *layer2_bias = quant_dense_2_bias;
+#else
+    const int32_t *layer0_bias = NULL;
+    const int32_t *layer1_bias = NULL;
+    const int32_t *layer2_bias = NULL;
+#endif
 
     printf("CPU mode: running ternary baseline + classifier...\n");
 
-    forward_ternary_layer(layer0_out, image,
-                          quant_dense_weights, NULL, 784, 1024);
+    for (int i = 0; i < 784; i++)
+        signed_image[i] = (int8_t)image[i];
 
-    forward_ternary_layer(layer1_out, (uint8_t *)layer0_out,
-                          quant_dense_1_weights, NULL, 1024, 512);
+    forward_ternary_layer(layer0_out, signed_image,
+                          quant_dense_weights, layer0_bias, 784, 1024, 1);
 
-    forward_ternary_layer(layer2_out, (uint8_t *)layer1_out,
-                          quant_dense_2_weights, NULL, 512, 256);
+    forward_ternary_layer(layer1_out, layer0_out,
+                          quant_dense_1_weights, layer1_bias, 1024, 512, 1);
+
+    forward_ternary_layer(layer2_out, layer1_out,
+                          quant_dense_2_weights, layer2_bias, 512, 256, 1);
+
+    for (int i = 0; i < 256; i++)
+        classifier_input[i] = layer2_out[i];
 
     classifier_run(
         (const float (*)[256])weights_get_output(),
         weights_get_bias(),
-        layer2_out,
-        scores, &confidence, &predicted
+        classifier_input,
+        logits, scores, &confidence, &predicted
     );
 
     printf("  Predicted class: %d\n", predicted);

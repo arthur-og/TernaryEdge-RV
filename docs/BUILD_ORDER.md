@@ -1,8 +1,8 @@
 # Ternary Edge-RV: Build, Test and Flash Order
 
-This project uses a repository-local Nix flake and the openXC7 toolchain. Docker
-is intentionally not part of the hardware workflow: the FTDI programmer is
-easier to access from the host through udev than through a USB-passthrough
+This project uses a repository-local Nix flake and pure Nix hardware shells.
+Docker is intentionally not part of the hardware workflow: the FTDI programmer
+is easier to access from the host through udev than through a USB-passthrough
 container.
 
 ## Current Operational Ownership
@@ -64,13 +64,19 @@ Run commands from the repository root:
 nix develop .#hardware
 nix develop .#software
 nix develop .#ai
+nix develop path:.#vivado
 ```
 
-The `hardware` shell is for LiteX, RTL simulation, synthesis and programming.
+The `hardware` shell is for LiteX, RTL simulation, generic checks and programming.
 The `software` shell is for Buildroot, QEMU and host-side cross-build support.
 The `ai` shell is for the QAT pipeline and generated weights. The exact
 package set is defined in `flake.nix`; do not install a second system-wide
 toolchain for this repository.
+
+The Vivado shell is a pure Nix wrapper. `nix/vivado.nix` is currently
+untracked, so `nix develop path:.#vivado` is the validation form until that
+file is included in a future commit. Do not stage it as part of this document
+update.
 
 Initialize the two local tool environments once:
 
@@ -83,20 +89,24 @@ nix develop .#ai --command ternaryedge-setup-ai
 
 Do not flash hardware before the lower-level checks pass.
 
-### 3.1 RTL and golden models
+### 3.1 Hardware verification, first gate
 
-The current host evidence is C++ Golden Model v1 with 8/8 checks, C++ Golden
-Model v2 with 21/21 checks, and the Python pipeline with 5/5 checks. The
-Verilog testbench is unavailable in the current shell, so the historical 4/4
-record must not be presented as a current execution result.
+Run the current RTL checks from the repository root. This is Arthur's
+canonical lightweight hardware gate. It runs the focused Icarus tests, the
+16, 32 and 64 PE top matrix, and the Verilator lint matrix.
 
 ```bash
-make -C hardware/npu_rtl/sim_cpp all
-python3 hardware/npu_rtl/python/golden_model.py
+nix develop .#hardware --command make -C hardware/npu_rtl test test_matrix lint_matrix
 ```
 
-Run `make -C hardware/npu_rtl/sim_cpp verilog_v2` only when the selected
-simulator is available, and record its result separately.
+This gate does not run the protected `sim_cpp` or Python golden-model paths.
+Those remain separate team-owned reference checks and are not evidence of
+current physical hardware behavior. The historical Verilog 4/4 result is
+retained as history only.
+
+The generic Yosys synthesis/check flow and its 16/32/64 PE matrix pass after
+the current RTL changes. These host checks prove elaboration and generic
+synthesis only; current physical resource metrics still require Vivado.
 
 ### 3.2 AI weights
 
@@ -133,6 +143,9 @@ the out-of-tree driver. The expected cross-compiler is:
 ../buildroot/output/host/bin/riscv32-buildroot-linux-gnu-gcc
 ```
 
+Current blocker: the Buildroot RV32 compiler is absent in this environment, so
+driver, HAL and application cross-compilation remain pending.
+
 ### 3.4 Driver, HAL and application
 
 Run these from the repository root after the full Buildroot build:
@@ -164,31 +177,37 @@ FPGA timing, NPU IRQ, DMA or physical FTDI connection.
 
 ## 4. SoC Build and FPGA Programming
 
-Enter the hardware shell and generate the LiteX SoC/bitstream with openXC7:
+The frozen address contract is DDR `0x40000000`, NPU `0x80000000`, IRQ 10.
+The local Urbana provenance check covers device `xc7s50csga324-1` and must
+pass before the heavy user-run Vivado step.
 
-Current LiteX documentation uses `0x80000000` as the candidate NPU MMIO base,
-while older map snapshots use `0x40000000`. Validate the generated LiteX map,
-RTL, Device Tree, driver and HAL before treating either address as final.
-
-```bash
-cd /home/arthur/Documents/Projects/TernaryEdge-RV
-nix develop .#hardware
-cd hardware/litex_soc
-python3 base_soc.py --build --toolchain openxc7
-```
-
-Before this command, run the board-target check:
+Run the board-target check from the repository root:
 
 ```bash
-ternaryedge-check-litex-board
+nix develop .#hardware --command ternaryedge-check-litex-board
 ```
 
-At the time this environment was created, that check fails because upstream
-`litex-boards` does not contain `realdigital_urbana`, and this repository does
-not yet contain a local `realdigital_urbana` target/platform module. The
-missing LiteX board support is a project blocker, not a NixOS dependency. It
-must be implemented from the Urbana schematic and official pinout before
-synthesis. Do not guess DDR3, UART, SD or FTDI pins.
+The local Urbana target and device provenance are now validated. Do not
+replace them with guessed DDR3, UART, SD or FTDI pins.
+
+Vivado is a heavy user-run step. From the repository root, validate the pure
+Nix wrapper and then run the build:
+
+```bash
+nix develop path:.#vivado
+nix develop path:.#vivado --command python3 hardware/litex_soc/base_soc.py --build --toolchain vivado
+```
+
+After the user-run build, apply the report acceptance gate:
+
+```bash
+python3 hardware/litex_soc/check_vivado_reports.py
+```
+
+Historical Vivado reports are stale and rejected. Their generated Tcl omitted
+`postprocess_unit.v`, the artifacts predate the current RTL, WNS was
+`-7.392 ns`, and TNS was `-35888.277 ns`. They cannot establish current
+resources, timing, bitstream generation or physical behavior.
 
 Before programming, verify that the board is visible:
 
@@ -196,17 +215,20 @@ Before programming, verify that the board is visible:
 openFPGALoader --detect
 ```
 
+The current blocker is `device not found` from this command. Do not treat the
+historical FTDI detection record as current board evidence.
+
 First load the bitstream into SRAM (volatile) so a failed experiment does not
 alter the persistent SPI flash:
 
 ```bash
-python3 base_soc.py --load
+python3 hardware/litex_soc/base_soc.py --load
 ```
 
 After the SRAM load and UART check are successful, program the SPI flash:
 
 ```bash
-python3 base_soc.py --flash
+python3 hardware/litex_soc/base_soc.py --flash
 ```
 
 The direct loader form is useful for a known generated `.bit`/`.bin` artifact:
@@ -262,24 +284,27 @@ ext4 root partition + driver + HAL + user_app + MNIST data
 
 ## 7. Copyable Build Prompt
 
-Use the following prompt with an implementation agent after the repository
-and NixOS module are available:
+Use the following handoff procedure after the repository and NixOS module are
+available. It describes user-run steps and does not claim that they have
+already completed:
 
 ```text
 Work on the TernaryEdge-RV repository on NixOS.
 
-Goal: produce a reproducible, open-source-only build and flash workflow for
-the RealDigital Urbana FPGA (AMD Spartan-7 XC7S50-CSGA324), without Vivado,
-Docker, or privileged USB containers.
+Goal: produce a reproducible Vivado build and flash workflow for the RealDigital
+Urbana FPGA (AMD Spartan-7 XC7S50-CSGA324), using the pure Nix wrapper and
+without Docker or privileged USB containers.
 
 Use the repository flake and its shells:
   nix develop .#hardware
   nix develop .#software
   nix develop .#ai
+  nix develop path:.#vivado
 
 Required phases, in this order:
-1. Run the C++ NPU v2 simulations and the Python golden model. Run the Verilog
-   testbench only when its simulator is available in the shell.
+1. Run the canonical hardware gate:
+   nix develop .#hardware --command make -C hardware/npu_rtl test test_matrix lint_matrix
+   Do not substitute the protected sim_cpp or Python golden-model paths.
 2. Gustavo runs the AI pipeline and verifies that software/user_app/weights.h
    satisfies every symbol expected by the HAL, including the CPU output layer.
    The current FP32 values are fallbacks, not validated trained parameters.
@@ -289,18 +314,18 @@ Required phases, in this order:
 4. Cross-compile npu_driver, npu_hal and user_app with the generated
    riscv32-buildroot-linux-gnu toolchain. Do not claim success if the kernel
    tree or Module.symvers is missing.
-5. Build hardware/litex_soc/base_soc.py with the openXC7/Yosys/nextpnr flow.
-   Run ternaryedge-check-litex-board first. If realdigital_urbana is missing,
-   stop and implement the target/platform from the official Urbana schematic
-   and pinout; do not invent board constraints. Confirm that the generated
-   chip database matches xc7s50csga324 and stop with a concrete diagnostic if
-   it does not.
-6. Run openFPGALoader --detect, load SRAM with base_soc.py --load, validate
+5. Run nix develop .#hardware --command ternaryedge-check-litex-board first. Confirm the local Urbana provenance
+   for xc7s50csga324-1. The frozen map is DDR 0x40000000, NPU 0x80000000, IRQ 10.
+6. Run the heavy user step from the repository root:
+   nix develop path:.#vivado --command python3 hardware/litex_soc/base_soc.py --build --toolchain vivado
+   Then run python3 hardware/litex_soc/check_vivado_reports.py. Reject stale
+   reports that omit postprocess_unit.v or predate the current RTL.
+7. Run openFPGALoader --detect, load SRAM with base_soc.py --load, validate
    UART at 115200 baud, and only then use base_soc.py --flash for SPI flash.
-7. Treat MicroSD preparation as a separate acceptance gate. Do not use dd
+8. Treat MicroSD preparation as a separate acceptance gate. Do not use dd
    until the Urbana boot partition layout, DTB, kernel and rootfs have been
    validated.
-8. On the target, Gustavo coordinates validation of dmesg, insmod,
+9. On the target, Gustavo coordinates validation of dmesg, insmod,
    /dev/npu_ternaria, CPU inference, NPU inference and benchmark CSV output
    with Arthur and Gildo. Do not claim these results before they are observed.
 
@@ -309,8 +334,8 @@ Constraints:
 - Preserve existing project changes and do not alter unrelated files.
 - Report the exact command, artifact path and failure cause for every blocked
   phase.
-- Keep the OpenXC7 path reproducible in the flake; do not silently fall back
-  to Vivado or Docker.
+- Keep the Vivado path reproducible in the pure Nix wrapper; do not silently
+  fall back to Docker.
 
 Success means that each phase has an artifact and an observed verification
 result, not merely that a command was started.

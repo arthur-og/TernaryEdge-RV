@@ -21,6 +21,29 @@ HEADER_TEMPLATE = """\
 
 #include <stdint.h>
 
+#ifndef NPU_MODEL_FORMAT_VERSION
+#define NPU_MODEL_FORMAT_VERSION 2
+#endif
+#define NPU_MODEL_HAS_QUANT_PARAMS 1
+#ifndef NPU_MODEL_LAYER_COUNT
+#define NPU_MODEL_LAYER_COUNT 3
+#endif
+#ifndef NPU_MODEL_WEIGHTS_OFFSET
+#define NPU_MODEL_WEIGHTS_OFFSET 0x00001000u
+#endif
+#ifndef NPU_MODEL_INPUT_OFFSET
+#define NPU_MODEL_INPUT_OFFSET 0x0005C000u
+#endif
+#ifndef NPU_MODEL_OUTPUT_OFFSET
+#define NPU_MODEL_OUTPUT_OFFSET 0x00000000u
+#endif
+#ifndef NPU_MODEL_BIAS_OFFSET
+#define NPU_MODEL_BIAS_OFFSET 0x0005f000u
+#endif
+#ifndef NPU_MODEL_SCALE_OFFSET
+#define NPU_MODEL_SCALE_OFFSET 0x00061000u
+#endif
+
 {layer_declarations}
 
 {output_declarations}
@@ -35,6 +58,14 @@ LAYER_DECL_TEMPLATE = """\
 #define {layer_name_upper}_PACKED_WORDS {packed_words}
 static const uint32_t {layer_name}_weights[{packed_words}] = {{
 {weight_data}
+}};
+#define {layer_name_upper}_BIAS_COUNT {output_dim}
+static const int32_t {layer_name}_bias[{output_dim}] = {{
+{bias_data}
+}};
+#define {layer_name_upper}_SCALE_COUNT {output_dim}
+static const int32_t {layer_name}_scale[{output_dim}] = {{
+{scale_data}
 }};
 """
 
@@ -62,6 +93,14 @@ def format_float_array(data: np.ndarray, items_per_line: int = 8) -> str:
     return "\n".join(lines)
 
 
+def format_int_array(data: np.ndarray, items_per_line: int = 8) -> str:
+    lines = []
+    values = [int(value) for value in data]
+    for i in range(0, len(values), items_per_line):
+        lines.append("  " + ", ".join(str(value) for value in values[i:i + items_per_line]) + ",")
+    return "\n".join(lines)
+
+
 def generate_mock_quant_declarations():
     layers = [
         ("quant_dense", 784, 1024, 50176),
@@ -71,7 +110,7 @@ def generate_mock_quant_declarations():
     declarations = []
     for layer_name, in_dim, out_dim, packed_words in layers:
         upper = layer_name.upper().replace("-", "_")
-        weight_lines = [f"  0x10000010,"] * packed_words
+        weight_lines = ["  0x00000000,"] * packed_words
         weight_data = "\n".join(weight_lines)
         decl = LAYER_DECL_TEMPLATE.format(
             layer_name=layer_name,
@@ -80,6 +119,8 @@ def generate_mock_quant_declarations():
             output_dim=out_dim,
             packed_words=packed_words,
             weight_data=weight_data,
+            bias_data=format_int_array(np.zeros(out_dim, dtype=np.int32)),
+            scale_data=format_int_array(np.ones(out_dim, dtype=np.int32)),
         )
         declarations.append(decl)
     return declarations
@@ -111,6 +152,10 @@ def generate_weights_header(model_path: str, output_path: str):
             input_dim, output_dim = w_float.shape
             packed = pack_weights(w_quant)
             packed_words = len(packed)
+            raw_weights = layer.get_weights()
+            biases = raw_weights[1] if len(raw_weights) > 1 else np.zeros(output_dim, dtype=np.int32)
+            biases = np.rint(biases).astype(np.int32)
+            scales = np.ones(output_dim, dtype=np.int32)
 
             weight_lines = []
             for word in packed:
@@ -125,6 +170,8 @@ def generate_weights_header(model_path: str, output_path: str):
                 output_dim=output_dim,
                 packed_words=packed_words,
                 weight_data=weight_data,
+                bias_data=format_int_array(biases),
+                scale_data=format_int_array(scales),
             )
             quant_declarations.append(decl)
 
@@ -198,4 +245,3 @@ if __name__ == "__main__":
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     generate_weights_header(model_path, output_path)
-

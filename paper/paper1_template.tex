@@ -21,12 +21,12 @@
 % META-INFORMAÇÃO
 \hyphenation{ter-na-ry no-nu-cle-ar mul-ti-pli-er-less}
 
-\title{Ternary Edge-RV: A Multiplierless Ternary Neural Network Accelerator for RISC-V Linux Systems}
+\title{Ternary Edge-RV: A Ternary Neural Network Accelerator for RISC-V Linux Systems}
 
 \author{
-    \ IEEEauthorblockN{Arthur Oliveira Gomes$^{1}$, Gildo Alves de Lima Junior$^{2}$, \\
+    \IEEEauthorblockN{Arthur Oliveira Gomes$^{1}$, Gildo Alves de Lima Junior$^{2}$, \\
     Gustavo Alexandre dos Santos$^{3}$, Gilvan Alves Pastor Junior$^{4}$}
-    \ IEEEauthorblockA{Departamento de ... , Universidade Federal de ... \\
+    \IEEEauthorblockA{Departamento de ... , Universidade Federal de ... \\
     \{arthur.gomes, gildo.junior, gustavo.santos, gilvan.pastor\}@email.br}
 }
 
@@ -38,7 +38,7 @@
 % ABSTRACT
 % =============================================================================
 \begin{abstract}
-Ternary Neural Networks (TNNs) constrain weights to $\{-1, 0, 1\}$, reducing ternary products to conditional additions and subtractions for edge inference. However, most existing TNN accelerators require either standalone FPGA logic without a host OS or tightly coupled custom ASICs. We present \textbf{Ternary Edge-RV}, a prototype full-stack system targeting integration of a ternary NPU as a Wishbone peripheral in a LiteX-generated RV32IMA SoC running Linux. The source-level architecture targets multiplierless ternary MAC processing, multi-layer sequencing, and Wishbone Master DMA for direct memory access. Host-side validation exists for selected models and software interfaces, but trained-model provenance, physical synthesis, FPGA deployment, accuracy, latency, throughput, CPU utilization, and DSP usage remain TBD until the corresponding evidence is available.
+Ternary Neural Networks (TNNs) constrain weights to $\{-1, 0, 1\}$, reducing ternary products to conditional additions and subtractions for edge inference. However, most existing TNN accelerators require either standalone FPGA logic without a host OS or tightly coupled custom ASICs. We present \textbf{Ternary Edge-RV}, a prototype full-stack system with source-level integration of a ternary NPU as a Wishbone peripheral in a LiteX-generated RV32IMA SoC running Linux. The canonical source-level RTL integrates 64 ternary PEs, a registered 64-to-1 tree, a scalar INT32 accumulator, banked activations, a three-stage postprocessor, up to eight software-programmed descriptors, and bounded single-beat Wishbone Classic DMA. Focused Icarus tests, 16/32/64-PE matrix tests, Verilator lint, generic Yosys synthesis matrices, and report gates pass on the host. Trained-model provenance, physical synthesis, FPGA deployment, accuracy, latency, throughput, CPU utilization, DSP usage, power, and energy remain pending.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -59,14 +59,14 @@ Ternary neural networks, RISC-V, FPGA, multiplierless, NPU, edge computing, Lite
 
 Edge artificial intelligence (AI) inference on resource-constrained devices demands architectures that maximize computational efficiency within strict area and power budgets. While CPUs provide flexibility, their general-purpose nature incurs high energy overhead for the repetitive multiply-accumulate (MAC) operations dominant in neural networks. Conversely, dedicated neural processing units (NPUs) achieve superior efficiency but often lack the software ecosystem of a general-purpose OS.
 
-Ternary Neural Networks (TNNs) \cite{ternarynet} offer a unique opportunity: by restricting weights to the set $\{-1, 0, 1\},$ multiplications reduce to conditional additions and subtractions, completely eliminating the need for hardware multipliers. This makes TNNs ideally suited for FPGA deployment where DSP slices are scarce.
+Ternary Neural Networks (TNNs) \cite{ternarynet} offer a unique opportunity: by restricting weights to the set $\{-1, 0, 1\},$ products in the ternary PE path reduce to conditional additions and subtractions. This makes the PE datapath suitable for FPGA study where DSP slices are scarce, while the signed requantization multiplier still requires physical resource validation.
 
-This paper presents \textbf{Ternary Edge-RV}, a prototype full-stack system targeting integration of a multiplierless ternary NPU into a Linux-capable RISC-V system-on-chip (SoC). Our contributions are:
+This paper presents \textbf{Ternary Edge-RV}, a prototype full-stack system with a source-level integrated ternary NPU in a Linux-capable RISC-V system-on-chip (SoC). Our contributions are:
 
 \begin{enumerate}
-    \item \textbf{Source-level multiplierless NPU target} organized around up to 64 parallel MAC units using adders, subtracters, and multiplexers; parallelism and DSP utilization remain subject to RTL and synthesis validation.
-    \item \textbf{Wishbone Master DMA} intended to enable autonomous memory access and reduce CPU involvement during inference.
-    \item \textbf{Hardware layer sequencer} intended to chain multiple layers without CPU intervention.
+    \item \textbf{Integrated source-level NPU} with 64 ternary PEs, a registered 64-to-1 tree, a scalar INT32 accumulator, banked activations, and a three-stage postprocessor. The ternary PE path is multiplierless, while physical DSP use remains subject to Vivado reports.
+    \item \textbf{Bounded Wishbone Classic DMA} using single-beat transfers with $\mathrm{CTI}=000$, $\mathrm{BTE}=00$, downstream \texttt{ERR} propagation, and a 256-cycle timeout.
+    \item \textbf{Descriptor sequencer} supporting up to eight software-programmed descriptors for multi-layer execution.
     \item \textbf{Full-stack integration path} from hardware (LiteX/VexRiscv) through Linux kernel driver to user-space AI application.
 \end{enumerate}
 
@@ -110,7 +110,7 @@ Previous work such as FINN \cite{finn} and Larq Compute Engine \cite{larq} demon
 \label{sec:hardware}
 
 % --- Arthur escreve esta subseção ---
-The source-level design integrates the NPU as a Wishbone B4 slave peripheral in a LiteX-generated SoC featuring a VexRiscv core configured as RV32IMA (32-bit with atomic instructions and MMU). Figure~\ref{fig:arch} shows the planned top-level system diagram.
+The source-level design integrates the NPU as a Wishbone B4 slave peripheral in a LiteX-generated SoC featuring a VexRiscv core configured as RV32IMA (32-bit with atomic instructions and MMU). The current host contract freezes DDR at \texttt{0x40000000}, NPU MMIO at \texttt{0x80000000}, and IRQ 10. Figure~\ref{fig:arch} shows the top-level system diagram.
 
 \begin{figure}[htbp]
 \centering
@@ -132,24 +132,24 @@ P(i) =
 \end{cases}
 \end{equation}
 
-\subsubsection*{64-MAC Array}
-The source-level NPU v2 architecture targets up to 64 ternary MAC units operating in parallel. The intended datapath fetches four 32-bit words (128 bits total) from the internal weight buffer and unpacks 64 $\times$ 2-bit weights for the MAC array. The active top-level currently uses a procedural accumulation path, so the 64-MAC parallelism and pipelined adder-tree realization are architectural targets rather than validated implementation results. RTL and synthesis evidence are required before reporting parallel throughput, a 50 MHz operating point, or DSP utilization.
+\subsubsection*{64-PE Datapath}
+The canonical NPU v2 integrates 64 ternary PEs operating in parallel. The datapath fetches four 32-bit words (128 bits total) from the internal weight buffer and unpacks 64 $\times$ 2-bit weights. A registered 64-to-1 reduction tree feeds a scalar INT32 accumulator. Activations use banked buffers, and the postprocessor has three registered stages. The ternary PE path is multiplierless, but signed requantization intentionally contains a general multiplier, so physical DSP use awaits Vivado synthesis and resource reports.
 
 \subsubsection*{Wishbone Master DMA}
-The proposed source-level accelerator includes a Wishbone B4 Master controller intended to perform burst reads directly from system RAM. The driver is intended to program source and destination addresses via MMIO registers, after which the NPU should fetch weights and activations, process the configured layers, and write the result back to RAM before raising an interrupt. End-to-end DMA and interrupt behavior remain pending physical validation.
+The source-level accelerator includes a bounded Wishbone Classic Master controller for single-beat transfers from and to system RAM. Each transfer uses \texttt{CTI=000} and \texttt{BTE=00}; downstream \texttt{ERR} is propagated and a 256-cycle timeout terminates a stalled request. The driver programs addresses through MMIO, while end-to-end DMA and interrupt behavior remain pending physical validation. This is not a burst-DMA implementation.
 
 \subsubsection*{Layer Sequencer}
-A dedicated finite state machine (FSM) is intended to iterate through the three dense layers (784$\to$1024, 1024$\to$512, 512$\to$256) automatically. The intended sequencer reconfigures the DMA controller between layers without CPU intervention, subject to RTL and system validation.
+A dedicated finite state machine supports up to eight software-programmed descriptors and reconfigures the datapath between layers. The production-sized host regression uses the exact three-layer chain 784$\to$1024$\to$512$\to$256. This host result does not establish physical Linux, IRQ, DMA, or board behavior.
 
 \subsection{Memory-Mapped Register Map}
 \label{sec:regmap}
 
 % --- Arthur escreve esta subseção ---
-% NOTE: 0x80000000 is the current LiteX NPU MMIO base. The earlier 0x40000000 map is historical/target-specific and must be reconciled with the generated SoC map before physical deployment.
+% NOTE: The frozen current contract uses DDR 0x40000000, NPU MMIO 0x80000000, and IRQ 10. Physical deployment remains pending.
 
 Table~\ref{tab:regmap} lists the memory-mapped registers accessible from Linux via the kernel driver.
 
-\begin{table}[htbp]
+\begin{table*}[htbp]
 \centering
 \caption{NPU register map (current LiteX base address 0x8000\_0000).}
 \label{tab:regmap}
@@ -158,17 +158,26 @@ Table~\ref{tab:regmap} lists the memory-mapped registers accessible from Linux v
 \toprule
 \textbf{Offset} & \textbf{Register} & \textbf{R/W} & \textbf{Description} \\
 \midrule
-0x00 & STATUS & RO & Busy, IRQ pending, zero counter \\
-0x04 & CONTROL & WO & Start, clear IRQ \\
-0x08 & DMA\_SRC\_ADDR & R/W & Source physical address \\
-0x0C & DMA\_DST\_ADDR & R/W & Destination physical address \\
-0x10 & DMA\_SIZE & R/W & Total MAC operations \\
-0x14 & WEIGHT\_CFG & R/W & Weight row config \\
-0x18 & ACT\_CFG & R/W & Activation config \\
-0x1C & RESULT & RO & Final result \\
+0x00 & STATUS & RO & Busy, IRQ pending, layer state \\
+0x04 & CONTROL & WO & Start and clear IRQ \\
+0x08 & INPUT\_ADDR & R/W & Activation input address \\
+0x0C & OUTPUT\_ADDR & R/W & Result output address \\
+0x10 & WEIGHT\_ADDR & R/W & Weight buffer address \\
+0x14 & BIAS\_ADDR & R/W & Bias buffer address \\
+0x18 & SCALE\_ADDR & R/W & Scale buffer address \\
+0x1C & LAYER\_COUNT & R/W & Descriptor count, up to eight \\
+0x20 & LAYER\_INDEX & R/W & Active descriptor index \\
+0x24 & LAYER\_INPUTS & R/W & Active layer input size \\
+0x28 & LAYER\_OUTPUTS & R/W & Active layer output size \\
+0x2C & LAYER\_QUANT & R/W & Quantization configuration \\
+0x30 & RESULT & RO & Final result status \\
+0x34 & RESULT\_WINDOW & RO & Result window data \\
+0x38 & ERROR\_INFO & RO & DMA or sequencer error \\
+0x3C & CAPABILITIES & RO & Hardware capabilities \\
+0x40 & MAC\_CFG & R/W & PE and MAC configuration \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
 
 \subsection{Operating System and Device Tree}
 \label{sec:os}
@@ -180,7 +189,7 @@ The target SoC is configured for Linux 6.x built with Buildroot. The kernel conf
 \begin{verbatim}
 npu_ternaria: npu@80000000 {
     compatible = "ternaryedge,npu-ternaria";
-    reg = <0x80000000 0x00001000>;
+    reg = <0x80000000 0x00010000>;
     interrupts = <0x0a>;
     interrupt-parent = <&plic>;
 };
@@ -196,7 +205,7 @@ The kernel driver implements a Platform Driver that matches against the Device T
 \begin{itemize}
     \item \textbf{MMIO mapping:} Registers accessed via \texttt{devm\_ioremap\_resource()}.
     \item \textbf{DMA buffer:} Coherent DMA memory allocated via \texttt{dma\_alloc\_coherent()} for zero-copy weight transfer.
-    \item \textbf{Interrupt handling:} \texttt{devm\_request\_irq()} with a wait queue puts the user process to sleep during NPU compute.
+    \item \textbf{Interrupt handling:} The source-level path uses \texttt{devm\_request\_irq()} with a wait queue for completion handling; physical sleep and interrupt behavior remain unverified.
     \item \textbf{Character device:} \texttt{/dev/npu\_ternaria} exposes \texttt{open()}, \texttt{mmap()}, \texttt{ioctl()}, and \texttt{release()}.
 \end{itemize}
 
@@ -235,7 +244,7 @@ A C++ simulation of the NPU (\texttt{npu\_sim.cpp}) is retained as the host-side
 % Gráfico tempo inferência CPU vs NPU (all values TBD until physical benchmark)
 % Tabela comparativa com trabalhos relacionados
 
-Current host-side evidence includes C++ v1 validation with 8/8 tests passing, C++ v2 validation with 21/21 tests passing, Python checks with 5/5 tests passing, and a passing IOCTL ABI check. The Verilog testbench is unavailable in the current shell, and no FPGA end-to-end result is reported. Physical synthesis, deployment, accuracy, and performance measurements remain pending.
+Current canonical host-side evidence includes focused Icarus tests and the 16/32/64-PE matrix passing. The matrix includes the exact production-sized chain 784$\to$1024$\to$512$\to$256 with nonuniform high-row weights: outputs 0--254 equal 65024 and output 255 equals $-65024$. The Verilator lint matrix, generic Yosys synthesis, \texttt{synth\_matrix}, presentation contract tests (11/11), and report-gate unit tests (12/12) also pass. The C++ v2 result of 21/21 is historical and secondary, not canonical RTL proof. Vivado resources and timing, bitstream, board behavior, Linux boot, physical IRQ/DMA, trained-model inference, accuracy, latency, throughput, benchmarks, power, and energy remain pending.
 
 \begin{table}[htbp]
 \centering
@@ -281,7 +290,7 @@ Total & TBD & TBD & TBD \\
 \label{sec:conclusion}
 
 % TODO: Gustavo owns pending benchmarks and results; all authors review the final status and conclusion.
-We presented the prototype and source-level integration plan for Ternary Edge-RV, a ternary neural network accelerator targeting a RISC-V Linux system. Host-side validation exists for selected C++ models, Python checks, and the IOCTL ABI, while the real trained-model/header provenance and inter-layer transforms still require validation. Physical synthesis, FPGA deployment, accuracy, resource use, frequency, latency, throughput, CPU utilization, energy, and DSP utilization remain pending gates, so no physical performance result is claimed. The prototype provides a basis for the planned end-to-end evaluation once these gates are completed.
+We presented Ternary Edge-RV, a source-level ternary neural network accelerator integrated around 64 ternary PEs, a registered 64-to-1 tree, a scalar INT32 accumulator, banked activations, a three-stage postprocessor, up to eight descriptors, and bounded single-beat Wishbone Classic DMA with downstream error propagation and a 256-cycle timeout. Focused Icarus tests, the 16/32/64-PE production regression, Verilator lint, generic Yosys synthesis matrices, and report gates provide current host evidence. The C++ v2 21/21 result remains historical and secondary. Trained-model provenance and inter-layer transforms require validation, while Vivado resources and timing, FPGA deployment, board and Linux behavior, physical IRQ/DMA, accuracy, frequency, latency, throughput, CPU utilization, DSP use, power, and energy remain pending, so no physical performance result is claimed.
 
 % =============================================================================
 % REFERENCES

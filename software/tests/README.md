@@ -16,9 +16,8 @@ make -C software/tests weights-header
 make -C software/tests clean
 ```
 
-`ioctl-abi` currently passes while proving the current 20-byte IOCTL layout. It
-also reports that `dma_size` is documented in bytes even though the current
-HAL passes the packed-word total.
+`ioctl-abi` currently passes while proving the current 204-byte IOCTL layout,
+including eight 24-byte layer descriptors.
 
 `weights-header` checks the current header's packed contract and expected FP32
 symbols. The current header has the FP32 symbols, but its fallback values,
@@ -46,5 +45,15 @@ The RISC-V cross-compiler `riscv32-buildroot-linux-gnu-gcc` is not available
 on the current native PATH; these targets therefore intentionally use the
 native compiler only.
 
-The Verilog testbench is unavailable in the current shell. No FPGA end-to-end
-inference or CPU-versus-NPU benchmark is established by these native checks.
+The canonical RTL regression is available through the repository hardware
+flake:
+
+```bash
+nix develop .#hardware --command make -C hardware/npu_rtl test
+nix develop .#hardware --command make -C hardware/npu_rtl lint
+nix develop .#hardware --command make -C hardware/npu_rtl synth
+```
+
+These checks do not establish FPGA end-to-end inference or a CPU-versus-NPU
+benchmark. The RISC-V cross-compiler and physical device remain separate
+validation steps.
