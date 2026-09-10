@@ -3,10 +3,14 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#define EXPECTED_LAYER0_WORDS 50176u
-#define EXPECTED_LAYER1_WORDS 32768u
-#define EXPECTED_LAYER2_WORDS 8192u
-#define EXPECTED_OUTPUT_WEIGHTS 2560u
+#define EXPECTED_INPUTS 784u
+#define EXPECTED_LAYER0_OUTPUTS 256u
+#define EXPECTED_LAYER1_OUTPUTS 128u
+#define EXPECTED_LAYER2_OUTPUTS 64u
+#define EXPECTED_LAYER0_WORDS 12544u
+#define EXPECTED_LAYER1_WORDS 2048u
+#define EXPECTED_LAYER2_WORDS 512u
+#define EXPECTED_OUTPUT_WEIGHTS 640u
 #define EXPECTED_OUTPUT_BIAS 10u
 
 static int check_count(const char *name, size_t actual, size_t expected) {
@@ -24,6 +28,17 @@ int main(void) {
   int failures = 0;
   int contract_missing = 0;
 
+  failures |= check_count("QUANT_DENSE_IN", QUANT_DENSE_IN, EXPECTED_INPUTS);
+  failures |= check_count("QUANT_DENSE_OUT", QUANT_DENSE_OUT,
+                          EXPECTED_LAYER0_OUTPUTS);
+  failures |= check_count("QUANT_DENSE_1_IN", QUANT_DENSE_1_IN,
+                          EXPECTED_LAYER0_OUTPUTS);
+  failures |= check_count("QUANT_DENSE_1_OUT", QUANT_DENSE_1_OUT,
+                          EXPECTED_LAYER1_OUTPUTS);
+  failures |= check_count("QUANT_DENSE_2_IN", QUANT_DENSE_2_IN,
+                          EXPECTED_LAYER1_OUTPUTS);
+  failures |= check_count("QUANT_DENSE_2_OUT", QUANT_DENSE_2_OUT,
+                          EXPECTED_LAYER2_OUTPUTS);
   failures |= check_count(
       "quant_dense_weights / QUANT_DENSE_PACKED_WORDS",
       sizeof(quant_dense_weights) / sizeof(quant_dense_weights[0]),

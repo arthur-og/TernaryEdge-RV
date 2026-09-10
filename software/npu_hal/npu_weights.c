@@ -4,8 +4,12 @@
 #include <string.h>
 
 #define DMA_WEIGHT_OFFSET 0x1000
-#define DMA_OUTPUT_OFFSET 0x5C400
-#define DMA_BIAS_OFFSET 0x5E800
+#define DMA_OUTPUT_OFFSET \
+  (DMA_WEIGHT_OFFSET +                                                \
+   (QUANT_DENSE_PACKED_WORDS + QUANT_DENSE_1_PACKED_WORDS +           \
+    QUANT_DENSE_2_PACKED_WORDS) * sizeof(uint32_t))
+#define DMA_BIAS_OFFSET \
+  (DMA_OUTPUT_OFFSET + OUTPUT_WEIGHTS_COUNT * sizeof(float))
 
 int weights_load_to_dma(uint32_t *dma_buffer) {
   uint8_t *base = (uint8_t *)dma_buffer;

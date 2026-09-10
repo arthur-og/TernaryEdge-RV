@@ -125,9 +125,9 @@ module npu_ternaria_top_v2 (
     reg [31:0] layer_wcnt[0:2];
 
     initial begin
-        layer_in [0] = 784;   layer_out [0] = 1024;  layer_wcnt[0] = 50176;
-        layer_in [1] = 1024;  layer_out [1] = 512;   layer_wcnt[1] = 32768;
-        layer_in [2] = 512;   layer_out [2] = 256;   layer_wcnt[2] = 8192;
+        layer_in [0] = 784;   layer_out [0] = 256;  layer_wcnt[0] = 12544;
+        layer_in [1] = 256;   layer_out [1] = 128;  layer_wcnt[1] = 2048;
+        layer_in [2] = 128;   layer_out [2] = 64;   layer_wcnt[2] = 512;
     end
 
     reg [31:0] cur_layer;

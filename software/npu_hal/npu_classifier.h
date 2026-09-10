@@ -3,8 +3,12 @@
 
 #include <stdint.h>
 
-void classifier_run(const float weights[10][256], const float bias[10],
-                    const int32_t npu_output[256], float scores[10],
+#define NPU_CLASSIFIER_INPUTS 64
+
+void classifier_run(const float weights[10][NPU_CLASSIFIER_INPUTS],
+                    const float bias[10],
+                    const int32_t npu_output[NPU_CLASSIFIER_INPUTS],
+                    float scores[10],
                     float *confidence, int *predicted);
 
 #endif

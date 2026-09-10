@@ -122,9 +122,9 @@ Cada `uint32_t` carrega 16 pesos. O peso de índice zero ocupa os bits menos sig
 
 | Camada | Entrada | Saída | Words de pesos | Words por neurônio |
 |---:|---:|---:|---:|---:|
-| 0 | 784 | 1024 | 50176 | 49 |
-| 1 | 1024 | 512 | 32768 | 64 |
-| 2 | 512 | 256 | 8192 | 32 |
+| 0 | 784 | 256 | 12544 | 49 |
+| 1 | 256 | 128 | 2048 | 16 |
+| 2 | 128 | 64 | 512 | 8 |
 
 Esses números descrevem dimensões e quantidade de dados a mover. São **contagens de workload**, não uma promessa de ciclos, frequência efetiva, throughput ou latência.
 
@@ -167,7 +167,7 @@ O top-level possui uma única saída `irq_out`. Ela é acionada em `ST_DONE` e o
 
 ### 7.1 O modelo treinado
 
-`train_qat_mnist.py` define três blocos `QuantDense` com dimensões 784->1024, 1024->512 e 512->256. Entre eles há `BatchNormalization`, `ReLU` e `fake_quant` em 8 bits no intervalo 0..127. A rede termina com `Dense(10, activation="softmax")`.
+`train_qat_mnist.py` define três blocos `QuantDense` com dimensões 784->256, 256->128 e 128->64. Entre eles há `BatchNormalization`, `ReLU` e `fake_quant` em 8 bits no intervalo 0..127. A rede termina com `Dense(10, activation="softmax")`.
 
 Esse é o modelo de treinamento. Não significa que as mesmas operações estejam presentes no top-level RTL, no HAL ou no user app.
 
@@ -177,21 +177,21 @@ Esse é o modelo de treinamento. Não significa que as mesmas operações esteja
 
 | Array | Dimensão | Faixa inicial no header |
 |---|---:|---:|
-| `quant_dense_weights` | 50176 words | `weights.h:9-50193` |
-| `quant_dense_1_weights` | 32768 words | `weights.h:50194-82968` |
-| `quant_dense_2_weights` | 8192 words | `weights.h:82969-91169` |
-| `output_weights` | 2560 FP32 symbols | presentes no header com valor fallback `0.01`; parâmetros treinados não validados |
-| `output_bias` | 10 FP32 symbols | presentes no header com valor fallback `0.1`; parâmetros treinados não validados |
+| `quant_dense_weights` | 12544 words | presentes no header |
+| `quant_dense_1_weights` | 2048 words | presentes no header |
+| `quant_dense_2_weights` | 512 words | presentes no header |
+| `output_weights` | 640 FP32 symbols | parâmetros treinados exportados para a camada 64->10 |
+| `output_bias` | 10 FP32 symbols | parâmetros treinados exportados |
 
-Não há arrays de parâmetros de BatchNorm no header consultado. Os símbolos de saída FP32 existem, mas os valores `0.01`/`0.1` são fallback e não parâmetros treinados validados. Ao mesmo tempo, `npu_weights.c` tenta copiar `output_weights` e `output_bias` para a DMA. Essa diferença precisa ser resolvida antes de uma compilação e de uma inferência ponta a ponta confiáveis.
+Não há arrays de parâmetros de BatchNorm no header consultado. Os símbolos de saída FP32 foram exportados do modelo QAT treinado, mas a ausência dos parâmetros e transformações de BatchNorm, ReLU e fake quant no fluxo de inferência ainda impede alegar equivalência ponta a ponta com o modelo Keras.
 
 ### 7.3 O que HAL e user app fazem hoje
 
 - `npu_hal.c` abre `/dev/npu_ternaria`, faz `mmap`, carrega pesos e chama um único `ioctl` com `layer_cfg = 3`.
-- A HAL não aplica BatchNorm, ReLU ou fake quant entre camadas. Ela também lê os 256 resultados a partir de `ctx->dma_buffer[i]`, enquanto o próprio código de cópia de entrada usa `0x5C000`.
-- `npu_weights.c` usa pesos ternários em `0x1000`, saída FP32 em `0x5C400` e bias em `0x5E800`. O driver, porém, configura `SRC_ADDR` e `DST_ADDR` como o mesmo endereço físico base.
+- A HAL não aplica BatchNorm, ReLU ou fake quant entre camadas. Ela também lê os 64 resultados a partir de `ctx->dma_buffer[i]`, enquanto o próprio código de cópia de entrada usa `0x5C000`.
+- `npu_weights.c` usa pesos ternários em `0x1000`, saída FP32 em `0xFC00` e bias em `0x10600`. O driver, porém, configura `SRC_ADDR` e `DST_ADDR` como o mesmo endereço físico base.
 - `user_app.c` tem um modo CPU que executa os três produtos ternários diretamente, mas passa `layer0_out` e `layer1_out`, que são `int32_t`, como `uint8_t *`. Também não há BN, ReLU ou fake quant nesse caminho.
-- A chamada a `classifier_run` existe, mas a cadeia completa de dados que deveria produzir uma entrada correta de 256 valores ainda não está validada.
+- A chamada a `classifier_run` existe, mas a cadeia completa de dados que deveria produzir uma entrada correta de 64 valores ainda não está validada.
 
 Por isso, não é correto chamar o HAL ou o user app de implementação de BatchNorm, ReLU e quantização inter-layer. Essas operações estão no modelo treinado, não no fluxo atual de software de inferência.
 
@@ -202,11 +202,11 @@ Por isso, não é correto chamar o HAL ou o user app de implementação de Batch
 | C++ golden model v1 | **PASS:** 8/8 casos executados |
 | C++ golden model v2 | **PASS:** 21/21 casos executados |
 | Python regression | **PASS:** 5/5 casos executados |
-| Runtime/testbench RTL Verilog | **NÃO EXECUTADO:** Verilog indisponível no shell atual |
-| Contrato HAL/weights | **ABERTO:** exportação, símbolos, transforms, offsets e unidades ainda não fecham |
+| Runtime/testbench RTL Verilog | **PASS:** quatro grupos executados para as dimensões reduzidas |
+| Contrato HAL/weights | **PARCIAL:** dimensões, símbolos e unidade de `dma_size` alinhados; transforms inter-layer e endereços de ativação ainda não fecham |
 | FPGA e benchmark | **PENDENTES:** síntese, timing, boot, IRQ/DMA físicos, inferência e métricas ainda não executados |
 
-Os resultados host-side de C++ v1 (8/8), C++ v2 (21/21) e Python (5/5) são evidência de simulação/regressão no escopo coberto. Eles não comprovam execução do RTL Verilog, síntese, fechamento de timing, recursos reais, boot Linux, probe do driver, transferência DMA no hardware, inferência física ou benchmark real.
+Os resultados host-side de C++ v2 (21/21), do modelo QAT (97,27% no teste MNIST) e dos quatro grupos Verilog são evidência de simulação/regressão no escopo coberto. Eles não comprovam síntese, fechamento de timing, recursos reais, boot Linux, probe do driver, transferência DMA no hardware, inferência física ou benchmark real.
 
 No estado consultado, permanecem **não verificados**:
 
@@ -267,4 +267,4 @@ As faixas abaixo apontam para o código consultado, não para a apresentação h
 | `hardware/npu_rtl/tb_npu_v2.v` | `341-380` |
  | `docs/relatorios/status_atual.md` | registro histórico de simulação; não substitui a evidência atual de 8/8 no C++ v1, 21/21 no C++ v2 e 5/5 em Python nem prova física |
 
-**Conclusão para a apresentação:** a contribuição atual pode ser apresentada como uma base RTL com correções de fonte, evidência host-side de C++ v1 (8/8), C++ v2 (21/21) e Python (5/5), e software parcialmente integrado, com lacunas explícitas no contrato de camadas, pós-processamento e memória. O runtime Verilog está indisponível no shell atual, e qualquer afirmação de desempenho deve esperar a arquitetura ser alinhada e o fluxo ser validado na implementação física.
+**Conclusão para a apresentação:** a contribuição atual pode ser apresentada como uma base RTL com quatro grupos Verilog aprovados, C++ v2 com 21/21 checks, modelo QAT reduzido com 97,27% de acurácia MNIST e software parcialmente integrado, com lacunas explícitas no pós-processamento inter-layer e na validação física. Qualquer afirmação de desempenho deve esperar o fluxo ser validado na implementação física.

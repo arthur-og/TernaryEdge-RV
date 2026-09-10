@@ -30,7 +30,7 @@ O projeto completou **toda a Fase 3** e está em **Fase 4 — Deploy Físico e P
 | **64 MACs paralelos + Adder Tree** | ✅ `ternary_mac_array.v` + `adder_tree_64.v` | 63 adders, 6 estágios pipeline |
 | **Wishbone Master DMA (burst reads)** | ✅ `wishbone_master.v` | B4 Standard, burst incrementante |
 | **NPU v2 Top-Level integrado** | ✅ `npu_ternaria_top_v2.v` | FSM 10 estados, Layer Sequencer |
-| **Layer Sequencer (3 layers)** | ✅ (embutido no top v2) | 784→1024→512→256 automático, ~92K ciclos |
+| **Layer Sequencer (3 layers)** | ✅ (embutido no top v2) | 784→256→128→64 automático |
 | **Testbench Verilog v2** | ✅ `tb_npu_v2.v` | RAM simulada, testes registrador/IRQ/STATUS |
 | **Golden Model C++ v2** | ✅ `npu_sim_v2.cpp` + `demo_npu_v2.cpp` | 21/21 testes passando |
 | **Pacote de definições compartilhadas** | ✅ `npu_v2_pkg.v` | Register map, FSM states, constantes |
@@ -57,7 +57,7 @@ O projeto completou **toda a Fase 3** e está em **Fase 4 — Deploy Físico e P
 | **NPU HAL — API pública** | ✅ `software/npu_hal/npu_hal.h` (20 linhas) | init, load_weights, predict, batch, deinit, print_result |
 | **NPU HAL — Implementação** | ✅ `software/npu_hal/npu_hal.c` (115 linhas) | open, mmap, ioctl, output layer CPU, timing segregado |
 | **NPU HAL — Estruturas internas** | ✅ `software/npu_hal/npu_hal_internal.h` (21 linhas) | `npu_ctx_t`, `npu_result_t` |
-| **NPU Classifier** | ✅ `software/npu_hal/npu_classifier.c` (28 linhas) | Output layer 256→10 FP32 + argmax + softmax |
+| **NPU Classifier** | ✅ `software/npu_hal/npu_classifier.c` | Output layer 64→10 FP32 + argmax + softmax |
 | **NPU Weights Loader** | ✅ `software/npu_hal/npu_weights.c` (32 linhas) | Carrega 3 layers ternários + FP32 output para DMA |
 | **Buildroot package npu-ternaria** | ✅ `software/os_buildroot/package/npu-ternaria/` | Kernel module package |
 | **Buildroot package npu-hal** | ✅ `software/os_buildroot/package/npu-hal/` | Biblioteca estática `libnpu_hal.a` |
@@ -109,10 +109,10 @@ O projeto completou **toda a Fase 3** e está em **Fase 4 — Deploy Físico e P
 | Tarefa | Status | Detalhes |
 |--------|--------|----------|
 | Ambiente Python + Larq | ✅ | TensorFlow + Larq |
-| Modelo QAT (3 layers ternárias) | ✅ | 784→1024→512→256 |
+| Modelo QAT (3 layers ternárias) | ✅ | 784→256→128→64 |
 | Sparsity L1 | ✅ | Regularização forcing zeros |
 | Fake Quant INT8 entre layers | ✅ | `fake_quant_with_min_max_args(min=0, max=127, num_bits=8)` |
-| Acurácia >95% | ✅ | Validado |
+| Acurácia >95% | ✅ | 97,27% no teste MNIST após 20 épocas |
 | Pack de pesos (16/uint32_t) | ✅ | `pack_weights.py` |
 | weights.h gerado (3 layers + output FP32) | ✅ | Formato compatível com HAL |
 | Golden Model v2 (64 MACs + DMA) | ✅ | 21/21 testes, bit-accurate |
@@ -172,5 +172,5 @@ O projeto completou **toda a Fase 3** e está em **Fase 4 — Deploy Físico e P
 
 - **Gilvan:** permanecem preservadas sua contribuição histórica no QAT, no empacotamento ternário e no Golden Model C++ v2, bem como sua condição de quarto autor do Paper 1.
 - **Gustavo:** assume a manutenção ativa do pipeline de IA, da exportação e de `weights.h`, da regressão do Golden Model, do driver, da cross-compilação, da coordenação da validação física, dos benchmarks CPU versus NPU e dos resultados e discussão do Paper 1.
-- **Evidência atual, registrada conservadoramente:** C++ v1: 8/8; C++ v2: 21/21; Python: 5/5. A execução Verilog está indisponível no shell atual, e não há benchmark FPGA end-to-end comprovado. As pendências de integração física e de medição real, portanto, não devem ser tratadas como concluídas.
+- **Evidência atual, registrada conservadoramente:** modelo QAT reduzido com 97,27% no teste MNIST e pesos estritamente ternários; C++ v2: 21/21; contratos de header e ABI aprovados; quatro grupos Verilog aprovados. Não há benchmark FPGA end-to-end comprovado. As pendências de integração física e de medição real, portanto, não devem ser tratadas como concluídas.
 - A menção histórica a `output_biases[]` no corpo deste snapshot usa nomenclatura antiga; o símbolo atual verificado no header é `output_bias[]`.

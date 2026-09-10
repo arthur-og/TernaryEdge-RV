@@ -1,12 +1,14 @@
 #include "npu_classifier.h"
 #include <math.h>
 
-void classifier_run(const float weights[10][256], const float bias[10],
-                    const int32_t npu_output[256], float scores[10],
+void classifier_run(const float weights[10][NPU_CLASSIFIER_INPUTS],
+                    const float bias[10],
+                    const int32_t npu_output[NPU_CLASSIFIER_INPUTS],
+                    float scores[10],
                     float *confidence, int *predicted) {
   for (int c = 0; c < 10; c++) {
     scores[c] = bias[c];
-    for (int i = 0; i < 256; i++) {
+    for (int i = 0; i < NPU_CLASSIFIER_INPUTS; i++) {
       scores[c] += npu_output[i] * weights[c][i];
     }
   }

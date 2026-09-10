@@ -67,6 +67,8 @@ module tb_npu_v2;
 
     localparam integer WB_TIMEOUT_CYCLES  = 64;
     localparam integer IRQ_TIMEOUT_CYCLES = 1000000;
+    localparam integer TEST_LAYER0_WORDS   = 12544;
+    localparam integer TEST_LAYER0_OUTPUTS = 256;
     localparam [31:0] TEST_SRC_ADDR = 32'h0000_0000;
     localparam [31:0] TEST_DST_ADDR = 32'h0004_0000;
 
@@ -342,7 +344,7 @@ module tb_npu_v2;
         for (i = 0; i < 64; i = i + 1)
             ext_ram[i / 4][(i % 4) * 8 +: 8] = i + 1;
 
-        for (i = 0; i < 50176; i = i + 1)
+        for (i = 0; i < TEST_LAYER0_WORDS; i = i + 1)
             ext_ram[(TEST_SRC_ADDR + 4096) / 4 + i] = 32'd0;
         ext_ram[(TEST_SRC_ADDR + 4096) / 4 + 0] = 32'h55555555;
         ext_ram[(TEST_SRC_ADDR + 4096) / 4 + 1] = 32'h55555555;
@@ -351,7 +353,7 @@ module tb_npu_v2;
 
         // Sentinels ensure the output assertions prove that every checked
         // destination word was written by the result DMA.
-        for (i = 0; i < 1024; i = i + 1)
+        for (i = 0; i < TEST_LAYER0_OUTPUTS; i = i + 1)
             ext_ram[TEST_DST_ADDR / 4 + i] = 32'hA5A5A5A5;
 
         wb_write(`REG_SRC_ADDR, TEST_SRC_ADDR);
@@ -384,15 +386,15 @@ module tb_npu_v2;
             test_errors = test_errors + 1;
         end
 
-        if (ext_ram[TEST_DST_ADDR / 4 + 1023] === 32'd0)
-            $display("  ✓ destination output 1023 = 0");
+        if (ext_ram[TEST_DST_ADDR / 4 + TEST_LAYER0_OUTPUTS - 1] === 32'd0)
+            $display("  ✓ destination output 255 = 0");
         else begin
-            $display("  ✗ destination output 1023: expected 00000000, got %h",
-                     ext_ram[TEST_DST_ADDR / 4 + 1023]);
+            $display("  ✗ destination output 255: expected 00000000, got %h",
+                     ext_ram[TEST_DST_ADDR / 4 + TEST_LAYER0_OUTPUTS - 1]);
             test_errors = test_errors + 1;
         end
 
-        for (i = 2; i < 1023; i = i + 1) begin
+        for (i = 2; i < TEST_LAYER0_OUTPUTS - 1; i = i + 1) begin
             if (ext_ram[TEST_DST_ADDR / 4 + i] !== 32'd0) begin
                 $display("  ✗ destination output %0d: expected 00000000, got %h",
                          i, ext_ram[TEST_DST_ADDR / 4 + i]);

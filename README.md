@@ -11,7 +11,7 @@
 
 This project is working toward **Phase 4: Physical Deployment and Paper 1** (target: SBCCI/LASCAS). The paper template is available at [`paper/paper1_template.tex`](paper/paper1_template.tex). The research question is whether heavily quantized models ($\in \{-1, 0, 1\}$) on custom hardware can improve latency and energy use relative to CPU execution; that comparison remains subject to physical measurement.
 
-> **Historical snapshot (17/08/2026):** Earlier project notes recorded the RealDigital Urbana board (AMD Spartan-7 XC7S50-CSGA324, 128 MB DDR3, MicroSD) connected via micro-USB with FTDI FT2232H detected, JTAG IDCODE 0x362f093 verified, and `/dev/ttyUSB0` / `/dev/ttyUSB1` created. Those notes also recorded a 4/4 Verilog regression result and updated OpenXC7 flags (`-nolutram -nowidelut`). The 4/4 result is retained as dated history, not as current evidence from the present shell. The target completion date for SBCCI/LASCAS submission was 31/08/2026. The operational transition plan is defined in [`docs/planejamento/direcionamento_pos_gilvan.md`](docs/planejamento/direcionamento_pos_gilvan.md).
+> **Historical snapshot (17/08/2026):** Earlier project notes recorded the RealDigital Urbana board (AMD Spartan-7 XC7S50-CSGA324, 128 MB DDR3, MicroSD) connected via micro-USB with FTDI FT2232H detected, JTAG IDCODE 0x362f093 verified, and `/dev/ttyUSB0` / `/dev/ttyUSB1` created. Those notes also recorded a 4/4 Verilog regression result and updated OpenXC7 flags (`-nolutram -nowidelut`). A new four-group Verilog regression for the reduced model now passes in the Nix shell. The target completion date for SBCCI/LASCAS submission was 31/08/2026. The operational transition plan is defined in [`docs/planejamento/direcionamento_pos_gilvan.md`](docs/planejamento/direcionamento_pos_gilvan.md).
 
 ---
 
@@ -28,7 +28,7 @@ However, deploying raw hardware in isolation is commercially unviable for IoT an
 * **NPU HAL Layer:** A documented but incomplete Hardware Abstraction Layer intended to bridge the kernel driver and user application. DMA buffer management, weight loading, and CPU-based output classification still require end-to-end HAL, weights, and data-contract validation.
 * **Custom Linux Kernel Driver:** Source-level User-Space to Kernel-Space interfaces use custom `.ko` modules, MMIO, and an IRQ path. Physical interrupt behavior and any reduction in CPU polling remain unverified.
 * **Benchmarking Plan:** `<sys/time.h>` profiling and CPU versus NPU comparison paths are documented, but latency, throughput, power, and energy results await a validated physical run.
-* **Automated AI Pipeline:** A Python-based QAT pipeline packs 2-bit ternary weights into 32-bit headers. Gustavo owns its current maintenance and the `weights.h` contract. The current header contains the FP32 symbols, but its fallback values, including `0.01` and `0.1`, are not validated trained parameters.
+* **Automated AI Pipeline:** A Python-based QAT pipeline packs 2-bit ternary weights into 32-bit headers. Gustavo owns its current maintenance and the `weights.h` contract. The current header contains ternary and FP32 parameters exported from the trained 784->256->128->64->10 model.
 
 ---
 
@@ -59,7 +59,7 @@ graph TD
 
 ### Why a HAL?
 
-The planned NPU v2 is **purely ternary** and is intended to compute {+1, 0, -1} × INT8 operations. The final classification layer (256→10) is documented as requiring FP32 weights and softmax on the CPU. The HAL exposes the intended `npu_init()` → `npu_predict()` → `npu_deinit()` interface, but its end-to-end contract with the exported weights and data transforms remains incomplete.
+The planned NPU v2 is **purely ternary** and is intended to compute {+1, 0, -1} × INT8 operations. The final classification layer (64→10) is documented as requiring FP32 weights and softmax on the CPU. The HAL exposes the intended `npu_init()` → `npu_predict()` → `npu_deinit()` interface, but its end-to-end contract with the exported weights and data transforms remains incomplete.
 
 ### Address and Evidence Boundary
 
@@ -94,11 +94,11 @@ TernaryEdge-RV/
 
 The current evidence boundary and active post-Gilvan organization are documented in [`docs/planejamento/direcionamento_pos_gilvan.md`](docs/planejamento/direcionamento_pos_gilvan.md). The four-author Paper 1 list remains unchanged and in the order Arthur, Gildo, Gustavo, Gilvan.
 
-Current evidence is limited to C++ Golden Model v1 with 8/8 checks, C++ Golden Model v2 with 21/21 checks, Python pipeline with 5/5 checks, and a passing IOCTL ABI check. The Verilog testbench is unavailable in the current shell. There is no proven FPGA end-to-end inference or benchmark, and no physical CPU-versus-NPU result.
+Current evidence includes 97.27% MNIST test accuracy for the reduced QAT model, strict ternary-weight verification, C++ Golden Model v2 with 21/21 checks, passing weight-header and IOCTL ABI checks, and a passing four-group Verilog regression. There is no proven FPGA end-to-end inference or benchmark, and no physical CPU-versus-NPU result.
 
 | Domain | Active Operational Ownership | Current Status & Evidence |
 |:-------|:-----------------------------|:--------------------------|
-| **Hardware (RTL/SoC)** | Arthur Oliveira Gomes | Verilog testbench unavailable in the current shell; historical 4/4 record retained as dated history. Urbana board connection and OpenXC7 flag changes are recorded, but synthesis and bitstream remain pending. |
+| **Hardware (RTL/SoC)** | Arthur Oliveira Gomes | Four-group Verilog regression passes for the reduced model. Urbana board connection and OpenXC7 flag changes are recorded, but synthesis and bitstream remain pending. |
 | **Linux, OS & HAL** | Gildo Alves de Lima Junior | Buildroot infrastructure, Device Tree (`urrbana.dts`), NPU HAL (`libnpu_hal.a`), FP32 CPU Classifier, MicroSD preparation, Linux physical boot. |
 | **AI Pipeline, Weights, Golden Model, Driver & Benchmarks** | Gustavo Alexandre dos Santos | Current AI pipeline maintenance, weight export and `weights.h` contract, Golden Model regression and maintenance, kernel driver, RV32 cross-compilation, physical validation coordination, CPU-versus-NPU benchmarks, and Paper 1 results and discussion. Historical QAT, ternary packing, and C++ Golden Model v2 contributions remain under Gilvan's credit. |
 | **Paper 1 Authors** | Arthur, Gildo, Gustavo, Gilvan | All 4 original authors retained on paper submission draft for SBCCI/LASCAS (31/08/2026). |
@@ -106,9 +106,9 @@ Current evidence is limited to C++ Golden Model v1 with 8/8 checks, C++ Golden M
 ### Arthur (Hardware): RTL, LiteX SoC, Verilog Regression, Synthesis & Bitstream
 - ✅ **Phase 1 design record:** Current LiteX documentation uses `0x80000000` as the candidate NPU MMIO base; older records use `0x40000000`. The generated map, RTL, Device Tree, driver and HAL still require cross-layer validation. IRQ 10 and Little-Endian remain design parameters.
 - ✅ **Phase 2:** `ternary_mac.v` multiplierless MAC, `npu_ternaria_top.v` v1 (Wishbone slave + FSM + IRQ).
-- ✅ **Phase 3 design target:** NPU v2 64-MAC array (`ternary_mac_array.v`), 6-stage adder tree (`adder_tree_64.v`), Wishbone Master DMA (`wishbone_master.v`), 12K-word weight BRAM, FSM Layer Sequencer (784->1024->512->256). Integration and synthesis remain pending.
+- ✅ **Phase 3 design target:** NPU v2 64-MAC array (`ternary_mac_array.v`), 6-stage adder tree (`adder_tree_64.v`), Wishbone Master DMA (`wishbone_master.v`), on-demand weight streaming, FSM Layer Sequencer (784->256->128->64). Integration and synthesis remain pending.
 - ✅ **Phase 4 (Status 17/08/2026):**
-  - ⏳ Verilog RTL testbench execution is unavailable in the current shell. The historical 4/4 report is retained above as a dated snapshot.
+  - ✅ Verilog RTL testbench passes four test groups for the reduced layer dimensions in the Nix shell.
   - ✅ Board connection evidence: RealDigital Urbana connected via micro-USB, FTDI FT2232H chip detected, JTAG IDCODE 0x362f093 (Spartan-7 XC7S50), `/dev/ttyUSB0` and `/dev/ttyUSB1` created.
   - ✅ OpenXC7 synthesis flags updated to `-nolutram -nowidelut` in platform to eliminate RAM256X1S and MUXF7/MUXF8 chains.
   - ⏳ Bitstream generation and physical hardware loading targeted for 31/08/2026 deadline.
@@ -116,7 +116,7 @@ Current evidence is limited to C++ Golden Model v1 with 8/8 checks, C++ Golden M
 ### Gildo (OS Infrastructure & HAL): Buildroot, Device Tree, HAL, Classifier & Linux Boot
 - ✅ **Infrastructure & Buildroot:** RV32IMA defconfig, toolchain via `make sdk`, QEMU boot validation.
 - ✅ **Device Tree & Config:** `urrbana.dts` target Device Tree, `CONFIG_HIGH_RES_TIMERS=y`, FAT32/ext4 RootFS support.
-- ✅ **NPU HAL & Classifier (`libnpu_hal.a`):** `npu_hal.c`, `npu_classifier.c` (FP32 CPU fallback for 256->10 output layer), `npu_weights.c`.
+- ✅ **NPU HAL & Classifier (`libnpu_hal.a`):** `npu_hal.c`, `npu_classifier.c` (FP32 CPU fallback for 64->10 output layer), `npu_weights.c`.
 - ✅ **Packages & Application:** Buildroot packages (`npu-ternaria`, `npu-hal`, `user-app`), `user_app.c` refactored with `--cpu`, `--file`, `--batch` flags.
 - ⏳ **Phase 4 Deployment (17/08/2026):** MicroSD card preparation, final Buildroot image compilation (kernel 6.18.7 + OpenSBI 1.6 + RootFS), Linux physical boot on Urbana board.
 
@@ -125,7 +125,7 @@ Current evidence is limited to C++ Golden Model v1 with 8/8 checks, C++ Golden M
 - ✅ **Current host evidence:** Python pipeline 5/5 checks, C++ Golden Model v1 8/8 checks, C++ Golden Model v2 21/21 checks, and IOCTL ABI check passing.
 - ✅ **Kernel Driver (`npu_driver.ko`):** Platform driver with `dma_alloc_coherent`, `mmap`, `devm_request_irq`, `wait_event_interruptible`.
 - ✅ **Driver v3.0 Register Map:** 10 MMIO registers (`0x00`-`0x24`), `iowrite32` for `WEIGHT_CFG`/`ACT_CFG`/`MAC_CFG`/`LAYER_CFG`, shared `npu_ioctl.h`.
-- ✅ **Weights and export contract:** Maintains `weights.h`, the AI export format, and the RV32 cross-compilation workflow. The current FP32 symbols use fallback values and are not validated trained parameters.
+- ✅ **Weights and export contract:** Maintains `weights.h`, the AI export format, and the RV32 cross-compilation workflow. The current parameters were exported from a 20-epoch QAT run that reached 97.27% MNIST test accuracy.
 - ⏳ **Physical validation coordination:** Coordinates the driver, RV32 cross-compilation, physical validation with Arthur and Gildo, CPU-vs-NPU benchmarks, and the Paper 1 results and discussion. No FPGA end-to-end inference or benchmark is currently proven.
 
 ### Gilvan (Historical AI Contribution): Retained & Credited
@@ -162,7 +162,7 @@ user_app (inference + benchmark)
     │
     ▼  (uses)
 NPU HAL (npu_init → npu_predict → npu_deinit)
-    │  └─ npu_classifier (256→10 output layer)
+    │  └─ npu_classifier (64→10 output layer)
     │  └─ npu_weights (weight loading)
     │
     ▼  (ioctl / mmap)
@@ -183,11 +183,11 @@ python3 scripts/run_pipeline.py
 ```
 
 The pipeline is intended to generate `weights.h` for the NPU HAL, but the HAL/weights contract is incomplete and requires end-to-end validation:
-- `quant_dense_weights[50176]`: Layer 0 (784->1024)
-- `quant_dense_1_weights[32768]`: Layer 1 (1024->512)
-- `quant_dense_2_weights[8192]`: Layer 2 (512->256)
-- `output_weights[2560]`: Output layer FP32 symbol present in the current header, but fallback values are not validated trained parameters
-- `output_bias[10]`: Output layer bias symbol present in the current header, but fallback values are not validated trained parameters
+- `quant_dense_weights[12544]`: Layer 0 (784->256)
+- `quant_dense_1_weights[2048]`: Layer 1 (256->128)
+- `quant_dense_2_weights[512]`: Layer 2 (128->64)
+- `output_weights[640]`: Trained output-layer FP32 weights (64 x 10)
+- `output_bias[10]`: Trained output-layer FP32 biases
 
 ---
 

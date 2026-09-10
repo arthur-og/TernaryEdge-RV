@@ -24,10 +24,16 @@ x_test  = x_test.reshape(-1, 784).astype("float32") / 255.0
 
 # ── Ternary MLP model definition ──
 
-def build_ternary_mlp(input_shape=(784,), num_classes=10):
+# Model dimensions. The three QuantDense layers are accelerated by the NPU.
+INPUT_DIM = 784
+HIDDEN_DIMS = (256, 128, 64)
+NUM_CLASSES = 10
+
+
+def build_ternary_mlp(input_shape=(INPUT_DIM,), num_classes=NUM_CLASSES):
     model = tf.keras.models.Sequential([
         lq.layers.QuantDense(
-            1024,
+            HIDDEN_DIMS[0],
             input_shape=input_shape,
             use_bias=False,
             kernel_quantizer="ste_tern",
@@ -37,7 +43,7 @@ def build_ternary_mlp(input_shape=(784,), num_classes=10):
         tf.keras.layers.Activation("relu"),
         tf.keras.layers.Lambda(lambda x: tf.quantization.fake_quant_with_min_max_args(x, min=0, max=127, num_bits=8)),
         lq.layers.QuantDense(
-            512,
+            HIDDEN_DIMS[1],
             use_bias=False,
             kernel_quantizer="ste_tern",
             kernel_constraint="weight_clip",
@@ -46,7 +52,7 @@ def build_ternary_mlp(input_shape=(784,), num_classes=10):
         tf.keras.layers.Activation("relu"),
         tf.keras.layers.Lambda(lambda x: tf.quantization.fake_quant_with_min_max_args(x, min=0, max=127, num_bits=8)),
         lq.layers.QuantDense(
-            256,
+            HIDDEN_DIMS[2],
             use_bias=False,
             kernel_quantizer="ste_tern",
             kernel_constraint="weight_clip",

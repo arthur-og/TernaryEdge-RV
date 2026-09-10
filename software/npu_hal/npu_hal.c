@@ -1,5 +1,5 @@
 #include "npu_hal.h"
-#include "../include/npu_ioctl.h"
+#include "npu_ioctl.h"
 #include "npu_classifier.h"
 #include "npu_weights.h"
 #include "weights.h"
@@ -12,6 +12,14 @@
 #include <unistd.h>
 
 #define DEVICE_PATH "/dev/npu_ternaria"
+
+#if QUANT_DENSE_2_OUT != NPU_CLASSIFIER_INPUTS
+#error "Final NPU layer and classifier input dimensions must match"
+#endif
+
+#if OUTPUT_WEIGHTS_COUNT != (10 * NPU_CLASSIFIER_INPUTS)
+#error "Output weight count must match the classifier dimensions"
+#endif
 
 npu_ctx_t *npu_init(void) {
   npu_ctx_t *ctx = malloc(sizeof(npu_ctx_t));
@@ -43,23 +51,24 @@ npu_result_t npu_predict(npu_ctx_t *ctx, const uint8_t *image) {
   npu_result_t result = {0};
   struct npu_ioctl_args ioctl_args;
   struct timeval t0, t1, t2, t3;
-  int32_t npu_output[256];
+  int32_t npu_output[QUANT_DENSE_2_OUT];
   float scores[10];
 
   gettimeofday(&t0, NULL);
 
   uint8_t *act_base = (uint8_t *)ctx->dma_buffer + 0x5C000;
-  for (int i = 0; i < 784; i++)
+  for (int i = 0; i < QUANT_DENSE_IN; i++)
     act_base[i] = image[i];
 
   gettimeofday(&t1, NULL);
   result.time_copy_us =
       (t1.tv_sec - t0.tv_sec) * 1000000L + (t1.tv_usec - t0.tv_usec);
 
-  ioctl_args.dma_size = QUANT_DENSE_PACKED_WORDS + QUANT_DENSE_1_PACKED_WORDS +
-                        QUANT_DENSE_2_PACKED_WORDS;
+  ioctl_args.dma_size =
+      (QUANT_DENSE_PACKED_WORDS + QUANT_DENSE_1_PACKED_WORDS +
+       QUANT_DENSE_2_PACKED_WORDS) * sizeof(uint32_t);
   ioctl_args.weight_cfg = QUANT_DENSE_PACKED_WORDS;
-  ioctl_args.act_cfg = 784;
+  ioctl_args.act_cfg = QUANT_DENSE_IN;
   ioctl_args.mac_cfg = 64;
   ioctl_args.layer_cfg = 3;
 
@@ -72,12 +81,13 @@ npu_result_t npu_predict(npu_ctx_t *ctx, const uint8_t *image) {
   result.time_npu_us =
       (t2.tv_sec - t1.tv_sec) * 1000000L + (t2.tv_usec - t1.tv_usec);
 
-  for (int i = 0; i < 256; i++)
+  for (int i = 0; i < QUANT_DENSE_2_OUT; i++)
     npu_output[i] = (int32_t)ctx->dma_buffer[i];
 
-  classifier_run((const float (*)[256])weights_get_output(), weights_get_bias(),
-                 npu_output, scores, &result.confidence,
-                 &result.predicted_class);
+  classifier_run(
+      (const float (*)[NPU_CLASSIFIER_INPUTS])weights_get_output(),
+      weights_get_bias(), npu_output, scores, &result.confidence,
+      &result.predicted_class);
 
   gettimeofday(&t3, NULL);
   result.time_output_us =
@@ -94,7 +104,7 @@ npu_result_t npu_predict(npu_ctx_t *ctx, const uint8_t *image) {
 void npu_predict_batch(npu_ctx_t *ctx, const uint8_t *images, int n,
                        npu_result_t *results) {
   for (int i = 0; i < n; i++)
-    results[i] = npu_predict(ctx, images + i * 784);
+    results[i] = npu_predict(ctx, images + i * QUANT_DENSE_IN);
 }
 
 void npu_deinit(npu_ctx_t *ctx) {

@@ -109,8 +109,8 @@ Entregue em `software/user_app/user_app.c` (133 linhas):
 ### 3.7 — Pesos (weights.h) ✅
 
 - Registro histórico de `weights.h` com 91.169 linhas, gerado pelo pipeline histórico de Gilvan
-- O header atual contém os símbolos FP32, mas os valores de fallback `0.01`/`0.1` não são parâmetros treinados validados; Gustavo mantém a exportação e o contrato
-- `weights.h` configunrado no `.gitignore` em produces do pipeline
+- O header atual contém pesos ternários e parâmetros FP32 exportados do modelo QAT 784->256->128->64->10 treinado; Gustavo mantém a exportação e o contrato
+- `weights.h` versionado como artefato de integração produzido pelo pipeline
 
 ## Fase 4 (Em Andamento): Deploy Físico e Paper
 

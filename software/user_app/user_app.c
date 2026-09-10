@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include "../npu_hal/npu_hal.h"
-#include "../npu_hal/npu_classifier.h"
-#include "../npu_hal/npu_weights.h"
+#include "npu_hal.h"
+#include "npu_classifier.h"
+#include "npu_weights.h"
 #include "weights.h"
 
 static void forward_ternary_layer(int32_t *output,
@@ -33,16 +33,16 @@ static int load_mnist_image(const char *path, uint8_t *image)
 {
     FILE *f = fopen(path, "rb");
     if (!f) return -1;
-    size_t r = fread(image, 1, 784, f);
+    size_t r = fread(image, 1, QUANT_DENSE_IN, f);
     fclose(f);
-    return r == 784 ? 0 : -1;
+    return r == QUANT_DENSE_IN ? 0 : -1;
 }
 
 static void run_cpu_baseline(const uint8_t *image)
 {
-    int32_t layer0_out[1024];
-    int32_t layer1_out[512];
-    int32_t layer2_out[256];
+    int32_t layer0_out[QUANT_DENSE_OUT];
+    int32_t layer1_out[QUANT_DENSE_1_OUT];
+    int32_t layer2_out[QUANT_DENSE_2_OUT];
     float scores[10];
     float confidence;
     int predicted;
@@ -50,16 +50,19 @@ static void run_cpu_baseline(const uint8_t *image)
     printf("CPU mode: running ternary baseline + classifier...\n");
 
     forward_ternary_layer(layer0_out, image,
-                          quant_dense_weights, NULL, 784, 1024);
+                          quant_dense_weights, NULL,
+                          QUANT_DENSE_IN, QUANT_DENSE_OUT);
 
     forward_ternary_layer(layer1_out, (uint8_t *)layer0_out,
-                          quant_dense_1_weights, NULL, 1024, 512);
+                          quant_dense_1_weights, NULL,
+                          QUANT_DENSE_1_IN, QUANT_DENSE_1_OUT);
 
     forward_ternary_layer(layer2_out, (uint8_t *)layer1_out,
-                          quant_dense_2_weights, NULL, 512, 256);
+                          quant_dense_2_weights, NULL,
+                          QUANT_DENSE_2_IN, QUANT_DENSE_2_OUT);
 
     classifier_run(
-        (const float (*)[256])weights_get_output(),
+        (const float (*)[NPU_CLASSIFIER_INPUTS])weights_get_output(),
         weights_get_bias(),
         layer2_out,
         scores, &confidence, &predicted
@@ -74,7 +77,7 @@ int main(int argc, char **argv)
     int cpu_mode = 0;
     int batch_size = 1;
     const char *file_path = NULL;
-    uint8_t image[784];
+    uint8_t image[QUANT_DENSE_IN];
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--cpu") == 0)
@@ -91,7 +94,7 @@ int main(int argc, char **argv)
             return EXIT_FAILURE;
         }
     } else {
-        for (int i = 0; i < 784; i++)
+        for (int i = 0; i < QUANT_DENSE_IN; i++)
             image[i] = (uint8_t)((i * 13 + 7) % 128);
     }
 

@@ -15,7 +15,7 @@ static int check_size(const char *name, size_t actual, size_t expected) {
 }
 
 int main(void) {
-  const size_t packed_word_total = 91136u;
+  const size_t packed_word_total = 15104u;
   const size_t packed_byte_footprint = packed_word_total * 4u;
   int failures = 0;
 
@@ -36,13 +36,12 @@ int main(void) {
   failures |= check_size("NPU_DMA_BUFFER_SIZE", NPU_DMA_BUFFER_SIZE,
                          4u * 1024u * 1024u);
   failures |= check_size("packed weight total (words)", packed_word_total,
-                         91136u);
+                          15104u);
   failures |= check_size("packed weight footprint (bytes)",
-                         packed_byte_footprint, 364544u);
+                          packed_byte_footprint, 60416u);
 
-  puts("Word/byte count: 91136 packed words x 4 bytes = 364544 bytes.");
-  puts("dma_size contract: documented as bytes; current HAL passes packed "
-       "words (91136), not bytes (364544).");
+  puts("Word/byte count: 15104 packed words x 4 bytes = 60416 bytes.");
+  puts("dma_size contract: HAL and driver use the 60416-byte footprint.");
 
   if (failures != 0) {
     fputs("IOCTL ABI diagnostic failed.\n", stderr);

@@ -85,10 +85,9 @@ Do not flash hardware before the lower-level checks pass.
 
 ### 3.1 RTL and golden models
 
-The current host evidence is C++ Golden Model v1 with 8/8 checks, C++ Golden
-Model v2 with 21/21 checks, and the Python pipeline with 5/5 checks. The
-Verilog testbench is unavailable in the current shell, so the historical 4/4
-record must not be presented as a current execution result.
+Current evidence for the reduced model includes 97.27% MNIST test accuracy,
+strict ternary-weight verification, C++ Golden Model v2 with 21/21 checks, and
+a passing four-group Verilog regression in the repository Nix shell.
 
 ```bash
 make -C hardware/npu_rtl/sim_cpp all
@@ -105,11 +104,10 @@ nix develop .#ai
 python3 ai_training/scripts/run_pipeline.py --epochs 20
 ```
 
-Check that the generated header exists at
-`software/user_app/weights.h`. The current header has the FP32 symbols expected
-by the HAL, but its fallback values, including `0.01` and `0.1`, are not
-validated trained parameters. Gustavo owns this export and contract check.
-Resolve the parameter validation gap before claiming end-to-end inference.
+Check that the generated header exists at `software/user_app/weights.h`. The
+current header has the ternary and FP32 symbols exported from the trained model.
+Gustavo owns this export and contract check. Validate the missing inter-layer
+transforms before claiming end-to-end NPU inference.
 
 ### 3.3 Buildroot Linux image
 
@@ -281,8 +279,8 @@ Required phases, in this order:
 1. Run the C++ NPU v2 simulations and the Python golden model. Run the Verilog
    testbench only when its simulator is available in the shell.
 2. Gustavo runs the AI pipeline and verifies that software/user_app/weights.h
-   satisfies every symbol expected by the HAL, including the CPU output layer.
-   The current FP32 values are fallbacks, not validated trained parameters.
+   satisfies every symbol expected by the HAL, including the trained CPU output
+   layer parameters.
 3. Clone Buildroot beside the repository at commit
    2026.02-882-g98a3912165. Configure it with
    software/os_buildroot as BR2_EXTERNAL and build the complete image.

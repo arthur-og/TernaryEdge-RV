@@ -27,7 +27,7 @@ user_app (inference + benchmark)
     |
     v  (uses)
 NPU HAL (npu_init -> npu_predict -> npu_deinit)
-    |  |- npu_classifier (256->10 output layer)
+    |  |- npu_classifier (64->10 output layer)
     |  |- npu_weights    (weight loading)
     |
     v  (ioctl / mmap)

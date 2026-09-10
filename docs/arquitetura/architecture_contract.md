@@ -60,7 +60,7 @@ This document formalizes the architectural decisions and "Design by Contract" pa
 
 *   **Arthur:** The design target gives each `ternary_mac.v` one 2-bit weight and combines 64 partial sums through an adder tree. Physical resource use is pending synthesis.
 *   **Memory:** 4 weight words are fetched per cycle (4 x 32-bit = 128 bits -> 64 x 2-bit weights).
-*   **Weight storage:** `WEIGHT_MEM_SIZE = 16384` words (512 Kb): fits largest layer (50,176 words). Larger layers handled by tiling.
+*   **Weight storage:** Layer 0 has 12,544 packed words. The active top-level streams four words on demand from external RAM; it does not require the complete layer to fit the legacy `WEIGHT_BRAM_DEPTH = 12288` package constant.
 
 ---
 
@@ -81,7 +81,7 @@ This document formalizes the architectural decisions and "Design by Contract" pa
 *   **Gildo (HAL):** `npu_result_t` must capture:
   1. `time_copy_us`: Time to copy image → DMA buffer
   2. `time_npu_us`: Time waiting for the NPU IRQ (pure hardware compute)
-  3. `time_output_us`: Time for CPU output layer (256→10)
+  3. `time_output_us`: Time for CPU output layer (64→10)
   4. `time_total_us`: Wall clock from start to finish
 
 ---
@@ -164,23 +164,24 @@ Each compute cycle:
 
 ## 9. NPU HAL (Hardware Abstraction Layer)
 
-**Rationale:** The NPU v2 is purely ternary (only {+1,0,-1} multiplications). It cannot compute the final classification layer (256->10) which requires FP32 weights and softmax. The HAL encapsulates:
+**Rationale:** The NPU v2 is purely ternary (only {+1,0,-1} multiplications). It cannot compute the final classification layer (64->10) which requires FP32 weights and softmax. The HAL encapsulates:
 
 1. **Device initialization** (`npu_init`): opens `/dev/npu_ternaria`, mmaps DMA buffer
 2. **Weight loading** (`npu_load_weights`): copies ternary weights from `weights.h` to DMA
 3. **Inference** (`npu_predict`): copies input image, triggers ioctl, reads NPU output
-4. **Output layer** (internal): runs 256->10 FP32 classification on CPU via `classifier_run()`
+4. **Output layer** (internal): runs 64->10 FP32 classification on CPU via `classifier_run()`
 5. **Batch inference** (`npu_predict_batch`): repeats predict for N images
 
 ### DMA Buffer Layout
 
 | Offset | Size | Content |
 |--------|------|---------|
-| `0x000000` | 4 KB | Result area (NPU writes 256 x int32 here) |
-| `0x001000` | 364 KB | Ternary weights (3 layers: 50,176 + 32,768 + 8,192 words) |
+| `0x000000` | 4 KB | Result area (NPU writes 64 x int32 here) |
+| `0x001000` | 59 KB | Ternary weights (3 layers: 12,544 + 2,048 + 512 words) |
 | `0x05C000` | 1 KB | Input activations (784 bytes + padding) |
-| `0x05C400` | 10 KB | Output layer FP32 weights (2,560 floats) |
-| `0x05F000` | ~3.8 MB | Free / expansion |
+| `0x00FC00` | 2.5 KB | Output layer FP32 weights (640 floats) |
+| `0x010600` | 40 B | Output layer FP32 biases |
+| `0x010628` | ~3.94 MB | Free / expansion |
 
 * **Gildo (HAL):** Owns the HAL design, implementation, and test.
 * **Gustavo (Driver):** The HAL depends on the driver's ioctl interface: must remain stable.
@@ -190,29 +191,29 @@ Each compute cycle:
 
 ## 10. NPU Classifier (CPU Fallback)
 
-**Decision:** The output layer (256→10) runs on the CPU, not the NPU.
+**Decision:** The output layer (64→10) runs on the CPU, not the NPU.
 
 **Justification:** The NPU v2 has no FP32 multiplier. A historical host-side comparison of a ternary output layer (Opção A) reported accuracy below 90%. The adopted design (Opção B) targets 3 ternary layers in the NPU and CPU execution for the final FP32 classification.
 
 ```
-NPU output: 256 × int32 (accumulated ternary products)
+NPU output: 64 × int32 (accumulated ternary products)
     │
     ▼
 Classifier (CPU):
   for each class c (0..9):
-    score[c] = bias[c] + Σ(i=0..255) npu_output[i] × output_weights[c][i]
+     score[c] = bias[c] + Σ(i=0..63) npu_output[i] × output_weights[c][i]
   predicted = argmax(score)
   confidence = softmax(score)
 ```
 
 * **Gildo (HAL):** Implements `classifier_run()` inside the HAL.
-* **Gustavo:** Maintains the output-weight export and regression contract. Gilvan's historical QAT and packing contribution remains credited. Current FP32 symbols use fallback values and are not validated trained parameters.
+* **Gustavo:** Maintains the output-weight export and regression contract. Gilvan's historical QAT and packing contribution remains credited. The current FP32 symbols were exported from the trained 784->256->128->64->10 QAT model.
 
 ---
 
 ## 11. Current Status & Known Gaps (17/08/2026)
 
-**Historical snapshot (17/08/2026):** Earlier notes recorded the Urbana connection, FTDI detection, JTAG IDCODE 0x362f093, and a 4/4 Verilog result. The current shell cannot run the Verilog testbench, so that result is not current evidence. Current host evidence is C++ v1 8/8, C++ v2 21/21, Python 5/5, and IOCTL ABI pass. No FPGA end-to-end inference or CPU-versus-NPU benchmark is proven.
+**Historical snapshot (17/08/2026):** Earlier notes recorded the Urbana connection, FTDI detection, JTAG IDCODE 0x362f093, and a 4/4 Verilog result. Current host evidence for the reduced model is 97.27% MNIST test accuracy, strict ternary-weight verification, C++ v2 21/21, passing header and IOCTL ABI checks, and a passing four-group Verilog regression. No FPGA end-to-end inference or CPU-versus-NPU benchmark is proven.
 
 | Task / Gap | Impact | Active Owner | Priority | Status / Resolution Path |
 |:-----------|:-------|:-------------|:---------|:-------------------------|

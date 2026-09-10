@@ -1,5 +1,5 @@
 # 📌 CHECKLIST OFICIAL DO PROJETO: TERNARY EDGE-RV
-**Última atualização operacional:** 20/08/2026. O registro histórico de 17/08/2026 informa placa Urbana conectada via micro-USB (FTDI FT2232H detectado, JTAG IDCODE 0x362f093, `/dev/ttyUSB0` e `/dev/ttyUSB1` criados), simulação RTL 4/4 e flags openXC7 `-nolutram -nowidelut`. O registro 4/4 não representa uma execução disponível no shell atual.
+**Última atualização operacional:** 20/08/2026. O registro histórico de 17/08/2026 informa placa Urbana conectada via micro-USB (FTDI FT2232H detectado, JTAG IDCODE 0x362f093, `/dev/ttyUSB0` e `/dev/ttyUSB1` criados), simulação RTL 4/4 e flags openXC7 `-nolutram -nowidelut`. Uma nova regressão Verilog de quatro grupos para o modelo reduzido foi executada com sucesso no shell Nix.
 **Prazo final de submissão (SBCCI/LASCAS):** 31/08/2026
 
 ---
@@ -10,9 +10,9 @@
 - **📄 Paper 1:** Todos os 4 autores mantidos (Arthur Oliveira Gomes, Gildo Alves de Lima Junior, Gustavo Alexandre dos Santos, Gilvan Alves Pastor Junior). O template está em `paper/paper1_template.tex`.
 
 As listas das Fases 1 a 3 abaixo são registros históricos do desenvolvimento.
-A evidência corrente é: C++ v1 8/8, C++ v2 21/21, Python 5/5 e ABI IOCTL
-aprovada. O testbench Verilog está indisponível no shell atual. Não há
-inferência FPGA end-to-end nem benchmark CPU versus NPU comprovado.
+A evidência corrente inclui modelo QAT reduzido com 97,27% no teste MNIST,
+C++ v2 21/21, contratos de header e ABI aprovados e quatro grupos Verilog
+aprovados. Não há inferência FPGA end-to-end nem benchmark CPU versus NPU comprovado.
 
 ---
 
@@ -81,7 +81,7 @@ inferência FPGA end-to-end nem benchmark CPU versus NPU comprovado.
 - [X] Implementar **Wishbone Master (DMA)**: ler RAM em burst (`wishbone_master.v`)
 - [X] BRAM interna de **12K words** (384 Kb) para pesos (`npu_v2_pkg.v: WEIGHT_BRAM_DEPTH=12288`)
 - [X] **Layer Sequencer**: FSM de 10 estados que itera 3 layers automaticamente
-- [ ] Executar o testbench Verilator/Verilog (`tb_npu_v2.v`): indisponível no shell atual; o registro histórico de 4/4 permanece datado e não é evidência corrente
+- [X] Executar o testbench Verilog (`tb_npu_v2.v`): quatro grupos aprovados para as dimensões reduzidas no shell Nix
 - [X] Corrigir STATUS register: `zero_counter` em `[15:8]` (alinhar com C++)
 - [X] Atualizar `npu_ternaria_top_v2.v`: top-level documentado; a integração física ainda depende de validação
 - [X] Atualizar flags openXC7 para `-nolutram -nowidelut` na plataforma para eliminar RAM256X1S e MUXF7/MUXF8
@@ -101,12 +101,12 @@ inferência FPGA end-to-end nem benchmark CPU versus NPU comprovado.
 
 ### NPU Classifier (CONCLUÍDO ✅)
 - [X] `software/npu_hal/npu_classifier.h`: API classifier_run, argmax, softmax
-- [X] `software/npu_hal/npu_classifier.c`: Output layer 256->10 FP32 CPU
+- [X] `software/npu_hal/npu_classifier.c`: Output layer 64->10 FP32 CPU
 
 ### NPU Weights (CONCLUÍDO ✅)
 - [X] `software/npu_hal/npu_weights.h`: API para carregar pesos no DMA
 - [X] `software/npu_hal/npu_weights.c`: Loader de pesos do QAT pipeline
-- [X] `software/npu_hal/weights.h`: símbolos FP32 presentes; valores de fallback `0.01`/`0.1`, não validados como parâmetros treinados
+- [X] `software/user_app/weights.h`: pesos ternários e parâmetros FP32 exportados do modelo QAT treinado
 
 ### Buildroot Packages (CONCLUÍDO ✅)
 - [X] `package/npu-ternaria/`: Kernel module package
@@ -139,11 +139,11 @@ inferência FPGA end-to-end nem benchmark CPU versus NPU comprovado.
 
 # 🔴 FASE 4: DEPLOY FÍSICO E PAPER 1 (Prazo histórico: 31/08/2026)
 **Objetivo:** Rodar no silício real, extrair métricas, submeter paper para SBCCI/LASCAS.
-**Registro histórico em 17/08/2026:** FPGA RealDigital Urbana conectada via micro-USB, FTDI FT2232H detectado (JTAG IDCODE 0x362f093, `/dev/ttyUSB0` e `/dev/ttyUSB1` ativos). O registro RTL Verilog 4/4 e as flags openXC7 `-nolutram -nowidelut` ficam preservados como histórico. No shell atual, o testbench Verilog está indisponível.
+**Registro histórico em 17/08/2026:** FPGA RealDigital Urbana conectada via micro-USB, FTDI FT2232H detectado (JTAG IDCODE 0x362f093, `/dev/ttyUSB0` e `/dev/ttyUSB1` ativos). O registro RTL Verilog 4/4 e as flags openXC7 `-nolutram -nowidelut` ficam preservados como histórico. A regressão atual também aprova quatro grupos para as dimensões reduzidas.
 
 ### Arthur (Hardware RTL, LiteX SoC, Verilog Regression, Synthesis & Bitstream)
 - [X] Detectar placa Urbana via micro-USB (FTDI FT2232H, JTAG IDCODE 0x362f093)
-- [ ] Executar regressão Verilog `make verilog_v2` quando o simulador estiver disponível; registro histórico 4/4 mantido, sem nova evidência corrente
+- [X] Executar regressão Verilog `make verilog_v2`; quatro grupos aprovados no shell Nix
 - [X] Atualizar flags openXC7 com `-nolutram -nowidelut`
 - [ ] Sintetizar SoC final e NPU v2 para a FPGA Urbana via `base_soc.py --build`
 - [ ] Gerar bitstream e carregar na FPGA Urbana
@@ -157,7 +157,7 @@ inferência FPGA end-to-end nem benchmark CPU versus NPU comprovado.
 - [ ] **Escrever seção do Paper 1:** OS Infrastructure e NPU HAL (`libnpu_hal.a`)
 
 ### Gustavo (AI Pipeline, Weights, Golden Model, Driver, Cross-Compilation, Physical Validation & Results)
-- [ ] Manter o pipeline de IA e validar a exportação de `weights.h`; os símbolos FP32 atuais usam valores de fallback `0.01`/`0.1`, não parâmetros treinados validados
+- [X] Manter o pipeline de IA e validar a exportação de `weights.h`; modelo 784->256->128->64->10 treinado por 20 épocas com 97,27% de acurácia no teste MNIST
 - [ ] Manter regressão dos Golden Models C++ v1 (8/8) e v2 (21/21), além do diagnóstico Python (5/5)
 - [ ] Cross-compilar driver (`npu_driver.ko`) para RV32IMA
 - [ ] `insmod` do driver na FPGA Urbana física e verificar `/dev/npu_ternaria`

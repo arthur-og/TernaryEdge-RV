@@ -8,7 +8,7 @@
  * Architecture:
  *   - 64 parallel multiplierless MACs
  *   - Wishbone Master DMA (reads weights/activations from external RAM)
- *   - Layer Sequencer (3 layers: 784→1024, 1024→512, 512→256)
+ *   - Layer Sequencer (3 layers: 784→256, 256→128, 128→64)
  *   - 64 × 32-bit accumulator register file
  *   - STATUS: zero_counter at bits [15:8] (fixed to match RTL v2)
  */
@@ -16,9 +16,9 @@
 #include "npu_sim_v2.h"
 
 // Layer configuration (matches NPU v2 Verilog)
-const int NPUSimV2::LAYER_INPUTS[3]  = { 784, 1024, 512 };
-const int NPUSimV2::LAYER_OUTPUTS[3] = { 1024, 512, 256 };
-const int NPUSimV2::LAYER_WORDS[3]   = { 50176, 32768, 8192 };
+const int NPUSimV2::LAYER_INPUTS[3]  = { 784, 256, 128 };
+const int NPUSimV2::LAYER_OUTPUTS[3] = { 256, 128, 64 };
+const int NPUSimV2::LAYER_WORDS[3]   = { 12544, 2048, 512 };
 
 // =============================================================================
 // Reset
@@ -266,7 +266,10 @@ void NPUSimV2::clock_cycle() {
         case ST_CFG_WEIGHT: {
             m_wt_wptr = 0;
             // Weights stored after activations in RAM
-            m_dma_addr = m_cfg_src + 4096 + m_cur_layer * 131072;
+            int layer_weight_offset = 0;
+            for (int layer = 0; layer < m_cur_layer; layer++)
+                layer_weight_offset += LAYER_WORDS[layer] * 4;
+            m_dma_addr = m_cfg_src + 4096 + layer_weight_offset;
             m_dma_bytes = LAYER_WORDS[m_cur_layer] * 4;  // 4 bytes per word
             m_dma_read = true;
             m_dma_start = true;
@@ -278,7 +281,11 @@ void NPUSimV2::clock_cycle() {
             run_dma_cycle();
             if (m_dma_done) {
                 // Copy weight data from ext_ram to weight buffer
-                uint32_t* src = m_ext_ram + (m_cfg_src + 4096 + m_cur_layer * 131072) / 4;
+                int layer_weight_offset = 0;
+                for (int layer = 0; layer < m_cur_layer; layer++)
+                    layer_weight_offset += LAYER_WORDS[layer] * 4;
+                uint32_t* src = m_ext_ram +
+                    (m_cfg_src + 4096 + layer_weight_offset) / 4;
                 int words = LAYER_WORDS[m_cur_layer];
                 int to_copy = (words < WEIGHT_BUF_SIZE) ? words : WEIGHT_BUF_SIZE;
                 memcpy(m_wt_buf, src, to_copy * sizeof(uint32_t));
@@ -299,11 +306,10 @@ void NPUSimV2::clock_cycle() {
             int num_batches = (LAYER_INPUTS[m_cur_layer] + 63) / 64;
 
             if (m_cur_in_batch >= num_batches) {
-                // All inputs processed for this output group
+                // All inputs processed for this output neuron
                 m_cur_in_batch = 0;
-                m_cur_output += 64;
 
-                if (m_cur_output >= LAYER_OUTPUTS[m_cur_layer]) {
+                if (m_cur_output + 1 >= LAYER_OUTPUTS[m_cur_layer]) {
                     m_state = ST_LAYER_DONE;
                 } else {
                     m_state = ST_NEXT_OUTPUT;
@@ -315,7 +321,7 @@ void NPUSimV2::clock_cycle() {
 
         case ST_NEXT_OUTPUT: {
             memset(m_acc_reg, 0, sizeof(m_acc_reg));
-            m_cur_output += 64;
+            m_cur_output++;
             m_state = ST_COMPUTE_BATCH;
             break;
         }
@@ -453,7 +459,8 @@ void NPUSimV2::dump_status() const {
     printf("=== NPU v2 Status ===\n");
     printf("  State:       %s\n", state_names[m_state]);
     printf("  Layer:       %d/3\n", m_cur_layer);
-    printf("  Output:      %d/1024\n", m_cur_output);
+    printf("  Output:      %d/%d\n", m_cur_output,
+           LAYER_OUTPUTS[m_cur_layer]);
     printf("  Batch:       %d\n", m_cur_in_batch);
     printf("  IRQ:         %s\n", m_irq ? "ASSERTED" : "deasserted");
     printf("  Total Ops:   %d\n", m_total_ops);

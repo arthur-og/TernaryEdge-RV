@@ -35,9 +35,9 @@ struct npu_ioctl_args {
 /*
  * Size of the DMA coherent buffer allocated by the driver.
  * Must hold all weights + activations for 3 layers:
- *   Weights: 91,136 words × 4 bytes = 364,544 bytes  (~356 KB)
+ *   Weights: 15,104 words × 4 bytes = 60,416 bytes  (~59 KB)
  *   Activations: up to 1024 bytes
- *   Total: ~365 KB → 4 MB buffer is more than sufficient.
+ *   Total payload: ~63 KB → 4 MB buffer is more than sufficient.
  */
 #define NPU_DMA_BUFFER_SIZE (4 * 1024 * 1024)
 
