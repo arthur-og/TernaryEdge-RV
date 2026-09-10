@@ -16,11 +16,13 @@ make -C software/tests weights-header
 make -C software/tests clean
 ```
 
-`ioctl-abi` proves the current 20-byte IOCTL layout and the 60,416-byte ternary
-weight footprint passed through `dma_size`.
+`ioctl-abi` currently passes while proving the current 204-byte IOCTL layout,
+including eight 24-byte layer descriptors.
 
-`weights-header` checks the current trained header's packed contract and
-expected FP32 symbols. The packed contract currently present is:
+`weights-header` checks the current header's packed contract and expected FP32
+symbols. The current header has the FP32 symbols, but its fallback values,
+including `0.01` and `0.1`, are not validated trained parameters. The packed
+contract currently present is:
 
 - `QUANT_DENSE_PACKED_WORDS` and `quant_dense_weights`
 - `QUANT_DENSE_1_PACKED_WORDS` and `quant_dense_1_weights`
@@ -33,15 +35,25 @@ The FP32 symbols required by `software/npu_hal/npu_weights.c` are:
 - `output_weights`
 - `output_bias`
 
-The checker validates the contractual counts: `12544`, `2048`, `512`, `640`,
-and `10`.
+The generated-header contract for the reduced model is `12544`, `2048`,
+`512`, `640`, and `10`.
 
-The target checks declarations and counts only. Model accuracy and parameter
-provenance are validated by the AI pipeline, not by this native C diagnostic.
+The target checks declarations and counts only. It does not claim that fallback
+values are trained model values, and it does not fabricate model data.
 
 The RISC-V cross-compiler `riscv32-buildroot-linux-gnu-gcc` is not available
 on the current native PATH; these targets therefore intentionally use the
 native compiler only.
 
-The Verilog v2 testbench passes in the repository Nix shell. No FPGA end-to-end
-inference or CPU-versus-NPU benchmark is established by these host checks.
+The canonical RTL regression is available through the repository hardware
+flake:
+
+```bash
+nix develop .#hardware --command make -C hardware/npu_rtl test
+nix develop .#hardware --command make -C hardware/npu_rtl lint
+nix develop .#hardware --command make -C hardware/npu_rtl synth
+```
+
+These checks do not establish FPGA end-to-end inference or a CPU-versus-NPU
+benchmark. The RISC-V cross-compiler and physical device remain separate
+validation steps.

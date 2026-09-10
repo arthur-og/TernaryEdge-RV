@@ -3,11 +3,11 @@
 #
 # Targets:
 #   make demo      — NPU v1 C++ simulation
-#   make demo_v2   — NPU v2 C++ simulation (64 MACs + DMA)
+#   make legacy_demo_v2 — historical C++ v2 smoke model
 #   make verilog   — NPU v1 Verilog testbench (iverilog)
 #   make verilog_v2— NPU v2 Verilog testbench (iverilog)
 #   make view      — View waveform (gtkwave)
-#   make all       — Run all C++ simulations
+#   make all       — Run Python and RTL regressions
 #   make clean     — Remove compiled artifacts
 
 CXX      = g++
@@ -39,7 +39,7 @@ NPU2_BIN   = demo_npu_v2
 $(NPU2_BIN): $(NPU2_OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-demo_v2: $(NPU2_BIN)
+legacy_demo_v2: $(NPU2_BIN)
 	./$(NPU2_BIN)
 
 # ==============================================================================
@@ -58,15 +58,28 @@ verilog: $(VERILOG1_BIN)
 # NPU v2 Verilog Testbench (64 MACs, DMA)
 # ==============================================================================
 VERILOG2_SRC  = ../tb_npu_v2.v ../npu_ternaria_top_v2.v \
+                ../wishbone_master.v \
                 ../ternary_mac.v ../ternary_mac_array.v \
-                ../adder_tree_64.v ../npu_v2_pkg.v
-VERILOG2_BIN  = tb_npu_v2.vvp
+                ../adder_tree_64.v ../postprocess_unit.v ../npu_v2_pkg.v
+VERILOG2_WIDTHS = 16 32 64
+VERILOG2_BIN  = tb_npu_v2_64.vvp
 
-$(VERILOG2_BIN): $(VERILOG2_SRC)
+verilog_v2_%: $(VERILOG2_SRC)
+	$(IVERILOG) -g2012 -I.. -Ptb_npu_v2.PHYSICAL_PES=$* -o tb_npu_v2_$*.vvp $(VERILOG2_SRC)
+	$(VVP) tb_npu_v2_$*.vvp
+
+verilog_v2: verilog_v2_64
+
+verilog_v2_matrix: $(addprefix verilog_v2_,$(VERILOG2_WIDTHS))
+
+VERILOG_PRIMITIVE_SRC = ../tb_ternary_primitives.v ../ternary_mac.v ../adder_tree_64.v
+VERILOG_PRIMITIVE_BIN = tb_ternary_primitives.vvp
+
+$(VERILOG_PRIMITIVE_BIN): $(VERILOG_PRIMITIVE_SRC)
 	$(IVERILOG) -g2012 -I.. -o $@ $^
 
-verilog_v2: $(VERILOG2_BIN)
-	$(VVP) $(VERILOG2_BIN)
+verilog_primitives: $(VERILOG_PRIMITIVE_BIN)
+	$(VVP) $(VERILOG_PRIMITIVE_BIN)
 
 view: verilog
 	$(GTKWAVE) tb_npu.vcd &
@@ -83,7 +96,7 @@ python_test:
 # ==============================================================================
 # All-in-One
 # ==============================================================================
-all: demo demo_v2
+all: demo python_test verilog_primitives verilog_v2
 
 # ==============================================================================
 # Cleanup
@@ -94,4 +107,5 @@ clean:
 	rm -f *.o *.vvp *.vcd
 	rm -f ../*.vcd ../*.vvp
 
-.PHONY: all demo demo_v2 verilog verilog_v2 view view_v2 python_test clean
+.PHONY: all demo legacy_demo_v2 verilog verilog_v2 verilog_v2_matrix \
+	verilog_primitives view view_v2 python_test clean

@@ -29,7 +29,13 @@ def encode_ternary(value: float) -> int:
 
 
 def pack_weights(weight_matrix: np.ndarray) -> list[int]:
-    flat = weight_matrix.flatten().astype("float32")
+    matrix = np.asarray(weight_matrix)
+    if matrix.ndim == 1:
+        flat = matrix.astype("float32")
+    elif matrix.ndim == 2:
+        flat = matrix.T.flatten().astype("float32")
+    else:
+        raise ValueError("ternary weights must be a vector or 2-D matrix")
     encoded = [encode_ternary(w) for w in flat]
 
     packed_words = []
@@ -56,4 +62,7 @@ def unpack_weights(packed_words: list[int], shape: tuple) -> np.ndarray:
                 flat.append(0.0)
 
     flat = flat[: int(np.prod(shape))]
-    return np.array(flat, dtype="float32").reshape(shape)
+    values = np.array(flat, dtype="float32")
+    if len(shape) == 2:
+        return values.reshape((shape[1], shape[0])).T
+    return values.reshape(shape)

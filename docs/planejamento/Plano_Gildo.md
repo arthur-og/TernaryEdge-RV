@@ -12,7 +12,7 @@
 
 **Quanto menos complexa a NPU (puramente ternária, sem FP32), mais complexo o software que a completa.**
 
-A NPU v2 tem como alvo executar 3 camadas de MACs ternários {+1,0,-1} em hardware, ainda sem validação FPGA end-to-end. Toda a lógica de **classificação final** (256→10 com pesos FP32, softmax, argmax), **gerenciamento de pesos** e **abstração da HAL** é responsabilidade do software, e este é o seu domínio.
+A NPU v2 tem como alvo executar 3 camadas de MACs ternários {+1,0,-1} em hardware, ainda sem validação FPGA end-to-end. Toda a lógica de **classificação final** (64→10 com pesos FP32, softmax, argmax), **gerenciamento de pesos** e **abstração da HAL** é responsabilidade do software, e este é o seu domínio.
 
 Você constrói a ponte entre o hardware especializado e o usuário final.
 

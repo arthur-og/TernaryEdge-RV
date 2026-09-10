@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NPU Ternária v2 — Auditoria de implementação</title>
+  <title>NPU Ternária v2 — Co-design com RISC-V</title>
   <style>
     :root {
       --paper: #f7f8fa;
@@ -96,7 +96,7 @@
     .small { font-size: 13px; }
     .section-head { display: grid; gap: var(--space-3); margin-bottom: var(--space-6); }
     .section-head .rule { width: 72px; height: 2px; background: var(--blue); }
-    .content { display: grid; gap: var(--space-5); min-height: 0; }
+     .content { display: grid; gap: var(--space-5); min-height: 0; flex-shrink: 0; }
     .mt-5 { margin-top: var(--space-5); }
      .content.two { grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); }
     .content.equal { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -179,7 +179,7 @@
     .metric .value { color: var(--blue-dark); font-family: var(--font-mono); font-size: clamp(18px, 2.5vw, 32px); font-weight: 700; white-space: nowrap; letter-spacing: -.05em; }
     .metric .label { margin-top: var(--space-1); color: var(--ink-muted); font-size: 11px; }
 
-    .gate-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--space-8); gap: var(--space-2) var(--space-8); margin: 0; padding: 0; list-style: none; counter-reset: gates; }
+     .gate-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: var(--space-2); column-gap: var(--space-8); margin: 0; padding: 0; list-style: none; counter-reset: gates; }
     .gate-list li { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--line); counter-increment: gates; }
     .gate-list li:last-child { border-bottom: 0; }
     .gate-list li::before { content: counter(gates, decimal-leading-zero); color: var(--blue); font-family: var(--font-mono); font-weight: 700; }
@@ -260,9 +260,12 @@
       .gate-list li strong { flex: 1 1 calc(100% - 36px); }
       .gate-list li > span:not(.status) { margin-left: 36px; }
       .gate-list li .status { grid-column: auto; margin-left: auto; }
-      .overview { grid-template-columns: 1fr; }
-     }
-     .slide[data-title="O que já foi validado"] .metric-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+       .overview { grid-template-columns: 1fr; }
+      }
+      .slide[data-title="CPU RISC-V, MMIO, DMA e IRQ"] .panel.blue { padding: 12px; }
+      .slide[data-title="CPU RISC-V, MMIO, DMA e IRQ"] .panel.blue h3 { margin-bottom: 8px; }
+      .slide[data-title="CPU RISC-V, MMIO, DMA e IRQ"] .panel.blue pre { padding: 8px; font-size: 12px; line-height: 1.25; }
+      .slide[data-title="O que já foi validado"] .metric-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
      @media (max-width: 860px) {
        .slide[data-title="O que já foi validado"] .metric-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
      }
@@ -282,45 +285,46 @@
 <body>
   <main class="deck" aria-label="Apresentação NPU Ternária v2">
     <section class="slide hero is-active" data-title="NPU Ternária v2">
-      <div class="eyebrow">Ternary Edge-RV · auditoria de implementação</div>
+      <div class="eyebrow">Ternary Edge-RV · co-design hardware/software</div>
       <div class="hero-grid">
         <div class="stack">
           <h1>NPU Ternária v2</h1>
-          <p class="lede">Um protótipo ternário sem multiplicadores. Antes de falar em desempenho, precisamos alinhar o limite real entre RTL e software.</p>
-          <span class="status documented">escopo: auditoria atual, não relatório de benchmark</span>
+           <p class="lede">NPU ternária integrada a RISC-V para inferência MNIST com pesos&nbsp;ternários.</p>
+           <span class="status documented">objetivo: co-design, com evidência separada de intenção e medição</span>
         </div>
         <div class="hero-mark">
-           <span class="big">9</span>
-           <p>slides para separar o que está no código, o que está documentado e o que ainda precisa ser medido.</p>
+            <span class="big">64</span>
+            <p>64 PEs ternários integrados ao RTL com árvore registrada; timing e recursos pós-route verificados; carregamento físico ainda não.</p>
         </div>
       </div>
       <div class="meta"><span><strong>Para</strong> Professor Ramon</span><span><strong>Autor</strong> Arthur Oliveira Gomes</span><span><strong>Projeto</strong> Ternary Edge-RV</span></div>
-      <div class="source">Fonte: hardware/npu_rtl/npu_ternaria_top_v2.v:245-442 · hardware/npu_rtl/npu_v2_pkg.v:12-58</div>
+       <div class="source">Fonte: hardware/npu_rtl/ · software/ · docs/planejamento/direcionamento_pos_gilvan.md · status: implementação pós-route verificada</div>
       <div class="notes">
-        <p>Bom dia, professor Ramon. Esta apresentação é uma **auditoria de implementação**, não um relatório de benchmark. A tese é simples: temos um protótipo de NPU ternária sem multiplicadores explícitos, mas ainda precisamos alinhar o limite entre o RTL atual e o software antes de transformar a arquitetura em uma afirmação de desempenho.</p>
+         <p>Bom dia, professor Ramon. O objetivo é apresentar uma NPU ternária integrada a um processador RISC-V, usando MNIST como caso de teste. A ideia é acelerar a inferência com pesos restritos a menos um, zero e mais um, sem multiplicadores convencionais.</p>
+         <p>Esta apresentação também é uma **auditoria de implementação**, não um relatório de benchmark. Temos uma arquitetura proposta e evidências host-side, mas ainda precisamos alinhar RTL, software e FPGA antes de transformar a ideia em uma afirmação de desempenho.</p>
         <p>Vou separar três níveis de evidência: o que está **presente no código**, o que está documentado como intenção do sistema e o que permanece sem verificação de integração. Essa distinção importa porque um módulo existente no repositório não é automaticamente parte do caminho ativo, e uma função disponível no C não prova que os dados atravessam corretamente todas as camadas.</p>
-        <p>O objetivo, então, não é vender um número. É sair com um mapa curto de riscos e com gates claros para validar a implementação. **A ressalva central** é que qualquer ciclo, throughput, recurso de FPGA ou speedup deve esperar a cadeia completa de testes.</p>
-        <p>Primeiro, vou mostrar o sistema em uma página; depois, o caminho real do top-level, os formatos de dados, os registradores e o gap entre modelo e software. Em seguida, fecho com status, próximos gates e uma pergunta de prioridade. Vamos começar pela visão de conjunto.</p>
+         <p>O objetivo, então, é explicar o co-design e sair com gates claros para comparar acurácia, latência, área, DSPs, memória e desempenho contra a execução somente no RISC-V. **A ressalva central** é que qualquer número precisa esperar a cadeia completa de testes.</p>
+         <p>Primeiro, vou mostrar o sistema em uma página; depois, a aritmética ternária, os 64 elementos de processamento, a integração MMIO/DMA e o pipeline entre camadas. Em seguida, fecho com status, próximos gates e os passos de validação física.</p>
       </div>
     </section>
 
     <section class="slide" data-title="O sistema em uma página">
       <div class="section-head"><div class="eyebrow">01 · mapa de evidências</div><h2>O sistema em uma página</h2><div class="rule"></div></div>
        <div class="panel flat">
-         <div class="flow" aria-label="Fluxo QAT até RAM compartilhada">
-           <div class="flow-node"><span class="status documented">documentado</span><strong>QAT + pesos</strong><small>modelo ternário e empacotamento de QuantDense</small></div>
-            <div class="flow-node"><span class="status unverified">não verificado</span><strong>HAL</strong><small>carga existe; transforms, offsets e parâmetros FP32 ainda não fecham</small></div>
-           <div class="flow-node"><span class="status documented">documentado</span><strong>Driver</strong><small>interface IRQ/MMIO descrita; probe físico ainda não verificado</small></div>
-           <div class="flow-node"><span class="status current">atual no código</span><strong>Wishbone NPU</strong><small>patch RTL presente; runtime Verilog ainda não executado</small></div>
-           <div class="flow-node"><span class="status unverified">não verificado</span><strong>RAM compartilhada</strong><small>endereços, offsets e formatos precisam de teste integrado</small></div>
+          <div class="flow" aria-label="Fluxo MNIST, RISC-V, NPU e RAM compartilhada">
+             <div class="flow-node"><span class="status documented">documentado</span><strong>MNIST + modelo</strong><small>entrada + pesos QAT</small></div>
+             <div class="flow-node"><span class="status documented">documentado</span><strong>CPU RISC-V + MMIO</strong><small>MMIO + <code>START</code></small></div>
+             <div class="flow-node"><span class="status current">atual no código</span><strong>NPU: 64 PEs</strong><small>PEs + árvore + INT32</small></div>
+             <div class="flow-node"><span class="status current">atual no código</span><strong>DMA ↔ RAM</strong><small>beat único + timeout</small></div>
+             <div class="flow-node"><span class="status current">atual no código</span><strong>IRQ + próximas camadas</strong><small>descritores + ping-pong</small></div>
          </div>
          <div class="legend" aria-label="Legenda de evidência"><span class="status current">ATUAL NO CÓDIGO</span><span class="status documented">DOCUMENTADO</span><span class="status proposed">PROPOSTO</span><span class="status unverified">NÃO VERIFICADO</span></div>
        </div>
-        <div class="panel amber"><h3>A fronteira ainda aberta</h3><p><strong>Patch RTL:</strong> corrige mecanicamente contador de pesos, captura DMA e acumulação por lote no código-fonte. <strong>Integração:</strong> o software ainda precisa aplicar as transformações do modelo, alinhar offsets e unidades DMA e produzir a próxima ativação no formato esperado. Runtime Verilog, boot na FPGA e benchmark físico continuam pendentes.</p></div>
+          <div class="panel amber"><h3>A fronteira ainda aberta</h3><p><strong>RTL:</strong> MMIO → até 8 descritores → DMA/IRQ. <strong>Implementação:</strong> Vivado pós-route PASS; bitstream gerado. <strong>Gate físico:</strong> carregamento na placa, boot, inferência completa e benchmark continuam não verificados.</p></div>
       <div class="source">Fonte: apêndice §3 · RTL v2 · HAL</div>
       <div class="notes">
           <p>Este é o mapa que vou usar durante toda a conversa. No lado esquerdo, o treinamento QAT produz um modelo com camadas ternárias e um exportador que empacota pesos. No centro, a HAL e o driver deveriam transformar essa intenção em chamadas, buffers e registradores. No lado direito, o top-level RTL conversa com a RAM compartilhada por Wishbone.</p>
-         <p>Os rótulos são deliberadamente conservadores. **Documentado** significa que existe uma descrição ou um caminho de código para a ideia. **Atual no código** significa que conseguimos apontar para uma implementação concreta que está sendo auditada; o patch RTL está nessa categoria, mas o runtime Verilog ainda não foi executado. **Ressalva:** nenhum desses rótulos substitui um teste de integração. **Não verificado** significa que ainda não há evidência de que as partes funcionem juntas. E **proposto** será usado apenas para mudanças futuras, como o seletor de camada.</p>
+          <p>Os rótulos são deliberadamente conservadores. **Atual no código** significa implementação RTL concreta e coberta pela regressão Icarus atual; **documentado** descreve uma interface ou procedimento; **não verificado** reserva o que depende da FPGA física. A regressão canônica cobre os testes focados, a matriz de 16/32/64 PEs e o lint Verilator. **Proposto** fica reservado para decisões futuras, não para o array, a árvore ou o pós-processamento já integrados.</p>
         <p>O ponto de atenção está na fronteira: o hardware escreve resultados, mas a próxima camada precisa receber ativações transformadas e endereçadas corretamente. Se o software não fizer essa ponte, a presença do DMA ou da IRQ não completa a inferência.</p>
         <p>Então, a pergunta da apresentação não é “qual é a velocidade?”. É “qual fluxo de dados podemos defender hoje?”. Com esse critério estabelecido, agora vamos descer ao caminho que o top-level realmente executa.</p>
       </div>
@@ -330,31 +334,28 @@
       <div class="section-head"><div class="eyebrow">02 · caminho ativo</div><h2>O que o top-level RTL atual faz</h2><div class="rule"></div></div>
       <div class="content two">
         <div class="stack">
-           <div class="code-caption">ST_COMPUTE_BATCH · caminho procedural auditado</div>
-            <pre><code>batch_acc = $signed(acc_reg[0]);
-
-for (m = 0; m &lt; 64; m = m + 1) begin
-  ...
-  if (w_val == 2'b01)
-    batch_acc = batch_acc + act_value;
-  else if (w_val == 2'b11)
-    batch_acc = batch_acc - act_value;
-end
-
-acc_reg[0] &lt;= batch_acc;</code></pre>
-            <div class="panel blue"><h3>Leitura correta do trecho</h3><p>O patch usa <code>batch_acc</code> para acumular os 64 termos e faz uma única atualização de <code>acc_reg[0]</code>. A execução do runtime Verilog ainda não foi realizada.</p></div>
+            <div class="code-caption">Aritmética ternária · datapath RTL integrado</div>
+            <pre><code>64 PEs ternários
+        ↓
+árvore 64→1 registrada
+        ↓
+acumulador escalar INT32
+        ↓
+pós-processador em 6 estágios registrados</code></pre>
+            <div class="panel blue"><h3>Como o peso vira operação</h3><p><code>w ∈ {-1, 0, +1}</code> → <strong>+x, 0 ou -x</strong>.</p><p>64 PEs → árvore registrada → acumulador INT32.</p></div>
         </div>
         <div class="stack">
-           <div class="panel"><span class="status current">FSM NOMINAL</span><h3>Estados observáveis</h3><ul class="bullets"><li><code>ST_CFG_ACT</code> calcula leitura de ativações.</li><li><code>ST_COMPUTE_BATCH</code> dispara a carga de pesos.</li><li><code>ST_WRITE_RESULT</code> existe, mas depende do loader.</li></ul></div>
-            <div class="panel green"><span class="status current">PATCH PRESENTE NO CÓDIGO</span><h3>Loader e acumulação corrigidos</h3><p><code>wt_buf_idx</code> alcança <code>3'd4</code>, os dados DMA são consumidos diretamente de <code>wb_m_dat_i</code> e o lote usa <code>batch_acc</code>. Falta executar o runtime Verilog.</p></div>
+           <div class="panel"><span class="status current">CONTROLE INTERNO</span><h3>FSM ≠ ABI</h3><ul class="bullets"><li>Estados internos <code>0..19</code>.</li><li>Descritores avançam sem start por camada.</li></ul></div>
+             <div class="panel green"><span class="status current">RTL INTEGRADO</span><h3>Array + árvore</h3><p>64 PEs, árvore registrada, buffers e pós-processo. Icarus cobre DMA, escrita final e IRQ.</p></div>
+             <div class="panel amber"><span class="status current">EVIDÊNCIA HOST</span><h3>16 / 32 / 64 PEs</h3><p>Icarus, lint Verilator e Vivado passam; a programação física ainda é pendente.</p></div>
         </div>
       </div>
        <div class="source">Fonte: RTL v2 · módulos MAC/adder</div>
       <div class="notes">
-          <p>Aqui está a diferença entre o que o nome da arquitetura sugere e o que o top-level atual faz. No estado de computação, o RTL percorre um loop procedural com **m de zero a 63**, extrai cada peso de dois bits e acumula o lote em uma variável temporária antes de atualizar o `acc_reg[0]`.</p>
-           <p>Os problemas mecânicos de largura do loader, captura do dado DMA e múltiplas atribuições ao acumulador já foram corrigidos no código-fonte. **Ressalva:** a regressão Verilog ainda precisa executar o comportamento temporal e confirmar o resultado no write-back.</p>
-        <p>Há uma segunda distinção importante. Os arquivos `ternary_mac_array.v` e `adder_tree_64.v` estão no repositório, então fazem parte do inventário de componentes disponíveis. Mas, na fonte do top-level auditada, eles não aparecem instanciados no caminho ativo. **Existência não é integração.**</p>
-        <p>Essa leitura evita um erro comum: atribuir ao protótipo uma estrutura que está apenas projetada ou arquivada. Agora que o caminho de acumulação está claro, podemos tratar os dados que entram nele: a codificação ternária, os words e o tamanho de cada camada.</p>
+           <p>O top-level atual instancia o caminho de **64 PEs**, a árvore 64→1 com seis estágios registrados e o acumulador escalar INT32. A codificação ternária continua sendo seleção de soma, zero ou subtração, sem multiplicador no caminho dos PEs.</p>
+            <p>A regressão canônica Icarus exercita os testes focados, incluindo valores extremos, árvore, DMA atrasado, pós-processamento, rede 8→5→3, ping-pong, write-back e IRQ. A matriz do top-level cobre 16/32/64 PEs.</p>
+         <p>O controlador interno expõe estados 0..19 apenas como detalhe de implementação. O contrato externo é o ABI MMIO e a tabela de até oito descritores; não se deve confundir a enumeração da FSM com registradores de software.</p>
+         <p>Com o caminho integrado e testado no host, podemos tratar os dados que entram nele: a codificação ternária, os words e o tamanho de cada camada.</p>
       </div>
     </section>
 
@@ -365,8 +366,8 @@ acc_reg[0] &lt;= batch_acc;</code></pre>
            <div class="panel blue"><h3>Peso ternário em 2 bits</h3><div class="table-scroll"><table><thead><tr><th>Valor</th><th>Bits</th><th>Efeito</th></tr></thead><tbody><tr><td>+1</td><td><code>01</code></td><td>+ ativação</td></tr><tr><td>0</td><td><code>00</code></td><td>não altera</td></tr><tr><td>-1</td><td><code>11</code></td><td>- ativação</td></tr></tbody></table></div><p class="table-note">Cada <code>uint32_t</code> carrega 16 pesos de 2 bits; o primeiro peso ocupa os bits menos significativos.</p></div>
          </div>
          <div class="stack">
-           <div class="panel"><h3>Dimensões do workload</h3><div class="metric-row"><div class="metric"><div class="value">784 → 1024</div><div class="label">camada 0 · 49 words/neurônio</div></div><div class="metric"><div class="value">1024 → 512</div><div class="label">camada 1 · 64 words/neurônio</div></div><div class="metric"><div class="value">512 → 256</div><div class="label">camada 2 · 32 words/neurônio</div></div></div></div>
-            <div class="panel flat"><p class="table-note">Ativações: bytes. Pesos: words empacotados. Estas são contagens de workload, não ciclos, latência, throughput ou speedup. Origem, destino e unidade de <code>dma_size</code> ainda fazem parte do contrato HAL/RTL.</p></div>
+            <div class="panel"><h3>Dimensões do workload</h3><div class="metric-row"><div class="metric"><div class="value">49</div><div class="label">camada 0 · 784 → 1024<br>words/neurônio</div></div><div class="metric"><div class="value">64</div><div class="label">camada 1 · 1024 → 512<br>words/neurônio</div></div><div class="metric"><div class="value">32</div><div class="label">camada 2 · 512 → 256<br>words/neurônio</div></div></div></div>
+              <div class="panel flat"><p class="table-note"><strong>Datapath:</strong> INT8 → 64 PEs → árvore → INT32 → bias/scale → saída. Não são ciclos, latência ou speedup.</p></div>
         </div>
       </div>
        <div class="source">Fonte: RTL v2 · QAT</div>
@@ -378,89 +379,89 @@ acc_reg[0] &lt;= batch_acc;</code></pre>
       </div>
     </section>
 
-    <section class="slide" data-title="Controle, camadas e IRQ">
-      <div class="section-head"><div class="eyebrow">04 · MMIO e FSM</div><h2>Controle, camadas e IRQ</h2><div class="rule"></div></div>
+    <section class="slide" data-title="CPU RISC-V, MMIO, DMA e IRQ">
+      <div class="section-head"><div class="eyebrow">04 · integração com o SoC</div><h2>CPU RISC-V, MMIO, DMA e IRQ</h2><div class="rule"></div></div>
       <div class="content two">
-           <div class="panel flat table-scroll"><table class="registers"><thead><tr><th>Offset</th><th>Registrador</th><th>Leitura do contrato atual</th></tr></thead><tbody><tr><td>0x00</td><td>STATUS</td><td>busy, irq e zero_counter</td></tr><tr><td>0x04</td><td>CONTROL</td><td>start e clear_irq</td></tr><tr><td>0x08</td><td>SRC_ADDR</td><td>origem DMA</td></tr><tr><td>0x2c</td><td>LAYER_CTRL</td><td>result_window_idx é usado; irq_per_layer não é consumido</td></tr></tbody></table><p class="table-note">Mapa completo no apêndice. <span class="status proposed">PROPOSTO</span> <code>layer_override</code> ainda não existe.</p></div>
-        <div class="stack">
-          <div class="panel red"><span class="status current">ATUAL</span><h3>Start sempre começa em zero</h3><pre>if (cmd_start) begin
-  cur_layer &lt;= 32'd0;
-  cur_output &lt;= 32'd0;
-end</pre></div>
-          <div class="panel amber"><span class="status current">ATUAL NO RTL</span><h3>IRQ depende de ST_DONE</h3><p><code>irq_out</code> é colocado em 1 em <code>ST_DONE</code>. A ligação física e o ciclo completo com driver ainda são gates de validação.</p></div>
-        </div>
-      </div>
+           <div class="panel flat table-scroll"><table class="registers"><thead><tr><th>Offset</th><th>Registrador</th><th>Leitura do contrato atual</th></tr></thead><tbody><tr><td>0x00</td><td>STATUS</td><td>layer [15:8] + busy/IRQ/done/error</td></tr><tr><td>0x04</td><td>CONTROL</td><td>START e CLEAR_IRQ</td></tr><tr><td>0x08</td><td>INPUT_ADDR</td><td>primeira entrada na DDR</td></tr><tr><td>0x1c</td><td>LAYER_COUNT</td><td>1 a 8 descritores</td></tr><tr><td>0x40</td><td>MAC_CFG</td><td>configuração 64 PEs</td></tr></tbody></table><p class="table-note">ABI completo no apêndice: 17 registradores de <code>0x00</code> a <code>0x40</code>. MMIO <code>0x80000000</code> · DDR <code>0x40000000</code> · IRQ <code>10</code>.</p></div>
+         <div class="stack">
+            <div class="panel blue"><span class="status current">ATUAL + FLUXO ESPERADO</span><h3>CPU dispara, NPU termina</h3><pre>CPU RISC-V ──MMIO/START──► NPU
+                               │ DMA: 1 beat, CTI=000, BTE=00
+                               ▼
+                          DDR @ 0x40000000
+                               │
+                       resultado + IRQ 10 ──► CPU</pre><p>O DMA propaga <code>ERR</code> downstream e expira após 256 ciclos sem resposta. A&nbsp;ligação&nbsp;física ainda é um gate de validação.</p></div>
+         </div>
+       </div>
       <div class="source">Fonte: hardware/npu_rtl/npu_v2_pkg.v:12-23 · hardware/npu_rtl/npu_ternaria_top_v2.v:245-258,366-388</div>
       <div class="notes">
-        <p>Este slide concentra o controle. O pacote RTL define registradores de status, comando, endereços, tamanhos, configuração de MAC, número de camadas, janela de resultado e o `LAYER_CTRL`. No contrato **atual**, `LAYER_CTRL` expõe apenas `irq_per_layer` e `result_window_idx`; não há ainda um campo implementado para escolher manualmente a camada.</p>
-         <p>No início de cada comando, a lógica sequencial faz `cur_layer &lt;= 32'd0`. Esse fato precisa ser dito exatamente assim: toda nova execução parte de zero no top-level atual. O comportamento de `ST_NEXT_LAYER` pode incrementar a camada durante uma execução, mas isso não resolve, por si só, uma chamada independente para a camada 1 ou 2.</p>
-        <p>Quanto à interrupção, o RTL coloca `irq_out` em 1 em `ST_DONE` e espera o comando de limpeza para voltar ao estado ocioso. **A ressalva** é que essa observação é do RTL; não prova que o PLIC, o driver, a HAL e a aplicação completam o ciclo em hardware físico. Essa é a primeira decisão.</p>
-        <p>Por isso, `layer_override` aparece como **proposto**, não como recurso atual. A pergunta seguinte é: mesmo que escolhamos a camada certa, os dados que chegam a ela representam o modelo treinado? É aí que entra o gap entre modelo e software.</p>
+        <p>Este slide concentra o contrato externo: `STATUS`, `CONTROL`, endereços de entrada/saída, campos do descritor, resultado, erro, capabilities e configuração de 64 PEs. O ABI tem 17 registradores, de `0x00` a `0x40`; a camada corrente em `[15:8]` não é um `zero_counter`.</p>
+          <p>O CPU programa até oito descritores e escreve `START` uma vez. O controlador avança pelas camadas, alterna os buffers bancados e grava o resultado final; os estados 0..19 permanecem internos.</p>
+        <p>O mestre DMA não é burst: mantém um beat Wishbone Classic estável até `ACK` ou `ERR`, com `CTI=000`, `BTE=00` e timeout de 256 ciclos. O RTL liga `irq_out` à IRQ 10 no contrato LiteX; a execução física ainda não foi comprovada.</p>
+         <p>MMIO NPU e DDR são regiões distintas: `0x80000000` e `0x40000000`. A validação de PLIC, driver, HAL e aplicação na placa fica nos gates físicos.</p>
       </div>
     </section>
 
-    <section class="slide" data-title="O gap entre o modelo e o software">
-      <div class="section-head"><div class="eyebrow">05 · integração sem atalhos</div><h2>O gap entre o modelo e o software</h2><div class="rule"></div></div>
-      <div class="content equal">
-        <div class="panel blue"><span class="status documented">MODELO DOCUMENTADO</span><h3>O treino inclui mais que MAC</h3><pre>QuantDense
-  → BatchNormalization
-  → ReLU
-  → fake_quant [0,127]
-  → QuantDense
-  → ...
-  → Dense + softmax</pre><p class="small muted">A arquitetura de treino define transformações entre as camadas ternárias.</p></div>
-         <div class="panel red"><span class="status unverified">EXPORT ATUAL INCOMPLETO</span><h3>O software não fecha esse caminho</h3><ul class="bullets"><li><code>generate_weights_h.py</code> empacota as camadas <code>QuantDense</code> e trata a saída <code>Dense</code> separadamente, mas não exporta BN.</li><li><code>weights.h</code> possui símbolos de saída FP32, mas seus valores são fallback (<code>0.01</code>/<code>0.1</code>), não parâmetros treinados validados.</li><li>HAL e <code>user_app</code> não implementam as transformações inter-camadas; offsets, casts e a unidade de <code>dma_size</code> precisam de correção.</li></ul></div>
-      </div>
+    <section class="slide" data-title="Camadas autônomas e pós-processamento">
+      <div class="section-head"><div class="eyebrow">05 · integração sem atalhos</div><h2>Camadas autônomas e pós-processamento</h2><div class="rule"></div></div>
+      <div class="content three">
+         <div class="panel blue"><span class="status documented">MODELO</span><h3>Treino</h3><pre>QuantDense
+→ BN / ReLU / fake quant
+→ ... → Dense + softmax</pre><p class="small muted">Transformações entre camadas.</p></div>
+             <div class="panel red"><span class="status unverified">EXPORT</span><h3>Modelo ainda aberto</h3><ul class="bullets"><li>Pesos exportados; BN não.</li><li>FP32 fallback; HAL/app pendentes.</li></ul></div>
+              <div class="panel amber"><span class="status current">RTL IMPLEMENTADO</span><h3>Ping-pong</h3><pre>Input → L0 → B
+→ L1 → A → final</pre><p class="small muted"><strong>6 estágios registrados:</strong> bias → signed-scale/round/shift → saturate. Export/física pendentes.</p></div>
+       </div>
        <div class="source">Fonte: QAT · generator · HAL · user_app</div>
       <div class="notes">
-        <p>Aqui está o gap mais importante da apresentação. O script de treinamento não define apenas três produtos ternários. Entre eles, ele coloca **BatchNorm, ReLU e fake quantization**; no fim, há uma camada Dense com softmax. Isso faz parte do modelo que precisa ser preservado ou explicitamente alterado.</p>
+          <p>O RTL atual instancia um pipeline registrado de **seis estágios**. Ele soma bias INT32, aplica signed-scale, arredondamento e shift, limita a saída e satura a ativação para a largura da camada.</p>
           <p>O exportador empacota as camadas `QuantDense` e trata a saída `Dense` separadamente, mas não exporta os parâmetros de BatchNorm. O `weights.h` auditado contém os arrays ternários empacotados das três dimensões e também possui os símbolos de saída FP32, mas eles estão preenchidos com valores fallback `0.01`/`0.1`, não com parâmetros treinados validados. Portanto, não podemos tratar o header como representação completa do modelo.</p>
-        <p>Na HAL, existe uma chamada de classificador e uma leitura de resultados, mas o código atual não demonstra a sequência completa de transformações entre cada camada. No `user_app`, o modo CPU também passa resultados inteiros para a próxima etapa por meio de casts que merecem correção. **Caveat:** apontar esse risco não substitui um teste com tensor conhecido; precisamos reproduzir a falha e comparar valores.</p>
-        <p>A consequência é direta: o modelo treinado e o contrato de software ainda não são um único fluxo executável. Agora vamos separar o que já tem evidência do que continua pendente, sem misturar código presente com integração comprovada.</p>
+         <p>Os dois buffers de ativação são bancados, armazenam INT8 assinado e alternam entre camadas. O controlador aceita até oito descritores sem intervenção da CPU entre camadas. Isso é implementação RTL, não prova de modelo exportado ou execução na placa.</p>
+         <p>A consequência é direta: a implementação RTL e o contrato host-side têm evidência atual, enquanto modelo treinado/exportação, boot, IRQ/DMA físico, inferência completa, desempenho, potência e acurácia continuam separados como gates.</p>
       </div>
     </section>
 
     <section class="slide" data-title="O que já foi validado">
       <div class="section-head"><div class="eyebrow">06 · status de evidência</div><h2>O que já foi validado</h2><div class="rule"></div></div>
-          <div class="metric-row"><div class="metric"><div class="value">21/21</div><div class="label">C++ golden model v2 · passou</div></div><div class="metric"><div class="value">NÃO RODOU</div><div class="label">runtime RTL Verilog</div></div><div class="metric"><div class="value">ABERTO</div><div class="label">contrato HAL + weights</div></div><div class="metric"><div class="value">PENDENTE</div><div class="label">FPGA + benchmark</div></div></div>
-        <div class="panel green mt-5"><p><strong>Podemos afirmar:</strong> C++ golden model v1: 8/8; C++ golden model v2: 21/21; Python: 5/5. <strong>Ainda não podemos afirmar:</strong> execução RTL Verilog, indisponível no shell atual, inferência ponta a ponta na FPGA ou qualquer resultado de benchmark físico. O contrato HAL/weights permanece incompleto.</p></div>
-        <div class="panel blue"><p class="small"><strong>Transição operacional:</strong> Gustavo é o sucessor operacional de Gilvan e mantém a manutenção ativa do pipeline de IA, exportação de pesos/contrato <code>weights.h</code>, regressão do Golden Model, driver, cross-compilação, coordenação da validação física, benchmarks e resultados do Paper 1. Gildo permanece responsável por OS, HAL, classifier e boot; Arthur permanece responsável pelo hardware; Gilvan permanece como contribuinte histórico e quarto autor.</p></div>
+          <div class="metric-row"><div class="metric"><div class="value">PASS</div><div class="label">Icarus · testes RTL focados</div></div><div class="metric"><div class="value">16/32/64</div><div class="label">matriz top-level de PEs</div></div><div class="metric"><div class="value">PASS</div><div class="label">Verilator · lint matrix</div></div><div class="metric"><div class="value">14/14</div><div class="label">unit tests · report gate</div></div></div><div class="metric-row mt-5"><div class="metric"><div class="value">+0.065 ns</div><div class="label">Vivado · WNS</div></div><div class="metric"><div class="value">0.000 ns</div><div class="label">Vivado · TNS</div></div><div class="metric"><div class="value">0</div><div class="label">setup endpoints violados</div></div></div>
+        <div class="panel green mt-5"><p><strong>Podemos afirmar:</strong> testes Icarus focados passam; a matriz do top-level passa em 16/32/64 PEs; o lint Verilator passa nas três larguras; os testes unitários do report gate passam 14/14; e o Vivado atual fecha 100 MHz com WNS +0.065 ns, TNS 0 e zero endpoints de setup violados. O C++ v2 21/21 permanece histórico; não é prova canônica do RTL atual.</p></div>
+         <div class="panel blue"><p class="small"><strong>Transição:</strong> Gilvan fora da operação; Gildo: OS/HAL/boot; Gustavo: IA/driver/validação; Arthur: RTL/SoC. Gilvan segue 4º autor. <strong>Escopo:</strong> validação física e integração end-to-end.</p></div>
         <div class="source">Fonte: hardware/npu_rtl/sim_cpp/demo_npu_v2.cpp · software/tests/ · hardware/npu_rtl/ · gates físicos ainda não executados</div>
       <div class="notes">
-           <p>Este quadro é o resumo de evidência, não uma tabela de marketing. No material host-side, temos C++ v1 com **8/8**, C++ v2 com **21/21** e Python com **5/5**. São evidências úteis para o escopo coberto pelas suítes, mas não uma execução do RTL Verilog; as ferramentas Verilog estão indisponíveis no shell atual.</p>
-         <p>Na transição operacional, Gustavo é o sucessor de Gilvan e assume a manutenção ativa do pipeline de IA, o contrato de exportação/`weights.h`, a regressão do Golden Model, o driver, a cross-compilação, a coordenação da validação física, os benchmarks e os resultados do Paper 1. Gildo permanece com OS, HAL, classifier e boot; Arthur permanece como dono do hardware; Gilvan continua como contribuinte histórico e quarto autor.</p>
-         <p>O software também existe em termos de arquivos e APIs. Mas “código presente” não significa integração concluída. A própria auditoria encontrou uma fronteira incompleta: pesos de saída FP32 ainda em fallback, ausência de transformações inter-camadas e riscos de offset e cast. Por isso, o status correto é **integração incompleta**, não “pronto”.</p>
-          <p>Os itens físicos são deliberadamente negativos. **Ressalva:** não temos, nesta apresentação, um relatório de síntese e timing medido na FPGA. Também não temos evidência de boot Linux, carregamento do driver e execução física end-to-end do fluxo completo. Sem esses passos, um benchmark ou uma comparação de desempenho seria uma hipótese, não um resultado.</p>
-        <p>Essa distinção protege o trabalho: a simulação continua sendo um ativo, mas não responde sozinha às perguntas de sistema. A partir daqui, os próximos passos devem ser gates ordenados, cada um com uma saída verificável. É isso que a próxima lâmina organiza.</p>
+           <p>Este quadro é o resumo de evidência, não uma tabela de marketing. A prova canônica atual é formada pelos testes Icarus focados, pela matriz do top-level em **16/32/64 PEs** e pelo lint Verilator nas mesmas larguras. O report gate tem **14/14** testes unitários passando; o Vivado atual também passou em 100 MHz.</p>
+         <p>Gilvan saiu da operação diária do projeto. Gildo assumiu a frente de OS, HAL, classifier, MicroSD e boot Linux. Gustavo assumiu a continuidade do pipeline de IA, do contrato de exportação/`weights.h`, do Golden Model, do driver, da cross-compilação, da validação física, dos benchmarks e dos resultados do Paper 1. As contribuições históricas de Gilvan permanecem creditadas, e ele continua como quarto autor.</p>
+          <p>O C++ golden model v2 com **21/21** casos continua registrado como evidência histórica/secundária. Ele não substitui a prova canônica do RTL descriptor-based. O software/modelo exportado ainda precisa ser alinhado e validado end-to-end.</p>
+           <p>Os itens físicos agora têm resultado parcial. Vivado e o report gate passaram: WNS +0.065 ns, TNS 0, setup/hold/pulse width sem violações, roteamento completo e bitstream gerado. Programação da placa, boot Linux, driver, IRQ/DMA físicos, inferência end-to-end, desempenho, potência, energia e benchmark permanecem pendentes.</p>
+         <p>Essa distinção protege o trabalho: o report gate prova a implementação pós-roteamento, mas não responde sozinho às perguntas de operação física do sistema. A partir daqui, os próximos passos devem ser gates ordenados, cada um com uma saída verificável.</p>
       </div>
     </section>
 
     <section class="slide" data-title="Próximos gates">
-      <div class="section-head"><div class="eyebrow">07 · ordem de validação</div><h2>Próximos gates</h2><div class="rule"></div></div>
-       <div class="panel flat"><ol class="gate-list"><li><strong>Fechar o contrato de dados e testar cada camada.</strong><span>golden vectors</span><span class="status documented">GATE</span></li><li><strong>Exportar o modelo completo e fechar a HAL.</strong><span>BN + quant + FP32</span><span class="status documented">GATE</span></li><li><strong>Alinhar top-level, MMIO, síntese e boot.</strong><span>RTL + FPGA</span><span class="status proposed">DECISÃO</span></li><li><strong>Validar driver, IRQ, DMA e medir benchmark.</strong><span>placa + método</span><span class="status unverified">PENDENTE</span></li></ol></div>
+       <div class="section-head"><div class="eyebrow">07 · ordem de validação</div><h2>Próximos gates</h2><div class="rule"></div></div>
+       <div class="panel flat"><ol class="gate-list"><li><strong>G1 · Regressão RTL e vetores conhecidos.</strong><span>loader + adder tree</span><span class="status documented">GATE</span></li><li><strong>G2 · Síntese, timing e bitstream da NPU com RISC-V.</strong><span>Vivado PASS: WNS +0.065 ns, TNS 0</span><span class="status current">PASSOU</span></li><li><strong>G3 · Imagem OS, MicroSD e boot Linux.</strong><span>Buildroot + Urbana</span><span class="status proposed">PENDENTE</span></li><li><strong>G4 · Validar driver, HAL, MMIO, DMA e IRQ.</strong><span>fluxo end-to-end</span><span class="status unverified">PENDENTE</span></li><li><strong>G5 · Comparar CPU versus NPU.</strong><span>latência + energia</span><span class="status unverified">PENDENTE</span></li><li><strong>G6 · Consolidar Paper 1 e resultados.</strong><span>evidências medidas e pendências explícitas</span><span class="status proposed">PRÓXIMO</span></li></ol></div>
+       <div class="panel amber mt-5"><p><strong>Handoff atual:</strong> Vivado e report gate passaram. Próximo passo: programar a placa e medir boot, driver, IRQ/DMA, inferência, desempenho, potência e energia; resultados não medidos permanecem pendentes.</p></div>
        <div class="source">Fonte: apêndice técnico §9 · RTL v2</div>
       <div class="notes">
-          <p>Os próximos gates seguem a dependência real do sistema. Primeiro, precisamos de testes de camada com entradas e saídas conhecidas; isso fixa dimensão, codificação, endereço e valor esperado. Depois, o exportador deve produzir todos os parâmetros que o modelo usa, incluindo BatchNorm, quantização e a saída FP32.</p>
-          <p>Com os artefatos completos, a HAL e a aplicação podem implementar as transformações entre camadas e validar cada buffer. Em paralelo, o patch atual de loader/DMA precisa ser executado em uma regressão Verilog e alinhado ao contrato de memória: podemos alterar o RTL, reavaliar o modo sequencial ou ajustar o protocolo, mas essa é uma **decisão de interface**, não um detalhe a esconder no código.</p>
-        <p>Só depois desses gates faz sentido integrar e sintetizar. A síntese deve gerar relatório de timing e recursos; o boot deve demonstrar Linux, driver, IRQ e mapeamento; e o benchmark físico deve registrar metodologia, condições e resultados reproduzíveis.</p>
+          <p>Os próximos gates seguem a dependência real do sistema. A regressão Icarus e o lint já cobrem o RTL atual; a matriz confirma 16/32/64 PEs. O próximo handoff pesado é Vivado, seguido do checker de relatórios.</p>
+           <p>O checker valida fontes canônicas, proveniência, parte FPGA, timing e contagens de restrições. Artefatos históricos do Vivado são rejeitados: omitiram <code>postprocess_unit.v</code> e registraram WNS <code>-7.392 ns</code> e TNS <code>-35888.277 ns</code>.</p>
+         <p>Só depois desses gates físicos faz sentido declarar recursos, timing, bitstream, boot, IRQ/DMA, inferência, desempenho, potência ou energia. Cada resultado precisa de metodologia, condições e artefato reproduzível.</p>
         <p>**Ressalva:** a regra é simples: cada etapa precisa produzir um artefato e um teste que outra pessoa consiga repetir. Assim evitamos somar suposições de camadas diferentes. Com a ordem na mesa, a decisão que preciso validar com o professor é o foco imediato do trabalho.</p>
       </div>
     </section>
 
     <section class="slide" data-title="Pergunta para Ramon">
-      <div class="question">
-        <div class="eyebrow">08 · decisão de escopo</div>
-        <h1>Pergunta para Ramon</h1>
-        <p class="ask">O escopo e a prioridade devem ser: primeiro alinhar RTL, exportação e HAL; só depois medir o sistema end-to-end?</p>
-        <p class="appendix">O apêndice Markdown contém o inventário de RAM, registradores, estados e gates para revisão: <code>docs/apresentacao/fluxo_npu_v2_prof_ramon.md</code>.</p>
+       <div class="question">
+         <div class="eyebrow">08 · decisão de escopo</div>
+         <h1>Pergunta para Ramon</h1>
+         <p class="ask">Com o timing fechado: validamos agora a placa e depois medimos acurácia, latência, área, DSPs, memória e desempenho CPU versus NPU?</p>
+       <p class="appendix">O apêndice Markdown contém o inventário de RAM, registradores, estados, transição de equipe e&nbsp;gates&nbsp;para&nbsp;revisão: <code>docs/apresentacao/fluxo_npu_v2_prof_ramon.md</code>.</p>
       </div>
       <div class="meta"><span><strong>Proposta de foco</strong> contrato RTL/software</span><span><strong>Critério</strong> evidência reproduzível</span><span><strong>Próxima conversa</strong> escolher o primeiro gate</span></div>
       <div class="source">Fonte: docs/apresentacao/fluxo_npu_v2_prof_ramon.md:215-249 · síntese desta auditoria</div>
       <div class="notes">
-        <p>Professor Ramon, esta é a decisão que eu gostaria de validar. Minha proposta é tratar o alinhamento entre RTL, exportação e HAL como a prioridade imediata, antes de apresentar qualquer número de desempenho ou alegação end-to-end.</p>
-          <p>O motivo é técnico e também metodológico. Hoje já conseguimos apontar para um caminho RTL, para uma codificação de pesos e para uma suíte C++ host-side com 21/21 casos aprovados. Mas a seleção de camada no start, os parâmetros de BatchNorm, as transformações inter-camadas e os offsets ainda não formam um contrato único. Medir agora poderia produzir um número difícil de interpretar ou impossível de reproduzir.</p>
+        <p>Professor Ramon, esta é a decisão que eu gostaria de validar. Minha proposta é tratar o alinhamento entre RTL, exportação e HAL como a prioridade imediata, antes de apresentar qualquer número de desempenho ou alegação end-to-end. O timing físico já está fechado; ainda precisamos da validação na placa e dos dados experimentais.</p>
+          <p>O motivo é técnico e também metodológico. Hoje já conseguimos apontar para um caminho RTL integrado, para uma ABI de 17 registradores, até oito descritores, regressões Icarus/Verilator passando e timing Vivado fechado. Medir desempenho, potência ou acurácia ainda exige a execução física e uma metodologia reproduzível.</p>
         <p>Se o senhor concordar, o primeiro resultado será um teste de camada com vetores conhecidos e um export completo do modelo. Em seguida, fechamos a HAL, revisamos a integração do driver e só então partimos para síntese, boot e benchmark físico. **A ressalva** é que essa ordem pode ser ajustada se houver um objetivo acadêmico específico que exija outra evidência primeiro.</p>
-        <p>O Markdown ao lado da apresentação guarda o detalhe que não cabe nos nove slides: mapa de RAM, registradores, estados e lista de gates. Minha pergunta final é: esse escopo está correto e qual gate deve ser o primeiro? Com essa prioridade validada, consigo transformar a auditoria em um plano de execução verificável.</p>
+         <p>O Markdown ao lado da apresentação guarda o detalhe que não cabe nos nove slides: mapa de RAM, registradores, estados, transição de responsabilidades e lista de gates. Minha pergunta final é: esse escopo está correto e qual gate deve ser o primeiro? Com essa prioridade validada, transformamos a auditoria em um plano de execução verificável.</p>
       </div>
     </section>
   </main>

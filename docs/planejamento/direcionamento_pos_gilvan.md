@@ -42,7 +42,7 @@ Autoria registra contribuição acadêmica acumulada. Ownership operacional regi
 
 | Evidência validada e confirmada | Em andamento para o prazo de 31/08/2026 |
 |:--|:--|
-| Placa Urbana conectada via micro-USB, FTDI FT2232H detectado, JTAG IDCODE 0x362f093, `/dev/ttyUSB0` e `/dev/ttyUSB1` criados | Bitstream gerado e carregado na FPGA Urbana real |
+| Placa Urbana conectada via micro-USB, FTDI FT2232H detectado, JTAG IDCODE 0x362f093, `/dev/ttyUSB0` e `/dev/ttyUSB1` criados | Gerar e carregar o bitstream na FPGA Urbana real |
 | C++ v1 8/8, C++ v2 21/21, Python 5/5 e ABI IOCTL aprovada | Boot físico do Linux a partir do cartão MicroSD na Urbana |
 | Testbench Verilog indisponível no shell atual; o registro histórico 4/4 permanece datado | Inferência end-to-end e benchmark CPU versus NPU na FPGA |
 | openXC7 flags atualizadas para `-nolutram -nowidelut` na plataforma | Carregamento do driver (`insmod npu_driver.ko`) no hardware real |
@@ -63,7 +63,7 @@ Autoria registra contribuição acadêmica acumulada. Ownership operacional regi
 ### Arthur Oliveira Gomes
 - RTL da NPU v2 e SoC LiteX VexRiscv integrados.
 - Log histórico de regressão Verilog 4/4; nova execução está indisponível no shell atual.
-- Fluxo de síntese openXC7 ajustado (`-nolutram -nowidelut`) e bitstream gerado.
+- Fluxo openXC7 ajustado (`-nolutram -nowidelut`) como corroboração opcional; bitstream atual permanece pendente do fluxo Vivado executado pelo usuário.
 - Seção de Arquitetura de Hardware e Síntese no Paper 1.
 
 ### Gildo Alves de Lima Junior

@@ -1,5 +1,5 @@
 # 📌 CHECKLIST OFICIAL DO PROJETO: TERNARY EDGE-RV
-**Última atualização operacional:** 20/08/2026. O registro histórico de 17/08/2026 informa placa Urbana conectada via micro-USB (FTDI FT2232H detectado, JTAG IDCODE 0x362f093, `/dev/ttyUSB0` e `/dev/ttyUSB1` criados), simulação RTL 4/4 e flags openXC7 `-nolutram -nowidelut`. Uma nova regressão Verilog de quatro grupos para o modelo reduzido foi executada com sucesso no shell Nix.
+**Última atualização operacional:** 24/08/2026. O registro de 17/08/2026 sobre placa Urbana conectada, simulação RTL 4/4 e flags openXC7 é histórico. A evidência canônica atual de Arthur é a regressão Icarus focada, a matriz de top com 16, 32 e 64 PEs e a matriz de lint Verilator, todas aprovadas.
 **Prazo final de submissão (SBCCI/LASCAS):** 31/08/2026
 
 ---
@@ -9,10 +9,15 @@
 - **🛠️ [BLOQUEIO]:** Se uma ferramenta ou validação estiver indisponível, registre o bloqueio e continue apenas com tarefas que não dependam dela. Nunca fabrique resultados.
 - **📄 Paper 1:** Todos os 4 autores mantidos (Arthur Oliveira Gomes, Gildo Alves de Lima Junior, Gustavo Alexandre dos Santos, Gilvan Alves Pastor Junior). O template está em `paper/paper1_template.tex`.
 
-As listas das Fases 1 a 3 abaixo são registros históricos do desenvolvimento.
-A evidência corrente inclui modelo QAT reduzido com 97,27% no teste MNIST,
-C++ v2 21/21, contratos de header e ABI aprovados e quatro grupos Verilog
-aprovados. Não há inferência FPGA end-to-end nem benchmark CPU versus NPU comprovado.
+As listas das Fases 1 a 3 abaixo preservam o histórico do desenvolvimento.
+A evidência canônica de hardware é a regressão Icarus focada, a matriz de top
+com 16, 32 e 64 PEs e a matriz de lint Verilator. Os checks C++ e Python não
+fazem parte da gate canônica de Arthur. Não há inferência FPGA end-to-end nem
+benchmark CPU versus NPU comprovado.
+
+Bloqueios atuais: `openFPGALoader --detect` retorna `device not found`, o
+compilador RV32 do Buildroot está ausente e os resultados físicos permanecem
+pendentes.
 
 ---
 
@@ -22,7 +27,7 @@ aprovados. Não há inferência FPGA end-to-end nem benchmark CPU versus NPU com
 ### Arthur (Hardware)
 - [X] Instalar dependências do LiteX/Python
 - [X] SoC VexRiscv RV32IMA gerado
-- [X] Mapa de memória esboçado (0x40000000, IRQ=10)
+- [X] Mapa congelado: DDR `0x40000000`, NPU `0x80000000`, IRQ 10
 - [X] Endianness definido (Little-Endian)
 - [X] `docs/arquitetura/mapa_de_memoria.md` criado
 - [X] Conectar FPGA Urbana e detectar FTDI FT2232H (JTAG IDCODE 0x362f093, `/dev/ttyUSB0` e `/dev/ttyUSB1`)
@@ -53,7 +58,7 @@ aprovados. Não há inferência FPGA end-to-end nem benchmark CPU versus NPU com
 - [X] `ternary_mac.v`: MAC multiplierless (apenas somadores/subtratores)
 - [X] `npu_ternaria_top.v`: Wishbone Slave + FSM + IRQ
 - [X] Pino `irq_out` implementado
-- [X] **NPU v2: alvo de 64 MACs + Wishbone Master + Layer Sequencer**; síntese e desempenho pendentes
+- [X] **NPU v2: 64 PEs integradas com árvore, acumulador escalar, ativações bancadas e pós-processamento de três estágios**
 
 ### Gildo (OS + HAL)
 - [X] Toolchain 32 bits configurada
@@ -77,14 +82,27 @@ aprovados. Não há inferência FPGA end-to-end nem benchmark CPU versus NPU com
 **Objetivo:** Os mundos conversarem via DMA.
 
 ## Arthur (Hardware RTL, LiteX SoC, Verilog Regression, Synthesis & Bitstream)
-- [X] Definir o alvo de **64 MACs** em paralelo + adder tree (`ternary_mac_array.v`, `adder_tree_64.v`); integração e síntese continuam pendentes
-- [X] Implementar **Wishbone Master (DMA)**: ler RAM em burst (`wishbone_master.v`)
-- [X] BRAM interna de **12K words** (384 Kb) para pesos (`npu_v2_pkg.v: WEIGHT_BRAM_DEPTH=12288`)
-- [X] **Layer Sequencer**: FSM de 10 estados que itera 3 layers automaticamente
-- [X] Executar o testbench Verilog (`tb_npu_v2.v`): quatro grupos aprovados para as dimensões reduzidas no shell Nix
-- [X] Corrigir STATUS register: `zero_counter` em `[15:8]` (alinhar com C++)
+- [X] Integrar **64 PEs** em paralelo com árvore de soma (`ternary_mac_array.v`, `adder_tree_64.v`)
+- [X] Implementar acumulador escalar, ativações bancadas e pós-processamento de três estágios (`postprocess_unit.v`)
+- [X] Implementar **Wishbone Master (DMA)** com transferências single-beat, `ERR` e timeout (`wishbone_master.v`)
+- [X] Propagar `ERR` no caminho Wishbone em `base_soc.py`
+- [X] Usar o ABI canônico de 17 offsets MMIO (`0x00..0x40`) com até 8 descritores
+- [X] Processar descritores sequencialmente, com DMA single-beat para buffers packed locais
+- [X] Expandir os testes RTL focados de primitivas, pós-processamento e Wishbone
+- [X] Passar a matriz de top NPU com 16, 32 e 64 PEs
+- [X] Passar a matriz de lint Verilator; `make test` executa apenas o Verilog atual
+- [X] STATUS register: camada corrente em `[15:8]`, além de busy, IRQ, done e error
 - [X] Atualizar `npu_ternaria_top_v2.v`: top-level documentado; a integração física ainda depende de validação
-- [X] Atualizar flags openXC7 para `-nolutram -nowidelut` na plataforma para eliminar RAM256X1S e MUXF7/MUXF8
+- [X] Validar o wrapper Vivado puro em Nix e a proveniência local da Urbana (`xc7s50csga324-1`)
+- [X] Reexecutar síntese genérica Yosys e `synth_matrix` em 16/32/64 PEs; métricas de recursos e resultados físicos Vivado continuam pendentes
+
+As PEs ternárias evitam multiplicadores no caminho ternário. A requantização
+inclui intencionalmente um multiplicador geral com sinal, portanto a utilização
+física de DSPs só pode ser registrada após os relatórios Vivado atuais.
+
+Relatórios Vivado históricos são rejeitados como evidência atual: o Tcl gerado
+omitia `postprocess_unit.v`, os artefatos precedem o RTL atual, WNS era
+`-7.392 ns` e TNS era `-35888.277 ns`.
 
 ## Gildo (OS Infrastructure, Buildroot, Device Tree, NPU HAL, Classifier, MicroSD, Physical Boot)
 
@@ -106,7 +124,7 @@ aprovados. Não há inferência FPGA end-to-end nem benchmark CPU versus NPU com
 ### NPU Weights (CONCLUÍDO ✅)
 - [X] `software/npu_hal/npu_weights.h`: API para carregar pesos no DMA
 - [X] `software/npu_hal/npu_weights.c`: Loader de pesos do QAT pipeline
-- [X] `software/user_app/weights.h`: pesos ternários e parâmetros FP32 exportados do modelo QAT treinado
+- [X] `software/npu_hal/weights.h`: símbolos FP32 presentes; valores de fallback `0.01`/`0.1`, não validados como parâmetros treinados
 
 ### Buildroot Packages (CONCLUÍDO ✅)
 - [X] `package/npu-ternaria/`: Kernel module package
@@ -139,16 +157,19 @@ aprovados. Não há inferência FPGA end-to-end nem benchmark CPU versus NPU com
 
 # 🔴 FASE 4: DEPLOY FÍSICO E PAPER 1 (Prazo histórico: 31/08/2026)
 **Objetivo:** Rodar no silício real, extrair métricas, submeter paper para SBCCI/LASCAS.
-**Registro histórico em 17/08/2026:** FPGA RealDigital Urbana conectada via micro-USB, FTDI FT2232H detectado (JTAG IDCODE 0x362f093, `/dev/ttyUSB0` e `/dev/ttyUSB1` ativos). O registro RTL Verilog 4/4 e as flags openXC7 `-nolutram -nowidelut` ficam preservados como histórico. A regressão atual também aprova quatro grupos para as dimensões reduzidas.
+**Registro histórico em 17/08/2026:** FPGA RealDigital Urbana conectada via micro-USB, FTDI FT2232H detectado (JTAG IDCODE 0x362f093, `/dev/ttyUSB0` e `/dev/ttyUSB1` ativos). O registro RTL Verilog 4/4 e as flags openXC7 ficam preservados como histórico.
+**Estado atual:** `openFPGALoader --detect` não encontra dispositivo. Não há bitstream carregado, boot Linux, IRQ ou DMA físico comprovado.
 
 ### Arthur (Hardware RTL, LiteX SoC, Verilog Regression, Synthesis & Bitstream)
-- [X] Detectar placa Urbana via micro-USB (FTDI FT2232H, JTAG IDCODE 0x362f093)
-- [X] Executar regressão Verilog `make verilog_v2`; quatro grupos aprovados no shell Nix
-- [X] Atualizar flags openXC7 com `-nolutram -nowidelut`
-- [ ] Sintetizar SoC final e NPU v2 para a FPGA Urbana via `base_soc.py --build`
+- [X] Passar a verificação local de proveniência da Urbana para `xc7s50csga324-1`
+- [X] Passar a regressão Icarus focada e a matriz de top com 16, 32 e 64 PEs
+- [X] Passar a matriz de lint Verilator
+- [X] Validar o wrapper Vivado puro em Nix; `nix/vivado.nix` está não rastreado, então a forma de validação é `nix develop path:.#vivado` até inclusão em commit futuro
+- [X] Reexecutar síntese genérica Yosys e `synth_matrix` após as mudanças atuais do RTL
+- [ ] Executar o build Vivado atual e aceitar os relatórios somente com `check_vivado_reports.py`
 - [ ] Gerar bitstream e carregar na FPGA Urbana
-- [ ] Extrair relatório de recursos, incluindo a verificação do objetivo de 0 DSPs, LUTs, FFs e BRAM
-- [ ] **Escrever seção do Paper 1:** Arquitetura Multiplierless, alvo de 64 MACs e DMA, sem apresentar intenção como resultado
+- [ ] Extrair relatório atual de recursos, incluindo DSPs, LUTs, FFs e BRAM
+- [ ] **Escrever seção do Paper 1:** Arquitetura sem multiplicadores no caminho ternário, 64 PEs e DMA, sem apresentar intenção como resultado
 
 ### Gildo (OS Infrastructure, Buildroot, Device Tree, NPU HAL, MicroSD & Physical Boot)
 - [ ] Gerar imagem final Buildroot (kernel 6.18.7 + OpenSBI 1.6 + RootFS com `npu-ternaria`, `npu-hal`, `user-app`)
@@ -157,7 +178,7 @@ aprovados. Não há inferência FPGA end-to-end nem benchmark CPU versus NPU com
 - [ ] **Escrever seção do Paper 1:** OS Infrastructure e NPU HAL (`libnpu_hal.a`)
 
 ### Gustavo (AI Pipeline, Weights, Golden Model, Driver, Cross-Compilation, Physical Validation & Results)
-- [X] Manter o pipeline de IA e validar a exportação de `weights.h`; modelo 784->256->128->64->10 treinado por 20 épocas com 97,27% de acurácia no teste MNIST
+- [ ] Manter o pipeline de IA e validar a exportação de `weights.h`; os símbolos FP32 atuais usam valores de fallback `0.01`/`0.1`, não parâmetros treinados validados
 - [ ] Manter regressão dos Golden Models C++ v1 (8/8) e v2 (21/21), além do diagnóstico Python (5/5)
 - [ ] Cross-compilar driver (`npu_driver.ko`) para RV32IMA
 - [ ] `insmod` do driver na FPGA Urbana física e verificar `/dev/npu_ternaria`

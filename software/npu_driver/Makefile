@@ -58,23 +58,35 @@ PWD                 := $(shell pwd)
 # Kernel module sources
 obj-m               += npu_driver.o
 
-# Compiler flags
+# Compiler flags. Aviso: kbuild moderno descarta "-I" e "-D" via EXTRA_CFLAGS,
+# entao o header npu_ioctl.h e copiado para o diretorio de build (ver `prep`),
+# espelhando o que o npu-ternaria.mk faz no sandbox do Buildroot.
 EXTRA_CFLAGS        += -DDEBUG
+EXTRA_CFLAGS        += -I$(PWD)
 
 # =============================================================================
 #  TARGETS
 # =============================================================================
 
-all: check
+all: check prep
 	@echo ">>> Building npu_driver.ko ..."
 	$(MAKE) -C $(KDIR) M=$(PWD) \
 		ARCH=$(ARCH) \
 		CROSS_COMPILE=$(CROSS_COMPILE) \
 		modules
 
+# Copia o header compartilhado para o diretorio de build (equivalente ao
+# NPU_TERNARIA_COPY_IOCTL_H do sandbox Buildroot) para o kbuild conseguir
+# resolve `#include "npu_ioctl.h"` sem necessidade de flags -I externas.
+prep: $(PWD)/npu_ioctl.h
+
+$(PWD)/npu_ioctl.h: $(PWD)/../include/npu_ioctl.h
+	cp $< $@
+
 clean:
 	$(MAKE) -C $(KDIR) M=$(PWD) clean 2>/dev/null || \
 		rm -f *.o *.ko *.mod.c *.mod *.order *.symvers .*.cmd
+	rm -f $(PWD)/npu_ioctl.h
 
 # ---------------------------------------------------------------------------
 #  Pre-build validation — fails early with actionable diagnostics.
@@ -122,4 +134,4 @@ check:
 	@echo "  All checks passed."
 	@echo ""
 
-.PHONY: all clean check
+.PHONY: all clean check prep

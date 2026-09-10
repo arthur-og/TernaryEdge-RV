@@ -33,7 +33,7 @@ from litex_boards.targets import realdigital_urbana
 # Constantes
 # -----------------------------------------------------------------------------
 NPU_BASE = 0x80000000
-NPU_SIZE = 0x10000   # 64 KB (espaço generoso para CSR + DMA scratch)
+NPU_SIZE = 0x10000   # 64 KiB reserved MMIO aperture; only the 17 ABI offsets ACK
 NPU_IRQ  = 10        # Linha de interrupção no PLIC
 
 NPU_RTL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "npu_rtl")
@@ -43,6 +43,7 @@ NPU_SOURCES = [
     "ternary_mac.v",
     "ternary_mac_array.v",
     "adder_tree_64.v",
+    "postprocess_unit.v",
     "wishbone_master.v",
     "npu_ternaria_top_v2.v",
 ]
@@ -89,6 +90,7 @@ class NPUTernariaV2(Module):
             i_wb_s_stb_i = wb_slave.stb,
             o_wb_s_dat_o = wb_slave.dat_r,
             o_wb_s_ack_o = wb_slave.ack,
+            o_wb_s_err_o = wb_slave.err,
 
             # ------------------------------------------------------------------
             # Wishbone Master Interface (NPU faz DMA na RAM)
@@ -99,11 +101,11 @@ class NPUTernariaV2(Module):
             o_wb_m_we_o  = wb_master.we,
             o_wb_m_cyc_o = wb_master.cyc,
             o_wb_m_stb_o = wb_master.stb,
-            o_wb_m_cti_o = wb_master.cti,   # Burst type
-            o_wb_m_bte_o = wb_master.bte,   # Burst type extension
+            o_wb_m_cti_o = wb_master.cti,   # Wishbone cycle type
+            o_wb_m_bte_o = wb_master.bte,   # Wishbone cycle extension
             i_wb_m_dat_i = wb_master.dat_r,
             i_wb_m_ack_i = wb_master.ack,
-            i_wb_m_err_i = 0,
+            i_wb_m_err_i = wb_master.err,
 
             # ------------------------------------------------------------------
             # Interrupção
@@ -139,7 +141,7 @@ class TernaryEdgeSoC(realdigital_urbana.BaseSoC):
         with_spi_flash = kwargs.pop("with_spi_flash", False)
 
         realdigital_urbana.BaseSoC.__init__(self,
-            sys_clk_freq    = 100e6,        # 100 MHz system clock
+            sys_clk_freq    = kwargs.pop("sys_clk_freq", 100e6),
             with_sdcard     = with_sdcard,   # SD nativo 4-bit (RootFS)
             with_spi_sdcard = with_spi_sdcard,
             with_spi_flash  = with_spi_flash,
@@ -176,7 +178,7 @@ class TernaryEdgeSoC(realdigital_urbana.BaseSoC):
         )
 
         # Conecta o Wishbone Master da NPU como mestre no crossbar
-        # (NPU faz burst reads/writes na RAM do sistema via DMA)
+        # (NPU acessa a RAM do sistema via Wishbone)
         self.bus.add_master(name="npu_dma", master=npu_master_if)
 
         # Conecta a interrupção IRQ 10
@@ -184,7 +186,6 @@ class TernaryEdgeSoC(realdigital_urbana.BaseSoC):
 
         print(f"[TernaryEdgeSoC] NPU v2 integrada em 0x{NPU_BASE:08X}, IRQ={NPU_IRQ}")
         print(f"[TernaryEdgeSoC] Fontes: {NPU_RTL_DIR}")
-        print(f"[TernaryEdgeSoC] 0 DSPs usados — multiplierless!")
 
 
 # -----------------------------------------------------------------------------
@@ -195,13 +196,16 @@ def main():
 
     parser = LiteXArgumentParser(
         platform    = realdigital_urbana.Platform,
-        description = "Ternary Edge-RV: VexRiscv + NPU v2 Multiplierless para Urbana Board")
+        description = "Ternary Edge-RV: VexRiscv + NPU v2 para Urbana Board")
     parser.add_target_argument("--flash", action="store_true", help="Flash bitstream.")
+    parser.add_target_argument("--sys-clk-freq", default=100e6, type=float,
+        help="System clock frequency in Hz (default: 100e6).")
 
     args = parser.parse_args()
 
     soc_kwargs = parser.soc_argdict
     soc_kwargs["toolchain"] = args.toolchain
+    soc_kwargs["sys_clk_freq"] = args.sys_clk_freq
 
     # Garante que a toolchain RV32 está disponível
     soc_kwargs["cpu_variant"] = "linux"

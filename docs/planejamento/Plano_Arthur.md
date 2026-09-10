@@ -1,8 +1,8 @@
 # Plano de Trabalho — Arthur Oliveira Gomes
 **Papel no Projeto:** Hardware Architecture & RTL Design (LiteX, Verilog, SoC Generation)
-**Última atualização:** 04/08/2026
+**Última atualização:** 24/08/2026
 
-> **Snapshot histórico:** este plano registra o escopo de Arthur em 04/08/2026. A organização operacional atual está em `docs/planejamento/direcionamento_pos_gilvan.md`. O alvo de 64 MACs, 0 DSPs, throughput e speedup depende de integração e síntese, e não deve ser tratado como resultado físico.
+> **Estado operacional:** este plano registra o trabalho RTL atual de Arthur. A organização operacional compartilhada está em `docs/planejamento/direcionamento_pos_gilvan.md`. As PEs ternárias evitam multiplicadores no caminho ternário, mas a requantização inclui intencionalmente um multiplicador geral com sinal. A utilização física de DSPs aguarda os relatórios Vivado atuais.
 
 ---
 
@@ -10,13 +10,13 @@
 
 | Marco | Previsão | Status |
 |:------|:---------|:-------|
-| M1 — SoC Base (VexRiscv + LiteX) gerado e sintetizado | Concluído | ✅ |
+| M1 — SoC Base (VexRiscv + LiteX) gerado, síntese histórica | Registro histórico | ✅ |
 | M2 — NPU v1 (PIO, 1 MAC, Wishbone Slave) funcional em simulação Verilator | Concluído | ✅ |
-| M3 — NPU v2 (alvo de 64 MACs, Wishbone Master DMA, Layer Sequencer) documentada | Concluído no snapshot | ✅ |
-| M3b — Golden Model C++ v2 validado (21/21 testes passando) | Concluído | ✅ |
-| M3c — `base_soc.py` preparado para RealDigital Urrbana | Concluído | ✅ |
-| M4 — SoC final + NPU v2 sintetizados na FPGA Urrbana, bitstream rodando | Ago/2026 — em andamento | ⏳ |
-| M5 — Relatório de síntese extraído e documentado, incluindo a verificação do alvo de 0 DSPs | Após M4 | ⏳ |
+| M3 — NPU v2, 64 PEs integradas, acumulador escalar, ativações bancadas e pós-processamento de três estágios | Concluído | ✅ |
+| M3b — Regressão RTL expandida, matriz de top com 16, 32 e 64 PEs | Concluído | ✅ |
+| M3c — `base_soc.py` com propagação de ERR Wishbone e checagem local de proveniência Urbana | Concluído | ✅ |
+| M4 — SoC final + NPU v2 sintetizados na FPGA Urbana, bitstream rodando | Pendente | ⏳ |
+| M5 — Gate de aceitação dos relatórios Vivado atuais, com recursos e timing | Após M4 | ⏳ |
 | M6 — Seção "Hardware" do Paper 1 escrita | Antes da submissão | ⏳ |
 
 ---
@@ -25,7 +25,7 @@
 
 - ✅ Definição do core VexRiscv (RV32IMA, variante linux)
 - ✅ Utilização do framework LiteX para gerar o SoC com barramento Wishbone, UART, temporizadores
-- ✅ Definição do mapa de memória base (0x40000000) e IRQ=10
+- ✅ Mapa congelado: DDR em `0x40000000`, NPU em `0x80000000` e IRQ 10
 - ✅ `base_soc.py` preparado para `realdigital_urbana` (importa `litex_boards.targets.realdigital_urbana`)
 - ✅ Device Tree `urrbana.dts` escrito para a RealDigital Urrbana (Spartan-7 XC7S50-CSGA324)
 - ✅ **FPGA recebida (ago/2026)** — RealDigital Urrbana. Síntese pendente.
@@ -39,111 +39,96 @@
 
 ## Fase 3 (Concluída): NPU v2 — Arquitetura de Produção
 
-### ✅ 3.1 — Alvo de Array de 64 MACs Paralelos
+### ✅ 3.1 — Array Integrado de 64 PEs e Árvore de Soma
 
-O design de referência é descrito em `ternary_mac_array.v` (64 instâncias de `ternary_mac`) + `adder_tree_64.v` (6 estágios pipeline, 63 adders). A integração e os recursos físicos dependem de execução e síntese.
+O RTL atual integra 64 PEs ternárias em `ternary_mac_array.v` e `adder_tree_64.v`, com árvore de soma pipeline. O acumulador de saída é escalar, as ativações usam bancos dedicados e o pós-processamento tem três estágios em `postprocess_unit.v`.
 
-- **Desempacotamento:** 4 words de 32 bits lidas simultaneamente → 64 pesos de 2 bits desempacotados
-- **Adder Tree:** 64 entradas de 9 bits → 15 bits de saída, 6 ciclos de latência pipeline
-- **WEIGHT_BRAM_DEPTH:** `npu_v2_pkg.v` define 12.288 palavras (384 Kb)
-- **Controle:** Layer Sequencer embutido no top v2
+- **Empacotamento:** cada word de 32 bits contém 16 pesos de 2 bits; a DMA sequencial carrega words em buffers locais packed
+- **Adder Tree:** 64 entradas agregadas em pipeline
+- **Buffers:** ativações em bancos locais ping-pong e pesos packed locais, sem afirmar uma profundidade BRAM removida do contrato
+- **Controle:** o controlador percorre a tabela de descritores fornecida pelo ABI
 
 ### ✅ 3.2 — Wishbone Master (DMA)
 
 Implementado em `wishbone_master.v` (Wishbone B4 Standard Master):
 
-- **Registradores de Configuração:** `DMA_SRC_ADDR`, `DMA_DST_ADDR`, `DMA_SIZE`, `WEIGHT_CFG`, `ACT_CFG`
-- **Burst Reads:** Incrementing burst (CTI=010), clássico handshake stb/ack
-- **Result Write-back:** Ao término, resultado escrito em `DMA_DST_ADDR` e IRQ disparada
-- **Error Handling:** Aborta e sinaliza erro via pino err_i
+- **ABI:** descritor canônico com 17 offsets MMIO de `0x00` a `0x40`, com até 8 descritores de camada
+- **Transferência:** DMA sequencial single-beat para buffers packed locais
+- **Tratamento de falhas:** `ERR` e timeout são latched e encerram a transferência
+- **Integração SoC:** `base_soc.py` propaga `ERR` do caminho Wishbone
 
-### ✅ 3.3 — Layer Sequencer
+### ✅ 3.3 — Controlador de descritores e camadas
 
-FSM de 10 estados integrada ao `npu_ternaria_top_v2.v`:
+O CPU fornece até 8 descritores no ABI canônico, e o controlador os processa
+sequencialmente. Os estados internos são detalhes de implementação, incluindo
+esperas de pós-processamento e tratamento de erro; o pacote atual os define
+de `0` a `19`, sem que essa enumeração seja um contrato externo.
 
-```
-IDLE → CFG_ACT → DMA_ACT → CFG_WEIGHT → DMA_WEIGHT → 
-  COMPUTE_BATCH → NEXT_OUTPUT → LAYER_DONE → NEXT_LAYER → DONE
-```
+### ✅ 3.4 — Regressão RTL atual
 
-- 3 layers hard-coded: 784→1024 (50.176 words), 1024→512 (32.768 words), 512→256 (8.192 words)
-- ~92K ciclos no modelo de referência para inferência completa com pesos zero; não é uma medida FPGA
+Os testes atuais cobrem as primitivas ternárias, pós-processamento, Wishbone e o top NPU. A matriz de top executa configurações de 16, 32 e 64 PEs, e a matriz de lint Verilator passa. `make test` executa apenas o Verilog atual.
 
-### ✅ 3.4 — Testbench Verilog, especificação histórica
+O registro histórico de 4/4 não é usado como evidência corrente.
 
-Documentado em `tb_npu_v2.v` (372 linhas):
+### ✅ 3.5 — STATUS Register
 
-1. Teste de escrita/leitura de registradores via Wishbone Slave
-2. Teste do STATUS register (idle, busy, irq bits)
-3. Teste de IRQ com timeout
-4. Teste de inferência com dados + verificação de resultado
-5. RAM externa simulada (262.144 words) respondendo ao Wishbone Master
-
-A execução do testbench está indisponível no shell atual. O registro histórico
-de 4/4 não é evidência corrente.
-
-### ✅ 3.5 — Alinhamento do STATUS Register
-
-| Fonte | `zero_counter` | Status |
-|:------|:---------------|:-------|
-| Verilog (`npu_v2_pkg.v` + `npu_ternaria_top_v2.v`) | bits `[15:8]` | ✅ |
-| C++ (`npu_sim_v2.cpp`) | bits `[15:8]` | ✅ Corrigido |
-| Driver (`npu_driver.c`) | bits `[15:8]` | ✅ Alinhado |
+O STATUS atual reporta a camada corrente nos bits `[15:8]`, além dos bits de
+busy, IRQ, done e error. Esse layout é o contrato vigente do RTL e do driver.
 
 ### ✅ 3.6 — Golden Model C++ v2, registro histórico
 
 Implementado em `npu_sim_v2.cpp` (477 linhas) + `demo_npu_v2.cpp` (257 linhas):
 
 - 6 testes de verificação, 21 checks individuais
-- Cobre no modelo host: registradores, STATUS layout, alvo de 64 MACs, zero-skipping, IRQ sync, layer sequencer
-- Todos passando
+- Cobre no modelo host: registradores, STATUS layout, referência de 64 PEs, zero-skipping, IRQ sync, layer sequencer
+- O resultado 21/21 é preservado como registro histórico do modelo host. A gate canônica de Arthur é a regressão RTL Icarus e a matriz de lint Verilator.
 
 ### ✅ 3.7 — Pacote de Definições Compartilhadas
 
-`npu_v2_pkg.v` (50 linhas) contém:
-- 10 registradores com `define REG_*`
-- `WEIGHT_BRAM_DEPTH`, `ACT_BRAM_DEPTH`, `NUM_MACS`
-- 10 estados da FSM (`ST_IDLE` a `ST_DONE`)
+`npu_v2_pkg.v` contém o contrato atual:
+- 17 offsets MMIO de `0x00` a `0x40`
+- `NPU_MAX_LAYERS=8` e `NPU_NUM_PES=64`
+- STATUS com camada nos bits `[15:8]`
+- Estados internos de `0` a `19`, incluindo `ST_POSTPROCESS_WAIT`, sem
+  enumerar uma FSM simplificada como ABI externo
 
 ---
 
 ## Fase 4 (Em Andamento): Síntese Física, Métricas e Paper
 
-A RealDigital Urbana chegou em agosto/2026. O caminho crítico do projeto depende agora exclusivamente da síntese FPGA + boot Linux real.
+A RealDigital Urbana chegou em agosto/2026. A implementação física, o boot Linux e a validação end-to-end continuam pendentes.
 
-### 4.1 — Síntese FPGA (Opção A ou B)
+### 4.1 — Síntese FPGA com Vivado
 
-O notebook do Arthur (i5-5200U, 8 GB RAM) comporta ambas as opções, mas com ressalvas.
+O notebook do Arthur (i5-5200U, 8 GB RAM) tem limitações para esta etapa pesada.
 
-**Opção A — Vivado Design Suite 2026.1 + Vivado Basic (Spartan-7 suportado)**
-- Prós: Integração LiteX perfeita, wizard completo
-- Contras: Instalação 30-70 GB, síntese usa 6-9 GB RAM (swap no note), requer licença Basic gratuita
-- Comando: `nix develop .#vivado` e depois `python3 base_soc.py --build --toolchain vivado`
+**Vivado Design Suite 2026.1 + Vivado Basic**
+- Shell puro Nix com wrapper em `nix/vivado.nix`
+- A forma de validação é `nix develop path:.#vivado`, pois `nix/vivado.nix` está atualmente não rastreado e ainda não foi incluído em commit
+- O build Vivado é uma etapa pesada executada pelo usuário, não uma gate leve do host
 
-**Opção B — openXC7 (recomendada para o note)**
-- Prós: ~600 MB total, usa 1-2 GB RAM, código open-source (ótimo para o paper)
-- Contras: Sem wizard, controle primitivos limitados (cativa para SoC LiteX padrão)
-- Ferramentas: `yosys synth_xilinx -arch xc7` → `nextpnr-xilinx --chipdb xc7s50csga324.bin` → `fasm2frames` → `xc7frames2bit` → `openFPGALoader`
-- Disponibilidade: `nixpkgs` tem `yosys`, `nextpnr-xilinx`, `openfpgaloader`. `prjxray-db` via `snap install openxc7`
+Os checks Nix e a checagem local de proveniência da Urbana já foram validados. Isso não substitui a execução Vivado atual.
 
 ### 4.2 — Validação pós-síntese
 
-- 【 】 Gate-level simulation do netlist pós-place-and-route usando `tb_npu_v2.v`
-- 【 】 Confirmar timing closure (target: 100 MHz no sistema, DDR3 é ponto crítico)
-- 【 】 Flash bitstream para a SPI flash (`--flash` ou `openFPGALoader --flash`)
+- 【 】 Executar o build Vivado atual
+- 【 】 Aceitar recursos e timing somente após `python3 hardware/litex_soc/check_vivado_reports.py`
+- 【 】 Confirmar timing closure e carregar o bitstream, sem tratar intenção como resultado
 
 ### 4.3 — Relatório de síntese (comprovação da tese)
 
-- 【 】 Extrair o relatório de recursos e verificar se o alvo de **0 DSPs** se confirma, junto com LUTs, FFs e BRAM utilizados
+- 【 】 Extrair o relatório de recursos atual, incluindo a utilização física de DSPs, LUTs, FFs e BRAM
 - 【 】 Comparar com SoC base sem NPU (delta LUTs/FFs/BRAM)
 - 【 】 Frequência máxima (Fmax) reportada
 - 【 】 Documentar em `docs/arquitetura/sintese_urbbana.md` (a criar)
 
+Relatórios Vivado históricos estão explicitamente rejeitados como evidência atual. O Tcl gerado omitia `postprocess_unit.v`, os artefatos são anteriores ao RTL atual, e registravam WNS de `-7.392 ns` e TNS de `-35888.277 ns`.
+
 ### 4.4 — Paper 1
 
 - 【 ] **Figura 1** (arquitetura do sistema) — diagrama de blocos TikZ ou gráfico vetorial
-- 【 ] **Figura 2** (NPU interna — 64 MAC array + adder tree + DMA + Layer Sequencer)
-- 【 ] **Figura 3** (FSM do Layer Sequencer — 10 estados)
+- 【 ] **Figura 2** (NPU interna, 64 PE array + adder tree + DMA + Layer Sequencer)
+- 【 ] **Figura 3** (controlador de descritores, pós-processamento e tratamento de erro)
 - 【 ] Escrever §III-A "Hardware: Multiplierless NPU" (esqueleto existe no `paper1_template.tex`)
 - 【 ] Revisar §III-B "Memory-Mapped Register Map" (tabela já está pronta, validar contra RTL)
 - 【 ] §II-A "Ternary Neural Networks" (registro de contribuição histórica de Gilvan; ownership atual conforme o direcionamento operacional)

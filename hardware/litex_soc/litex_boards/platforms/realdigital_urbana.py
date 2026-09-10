@@ -68,6 +68,9 @@ class Platform(Xilinx7SeriesPlatform):
             _io,
             toolchain=toolchain,
         )
+        self.add_platform_command(
+            "set_property INTERNAL_VREF 0.675 [get_iobanks 34]"
+        )
         if toolchain == "openxc7":
             # nextpnr-xilinx does not pack the VexRiscv cache's RAM256X1S,
             # and cannot legalise MUXF7/MUXF8 wide-mux chains on Spartan-7.

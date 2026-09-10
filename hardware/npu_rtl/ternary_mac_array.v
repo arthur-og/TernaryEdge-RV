@@ -1,51 +1,28 @@
 `timescale 1ns / 1ps
 
-/*
- * ternary_mac_array.v — 64× Parallel Multiplierless MAC Array
- * Ternary Edge-RV Project
- *
- * Instantiates 64 ternary_mac units operating in parallel.
- * Each MAC computes: partial[k] = act[k] × weight[k]
- *   weight=01 (+1): partial = +act
- *   weight=11 (-1): partial = -act
- *   weight=00 ( 0): partial = 0
- *
- * All 64 MACs fire simultaneously on the same clock cycle.
- * The partial results feed into an adder tree for summation.
- *
- * 0 DSPs used — purely adders, subtracters, and multiplexers.
- */
-
+/* Explicit 64-wide PE array.  Accumulation belongs after this array. */
 module ternary_mac_array #(
-    parameter NUM_MACS     = 64,
-    parameter ACT_WIDTH    = 8,
-    parameter ACC_WIDTH    = 32
-)(
-    input  wire                        clk,
-    input  wire                        rst,
-    input  wire                        en,         // Enable all MACs
-    input  wire                        clear,      // Clear all accumulators
-    input  wire [NUM_MACS*ACT_WIDTH-1:0] acts,     // 64 × INT8 activations
-    input  wire [NUM_MACS*2-1:0]        weights,   // 64 × 2-bit ternary weights
-    output wire [NUM_MACS*ACC_WIDTH-1:0] acc_outs  // 64 × 32-bit accumulated results
+    parameter NUM_MACS  = 64,
+    parameter ACT_WIDTH = 8,
+    parameter PROD_WIDTH = ACT_WIDTH + 1
+) (
+    input  wire [NUM_MACS*ACT_WIDTH-1:0]  acts,
+    input  wire [NUM_MACS*2-1:0]           weights,
+    output wire [NUM_MACS*PROD_WIDTH-1:0] products,
+    output wire [NUM_MACS-1:0]             invalid_weights
 );
-
-    genvar k;
+    genvar lane;
     generate
-        for (k = 0; k < NUM_MACS; k = k + 1) begin : gen_mac
+        for (lane = 0; lane < NUM_MACS; lane = lane + 1) begin : gen_pe
             ternary_mac #(
                 .ACT_WIDTH(ACT_WIDTH),
-                .ACC_WIDTH(ACC_WIDTH)
-            ) u_mac (
-                .clk     (clk),
-                .rst     (rst),
-                .en      (en),
-                .clear   (clear),
-                .act_in  (acts[k*ACT_WIDTH +: ACT_WIDTH]),
-                .weight  (weights[k*2 +: 2]),
-                .acc_out (acc_outs[k*ACC_WIDTH +: ACC_WIDTH])
+                .PROD_WIDTH(PROD_WIDTH)
+            ) u_pe (
+                .act_in        (acts[lane*ACT_WIDTH +: ACT_WIDTH]),
+                .weight        (weights[lane*2 +: 2]),
+                .product       (products[lane*PROD_WIDTH +: PROD_WIDTH]),
+                .invalid_weight(invalid_weights[lane])
             );
         end
     endgenerate
-
 endmodule
