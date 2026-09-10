@@ -99,7 +99,7 @@ physical implementation.
 *   **Gildo (HAL):** `npu_result_t` must capture:
   1. `time_copy_us`: Time to copy image → DMA buffer
   2. `time_npu_us`: Time waiting for the NPU IRQ (pure hardware compute)
-  3. `time_output_us`: Time for CPU output layer (256→10)
+  3. `time_output_us`: Time for CPU output layer (64→10)
   4. `time_total_us`: Wall clock from start to finish
 
 ---
@@ -186,13 +186,13 @@ Layer and tile flow:
 
 **Rationale:** The NPU v2 PE path is purely ternary and multiplierless. Its
 fixed-point postprocessor intentionally includes a signed integer multiplier,
-but the documented software flow keeps the final `256->10` FP32 layer and
+but the documented software flow keeps the final `64->10` FP32 layer and
 softmax on the CPU. The HAL encapsulates:
 
 1. **Device initialization** (`npu_init`): opens `/dev/npu_ternaria`, mmaps DMA buffer
 2. **Weight loading** (`npu_load_weights`): copies ternary weights from `weights.h` to DMA
 3. **Inference** (`npu_predict`): copies input image, triggers ioctl, reads NPU output
-4. **Output layer** (internal): runs 256->10 FP32 classification on CPU via `classifier_run()`
+4. **Output layer** (internal): runs 64->10 FP32 classification on CPU via `classifier_run()`
 5. **Batch inference** (`npu_predict_batch`): repeats predict for N images
 
 ### DMA Buffer Layout
@@ -213,17 +213,17 @@ softmax on the CPU. The HAL encapsulates:
 
 ## 10. NPU Classifier (CPU Fallback)
 
-**Decision:** The output layer (256→10) runs on the CPU, not the NPU.
+**Decision:** The output layer (64→10) runs on the CPU, not the NPU.
 
 **Justification:** The NPU v2 has no FP32 multiplier. A historical host-side comparison of a ternary output layer (Opção A) reported accuracy below 90%. The adopted design (Opção B) targets 3 ternary layers in the NPU and CPU execution for the final FP32 classification.
 
 ```
-NPU output: 256 × int32 (accumulated ternary products)
+NPU output: 64 × int32 (accumulated ternary products)
     │
     ▼
 Classifier (CPU):
   for each class c (0..9):
-    score[c] = bias[c] + Σ(i=0..255) npu_output[i] × output_weights[c][i]
+    score[c] = bias[c] + Σ(i=0..63) npu_output[i] × output_weights[c][i]
   predicted = argmax(score)
   confidence = softmax(score)
 ```

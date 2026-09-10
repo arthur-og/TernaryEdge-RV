@@ -86,7 +86,7 @@ Este snapshot registrava a chegada da RealDigital Urrbana em agosto/2026 e atrib
 - Python AI pipeline: 5/5 checks.
 - IOCTL ABI: check aprovado.
 - Verilog testbench: indisponível no shell atual; o registro histórico 4/4 permanece apenas como histórico.
-- `weights.h`: símbolos FP32 presentes, com valores de fallback `0.01`/`0.1` não validados como parâmetros treinados.
+- `weights.h`: o header atual contém pesos ternários e parâmetros FP32 exportados do modelo QAT 784->256->128->64->10 treinado.
 
 A lista de tarefas abaixo é preservada como registro do plano antigo de Gilvan.
 A execução operacional corrente pertence a Gustavo, com apoio de Arthur e

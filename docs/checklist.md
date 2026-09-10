@@ -119,7 +119,7 @@ omitia `postprocess_unit.v`, os artefatos precedem o RTL atual, WNS era
 
 ### NPU Classifier (CONCLUÍDO ✅)
 - [X] `software/npu_hal/npu_classifier.h`: API classifier_run, argmax, softmax
-- [X] `software/npu_hal/npu_classifier.c`: Output layer 256->10 FP32 CPU
+- [X] `software/npu_hal/npu_classifier.c`: Output layer 64->10 FP32 CPU
 
 ### NPU Weights (CONCLUÍDO ✅)
 - [X] `software/npu_hal/npu_weights.h`: API para carregar pesos no DMA

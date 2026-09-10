@@ -115,11 +115,10 @@ nix develop .#ai
 python3 ai_training/scripts/run_pipeline.py --epochs 20
 ```
 
-Check that the generated header exists at
-`software/user_app/weights.h`. The current header has the FP32 symbols expected
-by the HAL, but its fallback values, including `0.01` and `0.1`, are not
-validated trained parameters. Gustavo owns this export and contract check.
-Resolve the parameter validation gap before claiming end-to-end inference.
+Check that the generated header exists at `software/user_app/weights.h`. The
+reduced model contract is `784->256->128->64->10`, with per-layer INT32
+bias/scale arrays and trained FP32 output parameters. Gustavo owns this export
+and contract check. End-to-end physical inference remains a separate gate.
 
 ### 3.3 Buildroot Linux image
 

@@ -115,7 +115,9 @@ npu_result_t npu_predict(npu_ctx_t *ctx, const uint8_t *image) {
   gettimeofday(&t2, NULL);
   result.time_npu_us = elapsed_us(&t1, &t2);
   output = (int32_t *)((uint8_t *)ctx->dma_buffer + ioctl_args.output_offset);
-  classifier_run((const float (*)[256])weights_get_output(), weights_get_bias(), output,
+  classifier_run(
+      (const float (*)[NPU_CLASSIFIER_INPUTS])weights_get_output(),
+      weights_get_bias(), output,
                 result.logits, result.scores, &result.confidence,
                 &result.predicted_class);
   gettimeofday(&t3, NULL);

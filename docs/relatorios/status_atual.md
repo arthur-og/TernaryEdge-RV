@@ -8,7 +8,7 @@
 
 O projeto está em **Fase 4, deploy físico e Paper 1**. O RTL atual de Arthur integra 64 PEs ternárias, árvore registrada 64->1, acumulador escalar INT32, ativações bancadas, pós-processamento de três estágios, DMA Wishbone Classic single-beat com `CTI=000`, `BTE=00`, `ERR` downstream e timeout de 256 ciclos, ABI canônico de 17 offsets `0x00..0x40` e até 8 descritores software-programáveis.
 
-**Evidência canônica atual:** os testes Icarus focados e a matriz de top com 16, 32 e 64 PEs passam, incluindo a regressão de produção `784->1024->512->256` com pesos não uniformes na última linha: outputs 0..254 iguais a `65024` e output 255 igual a `-65024`. A matriz de lint Verilator, a síntese genérica Yosys e `synth_matrix` também passam. Os testes de contrato da apresentação passam em 11/11 e os testes unitários do report-gate passam em 12/12. Os resultados físicos Vivado continuam pendentes.
+**Evidência canônica atual:** os testes Icarus focados e a matriz de top com 16, 32 e 64 PEs passam. A matriz de lint Verilator, a síntese genérica Yosys e `synth_matrix` também passam. O contrato de modelo reduzido é `784->256->128->64->10`; os resultados físicos Vivado continuam pendentes.
 
 **Mapa congelado:** DDR em `0x40000000`, janela NPU de 64 KiB em `0x80000000`, IRQ 10. Somente os 17 offsets `0x00..0x40` são válidos; os demais retornam `ERR`. As PEs ternárias evitam multiplicadores no caminho ternário, mas a requantização inclui intencionalmente um multiplicador geral com sinal. A utilização física de DSPs aguarda os relatórios Vivado atuais.
 
@@ -83,7 +83,7 @@ incluindo boot Linux, IRQ, DMA, benchmark ou medição de desempenho.
 | **NPU HAL — API pública** | ✅ `software/npu_hal/npu_hal.h` (20 linhas) | init, load_weights, predict, batch, deinit, print_result |
 | **NPU HAL — Implementação** | ✅ `software/npu_hal/npu_hal.c` (115 linhas) | open, mmap, ioctl, output layer CPU, timing segregado |
 | **NPU HAL — Estruturas internas** | ✅ `software/npu_hal/npu_hal_internal.h` (21 linhas) | `npu_ctx_t`, `npu_result_t` |
-| **NPU Classifier** | ✅ `software/npu_hal/npu_classifier.c` (28 linhas) | Output layer 256→10 FP32 + argmax + softmax |
+| **NPU Classifier** | ✅ `software/npu_hal/npu_classifier.c` | Output layer 64→10 FP32 + argmax + softmax |
 | **NPU Weights Loader** | ✅ `software/npu_hal/npu_weights.c` (32 linhas) | Carrega 3 layers ternários + FP32 output para DMA |
 | **Buildroot package npu-ternaria** | ✅ `software/os_buildroot/package/npu-ternaria/` | Kernel module package |
 | **Buildroot package npu-hal** | ✅ `software/os_buildroot/package/npu-hal/` | Biblioteca estática `libnpu_hal.a` |
@@ -135,7 +135,7 @@ incluindo boot Linux, IRQ, DMA, benchmark ou medição de desempenho.
 | Tarefa | Status | Detalhes |
 |--------|--------|----------|
 | Ambiente Python + Larq | ✅ | TensorFlow + Larq |
-| Modelo QAT (3 layers ternárias) | ✅ | 784→1024→512→256 |
+| Modelo QAT (3 layers ternárias) | ✅ | 784→256→128→64 |
 | Sparsity L1 | ✅ | Regularização forcing zeros |
 | Fake Quant INT8 entre layers | ✅ | `fake_quant_with_min_max_args(min=0, max=127, num_bits=8)` |
 | Acurácia >95% | ✅ | Validado |

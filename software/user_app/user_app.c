@@ -46,18 +46,18 @@ static int load_mnist_image(const char *path, uint8_t *image)
 {
     FILE *f = fopen(path, "rb");
     if (!f) return -1;
-    size_t r = fread(image, 1, 784, f);
+    size_t r = fread(image, 1, QUANT_DENSE_IN, f);
     fclose(f);
-    return r == 784 ? 0 : -1;
+    return r == QUANT_DENSE_IN ? 0 : -1;
 }
 
 static void run_cpu_baseline(const uint8_t *image)
 {
-    int8_t layer0_out[1024];
-    int8_t layer1_out[512];
-    int8_t layer2_out[256];
-    int32_t classifier_input[256];
-    int8_t signed_image[784];
+    int8_t layer0_out[QUANT_DENSE_OUT];
+    int8_t layer1_out[QUANT_DENSE_1_OUT];
+    int8_t layer2_out[QUANT_DENSE_2_OUT];
+    int32_t classifier_input[NPU_CLASSIFIER_INPUTS];
+    int8_t signed_image[QUANT_DENSE_IN];
     float logits[10];
     float scores[10];
     float confidence;
@@ -74,23 +74,26 @@ static void run_cpu_baseline(const uint8_t *image)
 
     printf("CPU mode: running ternary baseline + classifier...\n");
 
-    for (int i = 0; i < 784; i++)
+    for (int i = 0; i < QUANT_DENSE_IN; i++)
         signed_image[i] = (int8_t)image[i];
 
     forward_ternary_layer(layer0_out, signed_image,
-                          quant_dense_weights, layer0_bias, 784, 1024, 1);
+                          quant_dense_weights, layer0_bias,
+                          QUANT_DENSE_IN, QUANT_DENSE_OUT, 1);
 
     forward_ternary_layer(layer1_out, layer0_out,
-                          quant_dense_1_weights, layer1_bias, 1024, 512, 1);
+                          quant_dense_1_weights, layer1_bias,
+                          QUANT_DENSE_1_IN, QUANT_DENSE_1_OUT, 1);
 
     forward_ternary_layer(layer2_out, layer1_out,
-                          quant_dense_2_weights, layer2_bias, 512, 256, 1);
+                          quant_dense_2_weights, layer2_bias,
+                          QUANT_DENSE_2_IN, QUANT_DENSE_2_OUT, 0);
 
-    for (int i = 0; i < 256; i++)
+    for (int i = 0; i < NPU_CLASSIFIER_INPUTS; i++)
         classifier_input[i] = layer2_out[i];
 
     classifier_run(
-        (const float (*)[256])weights_get_output(),
+        (const float (*)[NPU_CLASSIFIER_INPUTS])weights_get_output(),
         weights_get_bias(),
         classifier_input,
         logits, scores, &confidence, &predicted
@@ -105,7 +108,7 @@ int main(int argc, char **argv)
     int cpu_mode = 0;
     int batch_size = 1;
     const char *file_path = NULL;
-    uint8_t image[784];
+    uint8_t image[QUANT_DENSE_IN];
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--cpu") == 0)
@@ -122,7 +125,7 @@ int main(int argc, char **argv)
             return EXIT_FAILURE;
         }
     } else {
-        for (int i = 0; i < 784; i++)
+        for (int i = 0; i < QUANT_DENSE_IN; i++)
             image[i] = (uint8_t)((i * 13 + 7) % 128);
     }
 

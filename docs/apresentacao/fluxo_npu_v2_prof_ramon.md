@@ -113,9 +113,9 @@ Cada `uint32_t` carrega 16 pesos. O peso de índice zero ocupa os bits menos sig
 
 | Camada | Entrada | Saída | Words de pesos | Words por neurônio |
 |---:|---:|---:|---:|---:|
-| 0 | 784 | 1024 | 50176 | 49 |
-| 1 | 1024 | 512 | 32768 | 64 |
-| 2 | 512 | 256 | 8192 | 32 |
+| 0 | 784 | 256 | 12544 | 49 |
+| 1 | 256 | 128 | 2048 | 16 |
+| 2 | 128 | 64 | 512 | 8 |
 
 Esses números descrevem dimensões e quantidade de dados a mover. São **contagens de workload**, não uma promessa de ciclos, frequência efetiva, throughput ou latência.
 
@@ -163,7 +163,7 @@ O top-level possui uma única saída `irq_out`, ligada à IRQ 10 no contrato Lit
 
 ### 7.1 O modelo treinado
 
-`train_qat_mnist.py` define três blocos `QuantDense` com dimensões 784->1024, 1024->512 e 512->256. Entre eles há `BatchNormalization`, `ReLU` e `fake_quant` em 8 bits no intervalo 0..127. A rede termina com `Dense(10, activation="softmax")`.
+`train_qat_mnist.py` define três blocos `QuantDense` com dimensões 784->256, 256->128 e 128->64. Entre eles há `BatchNormalization`, `ReLU` e `fake_quant` em 8 bits no intervalo 0..127. A rede termina com `Dense(10, activation="softmax")`.
 
 Esse é o modelo de treinamento. O RTL atual implementa o pós-processamento fixed-point necessário ao caminho de camadas; a correspondência completa com parâmetros exportados, HAL e aplicação ainda depende de validação end-to-end.
 
@@ -173,10 +173,10 @@ Esse é o modelo de treinamento. O RTL atual implementa o pós-processamento fix
 
 | Array | Dimensão | Faixa inicial no header |
 |---|---:|---:|
-| `quant_dense_weights` | 50176 words | `weights.h:9-50193` |
-| `quant_dense_1_weights` | 32768 words | `weights.h:50194-82968` |
-| `quant_dense_2_weights` | 8192 words | `weights.h:82969-91169` |
-| `output_weights` | 2560 FP32 symbols | presentes no header com valor fallback `0.01`; parâmetros treinados não validados |
+| `quant_dense_weights` | 12544 words | presentes no header |
+| `quant_dense_1_weights` | 2048 words | presentes no header |
+| `quant_dense_2_weights` | 512 words | presentes no header |
+| `output_weights` | 640 FP32 symbols | parâmetros treinados exportados |
 | `output_bias` | 10 FP32 symbols | presentes no header com valor fallback `0.1`; parâmetros treinados não validados |
 
 Não há arrays de parâmetros de BatchNorm no header consultado. Os símbolos de saída FP32 existem, mas os valores `0.01`/`0.1` são fallback e não parâmetros treinados validados. Ao mesmo tempo, `npu_weights.c` tenta copiar `output_weights` e `output_bias` para a DMA. Essa diferença precisa ser resolvida antes de uma compilação e de uma inferência ponta a ponta confiáveis.
@@ -186,7 +186,7 @@ Não há arrays de parâmetros de BatchNorm no header consultado. Os símbolos d
 - O ioctl carrega offsets em bytes e oito descritores completos; o driver valida dimensões, alinhamento, footprints de pesos e compatibilidade entre camadas antes de programar o ABI MMIO.
 - O RTL aplica bias, signed-scale, round/shift, clamp e saturação em seis estágios registrados e alterna os buffers bancados de ativações entre descritores. A ReLU é aplicada nas camadas ocultas; a normalização explícita da entrada e a classificação final permanecem no software.
 - O exportador atual deve fornecer bias INT32 e multiplicadores por camada para que o pós-processamento use parâmetros treinados; a fixture versionada sem esses arrays usa bias zero e escala identidade.
-- A camada final `256→10` e softmax continuam no classificador CPU documentado; seus parâmetros treinados e o caminho físico ainda não foram validados.
+- A camada final `64→10` e softmax continuam no classificador CPU documentado; seus parâmetros treinados e o caminho físico ainda não foram validados.
 
 Portanto, é preciso separar o pós-processamento implementado no RTL do contrato completo de modelo e software: a presença do pipeline hardware não comprova que os pesos exportados e o fluxo físico reproduzem o modelo treinado.
 

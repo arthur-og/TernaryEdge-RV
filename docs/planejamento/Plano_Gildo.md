@@ -12,7 +12,7 @@
 
 **Quanto menos complexa a NPU (puramente ternária, sem FP32), mais complexo o software que a completa.**
 
-A NPU v2 tem como alvo executar 3 camadas de MACs ternários {+1,0,-1} em hardware, ainda sem validação FPGA end-to-end. Toda a lógica de **classificação final** (256→10 com pesos FP32, softmax, argmax), **gerenciamento de pesos** e **abstração da HAL** é responsabilidade do software, e este é o seu domínio.
+A NPU v2 tem como alvo executar 3 camadas de MACs ternários {+1,0,-1} em hardware, ainda sem validação FPGA end-to-end. Toda a lógica de **classificação final** (64→10 com pesos FP32, softmax, argmax), **gerenciamento de pesos** e **abstração da HAL** é responsabilidade do software, e este é o seu domínio.
 
 Você constrói a ponte entre o hardware especializado e o usuário final.
 
@@ -109,8 +109,8 @@ Entregue em `software/user_app/user_app.c` (133 linhas):
 ### 3.7 — Pesos (weights.h) ✅
 
 - Registro histórico de `weights.h` com 91.169 linhas, gerado pelo pipeline histórico de Gilvan
-- O header atual contém os símbolos FP32, mas os valores de fallback `0.01`/`0.1` não são parâmetros treinados validados; Gustavo mantém a exportação e o contrato
-- `weights.h` configunrado no `.gitignore` em produces do pipeline
+- O header atual contém pesos ternários e parâmetros FP32 exportados do modelo QAT 784->256->128->64->10 treinado; Gustavo mantém a exportação e o contrato
+- `weights.h` versionado como artefato de integração produzido pelo pipeline
 
 ## Fase 4 (Em Andamento): Deploy Físico e Paper
 

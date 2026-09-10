@@ -35,8 +35,8 @@ The FP32 symbols required by `software/npu_hal/npu_weights.c` are:
 - `output_weights`
 - `output_bias`
 
-The checker validates the contractual counts: `50176`,
-`32768`, `8192`, `2560`, and `10`.
+The generated-header contract for the reduced model is `12544`, `2048`,
+`512`, `640`, and `10`.
 
 The target checks declarations and counts only. It does not claim that fallback
 values are trained model values, and it does not fabricate model data.

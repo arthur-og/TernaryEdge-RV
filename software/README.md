@@ -27,7 +27,7 @@ user_app (inference + benchmark)
     |
     v  (uses)
 NPU HAL (npu_init -> npu_predict -> npu_deinit)
-    |  |- npu_classifier (256->10 output layer)
+    |  |- npu_classifier (64->10 output layer)
     |  |- npu_weights    (weight loading)
     |
     v  (ioctl / mmap)
@@ -43,10 +43,9 @@ software-programmed descriptors, and 17 MMIO offsets from `0x00` through
 `0x40`. Its bounded single-beat Wishbone Classic DMA uses `CTI=000`,
 `BTE=00`, downstream `ERR`, and a 256-cycle timeout. Focused
 Icarus tests and the 16/32/64-PE matrix pass, including a production-sized
-`784->1024->512->256` regression with nonuniform high-row weights: outputs
-0..254 equal `65024`, while output 255 equals `-65024`. Verilator lint, generic
-Yosys synthesis and `synth_matrix` pass, and
-the report-gate unit tests pass 12/12.
+Descriptor-chain regression and the 16/32/64-PE matrix pass. The AI model
+contract is `784->256->128->64->10`. Verilator lint, generic Yosys synthesis
+and `synth_matrix` pass, and the report-gate unit tests pass.
 
 The native HAL and user-app compilation status is host-only source and API
 evidence, separate from the unverified RV32 cross-build and physical FPGA

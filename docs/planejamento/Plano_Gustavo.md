@@ -94,8 +94,8 @@ A RealDigital Urrbana (Spartan-7 XC7S50-CSGA324) foi recebida em agosto/2026. S�
 - C++ Golden Model v2: 21/21 checks.
 - Python AI pipeline: 5/5 checks.
 - IOCTL ABI: check aprovado.
-- Verilog testbench: indisponível no shell atual; o registro histórico 4/4 não é uma execução corrente.
-- `weights.h`: símbolos FP32 presentes, com valores de fallback `0.01`/`0.1` não validados como parâmetros treinados.
+- Verilog testbench: quatro grupos aprovados no shell Nix para as dimensões reduzidas.
+- `weights.h`: pesos ternários e parâmetros FP32 exportados do modelo QAT 784->256->128->64->10 treinado.
 
 O alvo de 64 MACs, 0 DSPs, throughput e speedup permanece intenção de projeto
 ou depende de síntese e medição. Não há resultado físico comprovado.

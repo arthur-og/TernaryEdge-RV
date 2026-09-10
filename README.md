@@ -25,10 +25,10 @@ Raw hardware and a general-purpose OS address different requirements in IoT and 
 
 ### Key Innovations
 * **Multiplierless Hardware:** The source-level design and host-side model use addition, subtraction, multiplexing, and zero-skipping for ternary operations. Physical DSP utilization awaits synthesis and a resource report.
-* **NPU HAL Layer:** A source-level Hardware Abstraction Layer bridging the kernel driver and user application. The current contract assigns three ternary layers to the NPU and a `256->10` FP32 output classifier to the CPU; trained-header and physical-path validation remain pending.
+* **NPU HAL Layer:** A source-level Hardware Abstraction Layer bridging the kernel driver and user application. The current contract assigns three ternary layers to the NPU and a `64->10` FP32 output classifier to the CPU; trained-header and physical-path validation remain pending.
 * **Custom Linux Kernel Driver:** Source-level User-Space to Kernel-Space interfaces use custom `.ko` modules, MMIO, and an IRQ path. Physical interrupt behavior and any reduction in CPU polling remain unverified.
 * **Benchmarking Plan:** `<sys/time.h>` profiling and CPU versus NPU comparison paths are documented, but latency, throughput, power, and energy results await a validated physical run.
-* **Automated AI Pipeline:** A Python-based QAT pipeline packs 2-bit ternary weights into 32-bit headers. Gustavo owns its current maintenance and the `weights.h` contract. The current header contains the FP32 symbols, but its fallback values, including `0.01` and `0.1`, are not validated trained parameters.
+* **Automated AI Pipeline:** A Python-based QAT pipeline packs 2-bit ternary weights into 32-bit headers. Gustavo owns its current maintenance and the `weights.h` contract. The current header contains the reduced trained `784->256->128->64->10` model and per-layer quantization parameters.
 
 ---
 
@@ -59,7 +59,7 @@ graph TD
 
 ### Why a HAL?
 
-The source-level NPU v2 computes ternary {+1, 0, -1} × INT8 operations in its PE path. The final classification layer (256→10) is documented as requiring FP32 weights and softmax on the CPU. The HAL exposes the `npu_init()` → `npu_predict()` → `npu_deinit()` interface, but its end-to-end contract with the exported weights and data transforms remains incomplete.
+The source-level NPU v2 computes ternary {+1, 0, -1} × INT8 operations in its PE path. The final classification layer (64→10) is documented as requiring FP32 weights and softmax on the CPU. The HAL exposes the `npu_init()` → `npu_predict()` → `npu_deinit()` interface, but its end-to-end contract with the exported weights and data transforms remains incomplete.
 
 ### Address and Evidence Boundary
 
@@ -94,7 +94,7 @@ TernaryEdge-RV/
 
 The current evidence boundary and active post-Gilvan organization are documented in [`docs/planejamento/direcionamento_pos_gilvan.md`](docs/planejamento/direcionamento_pos_gilvan.md). The four-author Paper 1 list remains unchanged and in the order Arthur, Gildo, Gustavo, Gilvan.
 
-Current canonical host evidence includes focused Icarus tests and the 16/32/64-PE matrix passing, including a production-sized `784->1024->512->256` regression with nonuniform high-row weights: outputs 0..254 equal `65024`, while output 255 equals `-65024`. The Verilator lint matrix, generic Yosys synthesis and `synth_matrix`, presentation contract tests (11/11), and report-gate unit tests (12/12) also pass. C++ v2's 21/21 result is historical and secondary, not canonical proof. Vivado resources and timing, bitstream and board behavior, Linux boot, physical IRQ/DMA, trained-model inference, accuracy, latency, throughput, benchmarks, power, and energy remain pending.
+Current canonical host evidence includes focused Icarus tests and the 16/32/64-PE matrix passing. The reduced QAT model contract is `784->256->128->64->10`; trained-model and physical-path validation remain separate gates. The Verilator lint matrix, generic Yosys synthesis and `synth_matrix`, presentation contract tests, and report-gate unit tests also pass. C++ v2's 21/21 result is historical and secondary, not canonical proof. Vivado resources and timing, bitstream and board behavior, Linux boot, physical IRQ/DMA, trained-model inference, accuracy, latency, throughput, benchmarks, power, and energy remain pending.
 
 | Domain | Active Operational Ownership | Current Status & Evidence |
 |:-------|:-----------------------------|:--------------------------|
@@ -107,13 +107,13 @@ Current canonical host evidence includes focused Icarus tests and the 16/32/64-P
 - ✅ **Phase 1 design record:** The frozen current contract is DDR `0x40000000`, NPU MMIO `0x80000000`, and IRQ 10. Physical cross-layer integration remains pending.
 - ✅ **Phase 2:** `ternary_mac.v` multiplierless MAC, `npu_ternaria_top.v` v1 (Wishbone slave + FSM + IRQ).
 - ✅ **Phase 3 canonical RTL:** NPU v2 integrates 64 ternary PEs (`ternary_mac_array.v`), a registered 64-to-1 tree (`adder_tree_64.v`), a scalar INT32 accumulator, banked activation buffers, a three-stage postprocessor, bounded single-beat Wishbone Classic DMA (`wishbone_master.v`), and a sequencer for up to eight software-programmed descriptors. Host evidence passes for focused Icarus tests, the 16/32/64-PE matrix, Verilator lint, and generic Yosys synthesis/check.
-- ✅ **Current host regression:** The production-sized `784->1024->512->256` chain passes at 16, 32, and 64 PEs; outputs 0..254 equal `65024`, and the nonuniform final row produces `-65024` at output 255.
+- ✅ **Current host regression:** Canonical RTL tests pass at 16, 32, and 64 PEs. The reduced model contract is `784->256->128->64`, with model accuracy validated separately by the AI pipeline.
 - ⏳ **Physical validation:** Vivado resource and timing reports, bitstream generation and loading, board behavior, Linux boot, and physical IRQ/DMA remain pending.
 
 ### Gildo (OS Infrastructure & HAL): Buildroot, Device Tree, HAL, Classifier & Linux Boot
 - ✅ **Infrastructure & Buildroot:** RV32IMA defconfig, toolchain via `make sdk`, QEMU boot validation.
 - ✅ **Device Tree & Config:** `urrbana.dts` target Device Tree, `CONFIG_HIGH_RES_TIMERS=y`, FAT32/ext4 RootFS support.
-- ✅ **NPU HAL & Classifier (`libnpu_hal.a`):** `npu_hal.c`, `npu_classifier.c` (FP32 CPU fallback for 256->10 output layer), `npu_weights.c`.
+- ✅ **NPU HAL & Classifier (`libnpu_hal.a`):** `npu_hal.c`, `npu_classifier.c` (FP32 CPU fallback for 64->10 output layer), `npu_weights.c`.
 - ✅ **Packages & Application:** Buildroot packages (`npu-ternaria`, `npu-hal`, `user-app`), `user_app.c` refactored with `--cpu`, `--file`, `--batch` flags.
 - ⏳ **Phase 4 Deployment (17/08/2026):** MicroSD card preparation, final Buildroot image compilation (kernel 6.18.7 + OpenSBI 1.6 + RootFS), Linux physical boot on Urbana board.
 
@@ -159,7 +159,7 @@ user_app (inference + benchmark)
     │
     ▼  (uses)
 NPU HAL (npu_init → npu_predict → npu_deinit)
-    │  └─ npu_classifier (256→10 output layer)
+    │  └─ npu_classifier (64→10 output layer)
     │  └─ npu_weights (weight loading)
     │
     ▼  (ioctl / mmap)
@@ -180,10 +180,10 @@ python3 scripts/run_pipeline.py
 ```
 
 The pipeline is intended to generate `weights.h` for the NPU HAL, but the HAL/weights contract is incomplete and requires end-to-end validation:
-- `quant_dense_weights[50176]`: Layer 0 (784->1024)
-- `quant_dense_1_weights[32768]`: Layer 1 (1024->512)
-- `quant_dense_2_weights[8192]`: Layer 2 (512->256)
-- `output_weights[2560]`: Output layer FP32 symbol present in the current header, but fallback values are not validated trained parameters
+- `quant_dense_weights[12544]`: Layer 0 (784->256)
+- `quant_dense_1_weights[2048]`: Layer 1 (256->128)
+- `quant_dense_2_weights[512]`: Layer 2 (128->64)
+- `output_weights[640]`: Output layer FP32 weights (64 x 10)
 - `output_bias[10]`: Output layer bias symbol present in the current header, but fallback values are not validated trained parameters
 
 ---
