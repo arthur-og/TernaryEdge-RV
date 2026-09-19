@@ -150,7 +150,8 @@
               "tensorflow>=2.17,<2.18" \
               "tf-keras>=2.17,<2.18" \
               "larq>=0.13,<0.14" \
-              "numpy<2"
+              "numpy<2" \
+              "matplotlib,<3.10.9"
 
             echo "AI environment installed in $venv"
           '';

@@ -1,5 +1,7 @@
 ai_training/.venv/
 __pycache__/
+MNIST/ 
+ai/MNIST/
 *.pyc
 *.h5
 *.keras
