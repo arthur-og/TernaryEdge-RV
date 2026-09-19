@@ -1,4 +1,4 @@
-from train import load_minist_ds, ds_view_label, load_minist_ds, train
+from train import load_mnist_ds, ds_view_label, train
 from model import Model
 
 
@@ -10,7 +10,7 @@ def main() -> None:
     print(model)
 
     print("Loading Mnist dataset...")
-    dataset = load_minist_ds()
+    dataset = load_mnist_ds()
 
     print("Viewing labels:")
     max_range = 3
